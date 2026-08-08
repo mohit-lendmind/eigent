@@ -10,5 +10,6 @@ fixture added upstream fails loudly here until this mirror is refreshed.
 
 - Contract version: schema_version 1.x (compatibility tuple `1.0`)
 - Source path: `aion-v1/testdata/eigent/v1/`
-- Last synced from: aion-v1 branch `codex/eigent-aion-m0-contracts`
-  (pre-merge M0 working tree; pin the merge SHA here once that PR lands)
+- Last synced from: aion-v1 merge commit
+  `b89c1df640179f4bb625d83b1117f74c1a900218`
+  (https://github.com/mohit-lendmind/aion-v1/pull/149)
