@@ -1,0 +1,12 @@
+{
+  "event_id": "evt_01JY0000000000000000000006",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "run_01JY0000000000000000000001",
+  "sequence": "6",
+  "kind": "approval_resolved",
+  "visibility": "user",
+  "occurred_at": "2026-08-08T09:00:06Z",
+  "correlation": {"tool_call_id": "toolu_01JY0000000000000000002"},
+  "data": {"approval_id": "apr_01JY0000000000000000000001", "decision": "allow", "resolved_by": "user"}
+}

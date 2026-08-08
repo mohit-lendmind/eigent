@@ -1,0 +1,234 @@
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@aspect_rules_js//js:defs.bzl", "js_test")
+load("@npm//:electron-builder/package_json.bzl", electron_builder_bin = "bin")
+load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
+load("@npm//:typescript/package_json.bzl", typescript_bin = "bin")
+load("@npm//:vite/package_json.bzl", vite_bin = "bin")
+load("@npm//:vitest/package_json.bzl", vitest_bin = "bin")
+
+npm_link_all_packages(name = "node_modules")
+
+filegroup(
+    name = "renderer_sources",
+    srcs = glob([
+        "src/**",
+        "index.html",
+        "*.config.*",
+        "tsconfig*.json",
+    ]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "edge_client_sources",
+    srcs = ["src/api/aion/v1/contracts.ts"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "electron_main_sources",
+    srcs = glob(["electron/main/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "electron_preload_sources",
+    srcs = glob(["electron/preload/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "test_sources",
+    srcs = glob(["test/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "desktop_sources",
+    srcs = [
+        ":electron_main_sources",
+        ":electron_preload_sources",
+        ":renderer_sources",
+        ":test_sources",
+    ] + glob([
+        "electron/*.ts",
+        "resources/scripts/**",
+        "scripts/**",
+        "*.json",
+        "*.js",
+        "*.cjs",
+        "*.mjs",
+        "*.plist",
+    ]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "package_inputs",
+    srcs = glob([
+        "backend/**",
+        "build/**",
+        "config/**",
+        "resources/**",
+    ]) + [
+        "electron-builder.json",
+        "entitlements.mac.plist",
+        "package.json",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+typescript_bin.tsc_test(
+    name = "type_check",
+    args = [
+        "--project",
+        "tsconfig.build.json",
+        "--noEmit",
+    ],
+    chdir = package_name(),
+    data = [
+        ":desktop_sources",
+        ":node_modules",
+    ],
+    visibility = ["//desktop:__pkg__"],
+)
+
+typescript_bin.tsc(
+    name = "type_check_action",
+    args = [
+        "--project",
+        "tsconfig.build.json",
+        "--noEmit",
+    ],
+    chdir = package_name(),
+    srcs = [
+        ":desktop_sources",
+        ":node_modules",
+    ],
+    stdout = "type-check.log",
+)
+
+eslint_bin.eslint_test(
+    name = "eslint",
+    args = [
+        ".",
+        "--no-warn-ignored",
+    ],
+    chdir = package_name(),
+    data = [
+        ":desktop_sources",
+        ":node_modules",
+    ],
+    visibility = ["//desktop:__pkg__"],
+)
+
+js_test(
+    name = "design_token_usage",
+    data = [":desktop_sources"],
+    entry_point = "scripts/check-design-token-usage.mjs",
+    visibility = ["//desktop:__pkg__"],
+)
+
+test_suite(
+    name = "lint",
+    tests = [
+        ":design_token_usage",
+        ":eslint",
+    ],
+    visibility = ["//desktop:__pkg__"],
+)
+
+vitest_bin.vitest_test(
+    name = "vitest",
+    args = [
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "--reporter=json",
+    ],
+    chdir = package_name(),
+    data = [
+        ":desktop_sources",
+        ":node_modules",
+    ],
+    visibility = ["//desktop:__pkg__"],
+)
+
+vite_bin.vite(
+    name = "vite_renderer",
+    args = [
+        "build",
+        "--config",
+        "vite.config.web.ts",
+    ],
+    chdir = package_name(),
+    out_dirs = ["dist-web"],
+    srcs = [
+        ":node_modules",
+        ":renderer_sources",
+    ],
+    visibility = ["//desktop:__pkg__"],
+)
+
+vite_bin.vite(
+    name = "prebuild_compile",
+    args = ["build"],
+    chdir = package_name(),
+    out_dirs = [
+        "dist",
+        "dist-electron",
+    ],
+    srcs = [
+        ":desktop_sources",
+        ":node_modules",
+        ":type_check_action",
+    ],
+    visibility = ["//desktop:__pkg__"],
+)
+
+electron_builder_bin.electron_builder(
+    name = "package_unsigned",
+    args = [
+        "--dir",
+        "--publish",
+        "never",
+        "--config",
+        "electron-builder.json",
+        # node-pty and koffi are N-API packages whose platform binaries are
+        # already installed by the rules_js lifecycle hooks. electron-builder's
+        # npm rebuild would reach for network and devDependencies (tsc) that a
+        # hermetic action does not have.
+        "-c.npmRebuild=false",
+    ],
+    chdir = package_name(),
+    env = {"CSC_IDENTITY_AUTO_DISCOVERY": "false"},
+    out_dirs = ["release"],
+    # electron-builder's file walker readlinks every dirent it sees. The
+    # rules_js fs patch hides sandbox symlinks from lstat but not readdir,
+    # so the walker readlinks a regular file and dies with EINVAL. The
+    # packager only reads inputs and writes into its own out_dir, so the
+    # anti-escape patch buys nothing here.
+    patch_node_fs = False,
+    srcs = [
+        ":node_modules",
+        ":package_inputs",
+        ":prebuild_compile",
+    ],
+    # Sandboxed staging turns every input into an absolute symlink, and
+    # electron-builder's FileCopier preserves out-of-project symlinks instead
+    # of copying content — extraResources (backend/, example-skills/) would
+    # ship as dangling links. Unsandboxed, the action reads the real
+    # copied-to-bin files; inputs stay declared either way.
+    tags = [
+        "manual",
+        "no-sandbox",
+    ],
+    visibility = ["//desktop:__pkg__"],
+)
+
+exports_files([
+    "electron-builder.json",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+])

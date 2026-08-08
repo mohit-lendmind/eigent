@@ -1,0 +1,10 @@
+{
+  "type": "https://api.eternly.example/problems/cursor-expired",
+  "title": "Event cursor expired",
+  "status": 410,
+  "detail": "The requested cursor is older than the retained replay window.",
+  "code": "cursor_expired",
+  "trace_id": "trc_01JY0000000000000000000001",
+  "retryable": false,
+  "minimum_sequence": "1042"
+}

@@ -6,6 +6,7 @@
   "author": "Eigent.AI",
   "license": "MIT",
   "private": true,
+  "packageManager": "pnpm@10.33.2",
   "debug": {
     "env": {
       "VITE_DEV_SERVER_URL": "http://127.0.0.1:7777/"
@@ -79,6 +80,7 @@
     "@radix-ui/react-toggle": "^1.1.9",
     "@radix-ui/react-toggle-group": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.7",
+    "@radix-ui/react-visually-hidden": "^1.2.11",
     "@stackframe/react": "file:package/@stackframe/react",
     "@tanstack/react-query": "^5.90.19",
     "@xterm/addon-fit": "^0.10.0",
@@ -99,6 +101,8 @@
     "embla-carousel-autoplay": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.17.0",
+    "form-data": "^4.0.6",
+    "fs-extra": "^11.3.1",
     "github-markdown-css": "^5.8.1",
     "gsap": "^3.13.0",
     "koffi": "^2.14.1",
@@ -141,8 +145,10 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/archiver": "^6.0.3",
     "@types/dompurify": "^3.0.5",
+    "@types/fs-extra": "^11.0.4",
     "@types/lodash-es": "^4.17.12",
     "@types/mime": "^3.0.4",
+    "@types/node": "^22.0.0",
     "@types/papaparse": "^5.3.16",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
@@ -153,6 +159,7 @@
     "@vitejs/plugin-react": "^4.3.3",
     "@vitest/coverage-v8": "^2.1.9",
     "autoprefixer": "^10.4.20",
+    "dotenv": "^9.0.2",
     "electron": "^33.2.0",
     "electron-builder": "^24.13.3",
     "electron-devtools-installer": "^4.0.0",
@@ -183,7 +190,16 @@
     "vitest": "^2.1.5"
   },
   "pnpm": {
-    "neverBuiltDependencies": []
+    "packageExtensions": {
+      "vite-plugin-electron-renderer": {
+        "dependencies": {
+          "esbuild": "^0.21.0"
+        },
+        "peerDependencies": {
+          "vite": "*"
+        }
+      }
+    }
   },
   "engines": {
     "node": ">=18.0.0 <23.0.0"

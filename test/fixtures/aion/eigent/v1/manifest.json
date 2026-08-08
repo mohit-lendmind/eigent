@@ -1,0 +1,29 @@
+{
+  "schema_version": "1",
+  "contract": "api/eigent/v1/openapi.yaml",
+  "requests": [
+    "create_project_request.json",
+    "submit_command_request.json",
+    "cancel_run_request.json",
+    "approval_response.json"
+  ],
+  "responses": [
+    "create_project_response.json",
+    "submit_command_response.json"
+  ],
+  "events": [
+    "event_run_accepted.json",
+    "event_text_delta.json",
+    "event_tool_call.json",
+    "event_tool_result.json",
+    "event_approval_required.json",
+    "event_approval_resolved.json",
+    "event_artifact_created.json",
+    "event_run_completed.json",
+    "event_run_failed.json"
+  ],
+  "problems": [
+    "problem_cursor_expired.json",
+    "problem_model_alias_denied.json"
+  ]
+}

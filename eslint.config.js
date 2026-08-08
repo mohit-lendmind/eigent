@@ -38,6 +38,14 @@ const reactConfig = {
     'react-hooks/static-components': 'off',
     // Disable set-state-in-effect as it's too strict for legitimate use cases
     'react-hooks/set-state-in-effect': 'off',
+    // React Hooks 7 promotes compiler-advisory rules into the recommended
+    // preset. The existing desktop intentionally uses refs and wall-clock
+    // reads in event callbacks; those patterns need focused migrations rather
+    // than silently changing runtime behavior as part of build adoption.
+    'react-hooks/immutability': 'off',
+    'react-hooks/preserve-manual-memoization': 'off',
+    'react-hooks/purity': 'off',
+    'react-hooks/refs': 'off',
   },
 };
 

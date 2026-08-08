@@ -1,0 +1,12 @@
+{
+  "event_id": "evt_01JY0000000000000000000003",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "run_01JY0000000000000000000001",
+  "sequence": "3",
+  "kind": "tool_call",
+  "visibility": "user",
+  "occurred_at": "2026-08-08T09:00:03Z",
+  "correlation": {"tool_call_id": "toolu_01JY0000000000000000001"},
+  "data": {"tool_call_id": "toolu_01JY0000000000000000001", "tool_name": "bash", "arguments_json": "{\"command\":\"bazel test //pkg:target\"}"}
+}

@@ -1,0 +1,5 @@
+{
+  "command_id": "cmd_01JY0000000000000000000001",
+  "text": "Find the failing test and propose a fix.",
+  "attachment_ids": ["art_01JY0000000000000000000000"]
+}
