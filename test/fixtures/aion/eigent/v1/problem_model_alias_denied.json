@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/model-alias-denied",
+  "title": "Model alias is not allowed",
+  "status": 422,
+  "detail": "The selected model alias is not enabled for this client and task type.",
+  "code": "model_alias_denied",
+  "trace_id": "trc_01JY0000000000000000000002",
+  "retryable": false
+}

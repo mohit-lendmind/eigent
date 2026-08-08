@@ -3,7 +3,7 @@
   "productName": "Eigent",
   "appId": "com.eigent.app",
   "asar": true,
-  "asarUnpack": ["node_modules/node-pty/**"],
+  "asarUnpack": ["node_modules/node-pty/**", "node_modules/koffi/**"],
   "directories": {
     "output": "release"
   },

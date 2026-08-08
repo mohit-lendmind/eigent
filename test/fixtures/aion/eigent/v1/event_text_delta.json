@@ -1,0 +1,12 @@
+{
+  "event_id": "evt_01JY0000000000000000000002",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "run_01JY0000000000000000000001",
+  "sequence": "2",
+  "kind": "text_delta",
+  "visibility": "user",
+  "occurred_at": "2026-08-08T09:00:02Z",
+  "correlation": {"aion_sequence": "7"},
+  "data": {"text": "I found the failing target."}
+}

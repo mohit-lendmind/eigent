@@ -1,0 +1,13 @@
+packages:
+  - .
+
+# Explicit supply-chain policy for packages allowed to run install hooks inside
+# Bazel. Keep this list narrow; additions require review because hooks execute
+# package-authored code during repository setup.
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - electron
+  - esbuild
+  - koffi
+  - node-pty
+  - sharp

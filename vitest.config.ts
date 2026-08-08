@@ -15,14 +15,19 @@
 import path from 'path';
 import { defineConfig } from 'vitest/config';
 
+// rules_js materializes this config through bazel-bin while keeping the
+// workspace sources in runfiles. The launcher's working directory is the
+// stable project root in both Bazel and pnpm execution modes.
+const projectRoot = process.cwd();
+
 export default defineConfig({
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(projectRoot, 'src'),
     },
   },
   test: {
-    root: __dirname,
+    root: projectRoot,
     environment: 'jsdom',
     include: [
       'test/**/*.{test,spec}.?(c|m)[jt]s?(x)',
@@ -31,7 +36,7 @@ export default defineConfig({
     exclude: ['test/e2e/**', 'test/performance/**'],
     testTimeout: 1000 * 29,
     globals: true,
-    setupFiles: ['test/setup.ts'],
+    setupFiles: [path.resolve(projectRoot, 'test/setup.ts')],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

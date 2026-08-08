@@ -10,6 +10,7 @@ lerna-debug.log*
 node-compile-cache
 
 node_modules
+bazel-*
 dist
 dist-web
 !package/**/dist
@@ -33,7 +34,6 @@ backend/context_files/
 
 #lockfile
 package-lock.json
-pnpm-lock.yaml
 yarn.lock
 /test-results/
 /playwright-report/

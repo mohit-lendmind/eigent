@@ -1,0 +1,13 @@
+{
+  "event_id": "evt_01JY0000000000000000000001",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "run_01JY0000000000000000000001",
+  "sequence": "1",
+  "kind": "run_accepted",
+  "visibility": "user",
+  "occurred_at": "2026-08-08T09:00:01Z",
+  "correlation": {"command_id": "cmd_01JY0000000000000000000001"},
+  "data": {"run_epoch": "1"},
+  "future_extension": {"must_survive_decode": true}
+}

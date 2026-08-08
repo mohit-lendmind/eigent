@@ -1,0 +1,4 @@
+common --enable_bzlmod
+test --test_output=errors
+# test inherits build flags, so one line covers `--config=ci` for both.
+build:ci --lockfile_mode=error

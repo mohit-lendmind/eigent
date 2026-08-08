@@ -1,0 +1,22 @@
+# Stable public labels consumed by Aion's pinned external-repository build.
+
+test_suite(name = "type_check", tests = ["//:type_check"], visibility = ["//visibility:public"])
+test_suite(name = "lint", tests = ["//:lint"], visibility = ["//visibility:public"])
+test_suite(name = "vitest", tests = ["//:vitest"], visibility = ["//visibility:public"])
+alias(name = "vite_renderer", actual = "//:vite_renderer", visibility = ["//visibility:public"])
+alias(name = "prebuild_compile", actual = "//:prebuild_compile", visibility = ["//visibility:public"])
+alias(name = "electron_main", actual = "//:electron_main_sources", visibility = ["//visibility:public"])
+alias(name = "electron_preload", actual = "//:electron_preload_sources", visibility = ["//visibility:public"])
+alias(name = "edge_client", actual = "//:edge_client_sources", visibility = ["//visibility:public"])
+alias(name = "package_manifest", actual = "//:package_inputs", visibility = ["//visibility:public"])
+alias(name = "package_unsigned", actual = "//:package_unsigned", visibility = ["//visibility:public"])
+
+test_suite(
+    name = "desktop_checks",
+    tests = [
+        ":lint",
+        ":type_check",
+        ":vitest",
+    ],
+    visibility = ["//visibility:public"],
+)

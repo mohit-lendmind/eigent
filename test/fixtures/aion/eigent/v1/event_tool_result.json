@@ -1,0 +1,12 @@
+{
+  "event_id": "evt_01JY0000000000000000000004",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "run_01JY0000000000000000000001",
+  "sequence": "4",
+  "kind": "tool_result",
+  "visibility": "user",
+  "occurred_at": "2026-08-08T09:00:04Z",
+  "correlation": {"tool_call_id": "toolu_01JY0000000000000000001"},
+  "data": {"tool_call_id": "toolu_01JY0000000000000000001", "content": "1 test failed", "is_error": true}
+}

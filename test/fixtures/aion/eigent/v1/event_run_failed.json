@@ -1,0 +1,12 @@
+{
+  "event_id": "evt_01JY0000000000000000000008",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "run_01JY0000000000000000000002",
+  "sequence": "8",
+  "kind": "run_failed",
+  "visibility": "user",
+  "occurred_at": "2026-08-08T09:00:08Z",
+  "correlation": {"aion_run_id": "aionrun_01JY00000000000000002"},
+  "data": {"reason": "context_limit", "message": "The run exceeded the context budget before converging."}
+}
