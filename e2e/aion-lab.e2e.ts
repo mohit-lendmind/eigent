@@ -372,6 +372,106 @@ test('bootstrap → project → command → streaming → reconnect → replay, 
   }
 });
 
+// M6 browser train (doc 10 §12): against a stack whose managed cell has a
+// browser workspace template (AION_BROWSER_TEMPLATE set, browser image
+// built), the deterministic aion-browser fixture drives the full loop —
+// write_file test.html → browser_visit_page file:///workspace/test.html →
+// snapshot → click → screenshot — inside the sandbox pod, and the harvested
+// screenshot artifact surfaces in the Lab with a presigned download link.
+// Bring the stack up with the template and opt this test in:
+//   AION_BROWSER_TEMPLATE=<browser image ref> bazel run //dev/eigent_local:up
+//   EIGENT_E2E_BROWSER_MODE=1 npx playwright test --config e2e/playwright.config.ts aion-lab
+test('browser fixture: sandbox browser run publishes a screenshot artifact', async () => {
+  test.skip(
+    !bootstrap || !edgeReady || !APP_BUILT,
+    'eigent-local stack not running or app not built'
+  );
+  test.skip(
+    process.env.EIGENT_E2E_BROWSER_MODE !== '1',
+    'stack not in browser mode (set AION_BROWSER_TEMPLATE on the stack and EIGENT_E2E_BROWSER_MODE=1 here)'
+  );
+
+  const { app, page } = await launchLab({
+    EIGENT_REMOTE_BACKEND_URL: edgeBaseUrl!,
+    EIGENT_REMOTE_BACKEND_API_KEY_FILE: keyFile,
+    EIGENT_REMOTE_BACKEND_API_KEY: '',
+  });
+  const summary: Record<string, unknown> = {
+    captured_at: new Date().toISOString(),
+    edge_base_url: edgeBaseUrl,
+    browser_mode: true,
+  };
+  try {
+    await expect(byId(page, 'lab-health')).toHaveText('health: ok');
+    // The fixture alias must come from the served catalog, not be typed in.
+    await expect(byId(page, 'lab-model-row-aion-browser')).toBeVisible();
+    await byId(page, 'lab-project-alias').selectOption('aion-browser');
+    await byId(page, 'lab-project-create').click();
+    await expect(byId(page, 'lab-project-id')).toBeVisible();
+    summary.project_id = ((await byId(page, 'lab-project-id').textContent()) ?? '')
+      .replace('project:', '')
+      .trim();
+
+    // The command text is free-form — the fixture script is deterministic.
+    await byId(page, 'lab-command-input').fill('Drive the browser fixture.');
+    await byId(page, 'lab-command-submit').click();
+    await expect(byId(page, 'lab-command-receipts')).toContainText('run ');
+
+    // Pod provisioning + Chrome startup ride the first browser call, so the
+    // terminal poll gets the long leash.
+    await expect
+      .poll(
+        async () => (await byId(page, 'lab-runs').textContent()) ?? '',
+        { timeout: 300_000 }
+      )
+      .toMatch(/succeeded/);
+    summary.run_terminal = 'succeeded';
+
+    // The timeline must carry the whole browser sequence as settled tools.
+    const timeline =
+      (await byId(page, 'lab-timeline').textContent()) ?? '';
+    for (const tool of [
+      'write_file',
+      'browser_visit_page',
+      'browser_get_page_snapshot',
+      'browser_click',
+      'browser_get_screenshot',
+    ]) {
+      expect(timeline).toContain(`${tool} (done)`);
+    }
+    summary.browser_tools_settled = true;
+
+    // The screenshot harvested from the pod workspace is a published product
+    // artifact: listed, and resolvable to a presigned download link.
+    const artifactUrlButton = page.locator(
+      '[data-testid^="lab-artifact-url-"]'
+    );
+    await expect(artifactUrlButton.first()).toBeVisible({ timeout: 60_000 });
+    summary.artifact_count = await artifactUrlButton.count();
+    await artifactUrlButton.first().click();
+    const artifactLink = page.locator('[data-testid^="lab-artifact-link-"]');
+    await expect(artifactLink.first()).toBeVisible({ timeout: 30_000 });
+    const href = await artifactLink.first().getAttribute('href');
+    expect(href).toBeTruthy();
+    summary.artifact_presigned = true;
+    await screenshot(page, 'browser-artifact');
+
+    if (EVIDENCE_DIR) {
+      fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
+      const payload = JSON.stringify(summary, null, 2);
+      if (payload.includes(bootstrap!.api_key)) {
+        throw new Error('evidence summary would leak the API key');
+      }
+      fs.writeFileSync(
+        path.join(EVIDENCE_DIR, 'eigent-m6-browser-summary.json'),
+        payload
+      );
+    }
+  } finally {
+    await app.close();
+  }
+});
+
 // M6 approvals train (doc 10 §12): with the stack's durable human gate on
 // (AION_APPROVAL_REQUIRED=write_file), a command that writes a file parks its
 // run awaiting approval; the Lab surfaces the pending approval; Allow
