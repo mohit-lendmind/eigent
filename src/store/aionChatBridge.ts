@@ -122,7 +122,7 @@ async function createBinding(
     onState: (state) => {
       binding.latest = state;
       for (const turn of binding.turns) {
-        projectTurn(turn, state);
+        projectTurn(binding, turn, state);
       }
     },
     onStatus: (status) => {
@@ -196,7 +196,7 @@ export async function startAionTask(args: StartAionTaskArgs): Promise<void> {
   binding.turns.push(turn);
   args.chatStore.getState().setSummaryTask(args.taskId, question);
   if (binding.latest) {
-    projectTurn(turn, binding.latest);
+    projectTurn(binding, turn, binding.latest);
   }
 }
 
@@ -240,12 +240,47 @@ const RUN_TERMINAL: Record<string, true> = {
   cancelled: true,
 };
 
+// Presigned screenshot URLs resolve asynchronously against the edge; caching
+// per artifact keeps the projection itself sync and idempotent. A resolved
+// fetch re-projects so the image appears without waiting for the next event.
+const artifactUrlCache = new Map<string, string>();
+const artifactUrlPending = new Set<string>();
+
+function resolveArtifactUrl(
+  binding: ProjectBinding,
+  turn: TurnBinding,
+  artifactId: string
+): string | undefined {
+  const cached = artifactUrlCache.get(artifactId);
+  if (cached !== undefined) return cached;
+  if (!artifactUrlPending.has(artifactId)) {
+    artifactUrlPending.add(artifactId);
+    void binding.transport
+      .getArtifact(binding.aionProjectId, artifactId)
+      .then((access) => {
+        artifactUrlCache.set(artifactId, access.download_url);
+      })
+      .catch(() => {
+        // Not (yet) downloadable — the next state change retries.
+      })
+      .finally(() => {
+        artifactUrlPending.delete(artifactId);
+        if (binding.latest) projectTurn(binding, turn, binding.latest);
+      });
+  }
+  return undefined;
+}
+
 /**
  * Projects one Run's slice of the reducer state into its task pane. Pure
  * function of (turn, state) applied idempotently — replay, reconnect, and
  * overlapping windows all land on the same UI, exactly like the reducer.
  */
-function projectTurn(turn: TurnBinding, state: ProjectUIState): void {
+function projectTurn(
+  binding: ProjectBinding,
+  turn: TurnBinding,
+  state: ProjectUIState
+): void {
   const store = turn.chatStore.getState();
   const task = store.tasks[turn.taskId];
   if (!task) return; // pane was closed
@@ -383,7 +418,64 @@ function projectTurn(turn: TurnBinding, state: ProjectUIState): void {
     tasks: [taskInfo],
     log: agentLog,
   };
-  store.setTaskAssigning(turn.taskId, [agent]);
+  const agents: Agent[] = [agent];
+
+  // --- browser mirror: aion browser_* tools drive a headless browser inside
+  // the sandbox pod, so there is no local WebContentsView to attach. The
+  // product surface is the run's own evidence — the current page URL from the
+  // tool stream and the latest screenshot artifact as the view image —
+  // projected as the browser_agent card the workspace already renders.
+  const browserEntries = toolEntries.filter((tool) =>
+    tool.toolName.startsWith('browser_')
+  );
+  if (browserEntries.length > 0) {
+    let pageUrl = '';
+    for (const tool of browserEntries) {
+      const fromResult =
+        tool.result && !tool.result.isError
+          ? browserResultUrl(tool.result.content)
+          : null;
+      pageUrl = fromResult ?? browserArgUrl(tool.argumentsJson) ?? pageUrl;
+    }
+    const shots = entries.filter(
+      (e): e is Extract<TimelineEntry, { type: 'artifact' }> =>
+        e.type === 'artifact' &&
+        typeof e.artifact.media_type === 'string' &&
+        (e.artifact.media_type as string).startsWith('image/')
+    );
+    const lastShot = shots[shots.length - 1];
+    const img =
+      lastShot && typeof lastShot.artifact.artifact_id === 'string'
+        ? (resolveArtifactUrl(
+            binding,
+            turn,
+            lastShot.artifact.artifact_id as string
+          ) ?? '')
+        : '';
+    const browsing = browserEntries.some((tool) => !tool.result);
+    agents.push({
+      agent_id: `${turn.taskId}-browser-agent`,
+      name: 'Browser',
+      type: 'browser_agent',
+      status:
+        browsing && !settled
+          ? AgentStatusValue.RUNNING
+          : AgentStatusValue.COMPLETED,
+      tasks: [],
+      // Browser tool activity already rides the single agent's log; the card
+      // exists for the page mirror.
+      log: [],
+      activeWebviewIds: [
+        {
+          id: `aion:${turn.runId}:browser`,
+          url: pageUrl,
+          processTaskId: turn.runId,
+          img,
+        },
+      ],
+    });
+  }
+  store.setTaskAssigning(turn.taskId, agents);
   store.setTaskRunning(turn.taskId, [taskInfo]);
 
   if (settled && !turn.settled) {
@@ -404,6 +496,25 @@ function bashCommand(argumentsJson: string): string | null {
   try {
     const parsed = JSON.parse(argumentsJson);
     return typeof parsed?.command === 'string' ? parsed.command : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The `url: …` line every aion browser tool result carries. */
+function browserResultUrl(content: string): string | null {
+  for (const line of content.split('\n')) {
+    if (line.startsWith('url: ')) {
+      return line.slice(5).trim() || null;
+    }
+  }
+  return null;
+}
+
+function browserArgUrl(argumentsJson: string): string | null {
+  try {
+    const parsed = JSON.parse(argumentsJson);
+    return typeof parsed?.url === 'string' ? parsed.url : null;
   } catch {
     return null;
   }
