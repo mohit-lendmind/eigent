@@ -146,9 +146,15 @@ async function launchLab(
       : { args: [REPO_ROOT], cwd: REPO_ROOT, env: launchEnv(extra) }
   );
   const page = await findMainWindow(app);
+  // Set the lab route, then reload so React mounts directly on it. A bare
+  // hash assignment after mount is timing-sensitive: when the transport
+  // config is invalid the default route renders an empty tree that never
+  // re-routes on hashchange, so the lab surface (and its error state)
+  // would never appear.
   await page.evaluate(() => {
     window.location.hash = '#/integration-lab';
   });
+  await page.reload();
   return { app, page };
 }
 
