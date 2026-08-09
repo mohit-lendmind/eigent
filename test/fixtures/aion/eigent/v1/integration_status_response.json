@@ -1,7 +1,9 @@
 {
-  "edge_api_version": "1.2.0",
+  "edge_api_version": "1.3.0",
   "event_schema_version": "1.0",
   "minimum_desktop_version": "1.0.2",
   "harness_generation": "aion-go/1",
+  "execution_mode": "remote",
+  "inference_status": "managed",
   "server_time": "2026-08-09T00:00:00Z"
 }

@@ -10,8 +10,8 @@ sync), record the aion-v1 commit below, then run `pnpm gen:aion-edge` so the
 generated client under `../gen/` matches. `bazel test //:aion_edge_client_gen`
 fails until mirror and generated output agree.
 
-- Contract version: edge_api `1.2.0`
+- Contract version: edge_api `1.3.0`
 - Source path: `aion-v1/api/eigent/v1/`
 - Last synced from: aion-v1 commit
-  `d3a2132` (branch `codex/eigent-aion-m4-edge`; restate the merge SHA in the
+  `ca5df8c` (branch `codex/eigent-aion-m4-edge`; restate the merge SHA in the
   M4 provenance follow-up once that branch lands on main)

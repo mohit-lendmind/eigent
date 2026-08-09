@@ -114,10 +114,12 @@ describe('EdgeTransport REST (golden fixtures)', () => {
       jsonResponse(fixture('integration_status_response.json'))
     );
     const status = await transport.getIntegrationStatus();
-    expect(status.edge_api_version).toBe('1.2.0');
+    expect(status.edge_api_version).toBe('1.3.0');
     expect(status.event_schema_version).toBe('1.0');
     expect(status.minimum_desktop_version).toBe('1.0.2');
     expect(status.harness_generation).toBe('aion-go/1');
+    expect(status.execution_mode).toBe('remote');
+    expect(status.inference_status).toBe('managed');
   });
 
   it('raises a typed problem for a denied model alias', async () => {

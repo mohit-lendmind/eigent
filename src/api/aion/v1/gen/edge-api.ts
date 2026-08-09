@@ -148,6 +148,13 @@ export type paths = {
          *     desktop client version this edge still serves. The same values ride the
          *     X-Eigent-Edge-Api-Version and X-Eigent-Min-Desktop-Version response
          *     headers, which every edge response carries.
+         *
+         *     Authentication is optional on this route only. Without a credential the
+         *     response is the anonymous compatibility window. With a valid bearer
+         *     credential the response additionally carries auth_identity — the
+         *     identity the edge verified, never the credential itself. A presented
+         *     but invalid credential is refused with 401 rather than silently served
+         *     anonymously.
          */
         get: operations["getIntegrationStatus"];
         put?: never;
@@ -303,6 +310,30 @@ export type components = {
             harness_generation?: string;
             /** Format: date-time */
             server_time?: string;
+            /**
+             * @description Deployment-declared SandboxService execution mode of the serving
+             *     cell (e.g. remote). Configuration truth for diagnostics, not a
+             *     live probe.
+             */
+            execution_mode?: string;
+            /**
+             * @description Deployment-declared inference-plane posture of the serving cell
+             *     (e.g. managed, disabled). Configuration truth for diagnostics,
+             *     not a live probe.
+             */
+            inference_status?: string;
+            /**
+             * @description Present only when the request carried a valid bearer credential:
+             *     the verified identity the edge maps tenancy from. Never echoes
+             *     the credential.
+             */
+            auth_identity?: components["schemas"]["AuthIdentity"];
+        } & {
+            [key: string]: unknown;
+        };
+        AuthIdentity: {
+            tenant_id: string;
+            user_id?: string;
         } & {
             [key: string]: unknown;
         };
@@ -592,6 +623,7 @@ export interface operations {
                     "application/json": components["schemas"]["IntegrationStatus"];
                 };
             };
+            401: components["responses"]["Problem"];
         };
     };
     getArtifact: {
