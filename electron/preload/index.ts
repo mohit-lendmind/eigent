@@ -118,6 +118,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkInstallBrowser: () => ipcRenderer.invoke('check-install-browser'),
   getInstallationStatus: () => ipcRenderer.invoke('get-installation-status'),
   getBackendPort: () => ipcRenderer.invoke('get-backend-port'),
+  getAionTransportConfig: () =>
+    ipcRenderer.invoke('get-aion-transport-config'),
   restartBackend: () => ipcRenderer.invoke('restart-backend'),
   onInstallDependenciesStart: (callback: () => void) => {
     ipcRenderer.on('install-dependencies-start', callback);
@@ -151,7 +153,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onBackendReady: (
     callback: (data: {
       success: boolean;
-      port?: number;
+      port?: number | null;
+      remote?: boolean;
       error?: string;
     }) => void
   ) => {

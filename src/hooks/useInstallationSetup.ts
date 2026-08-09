@@ -109,6 +109,25 @@ export const useInstallationSetup = () => {
     const checkElectronBackend = async (): Promise<boolean> => {
       if (!host?.electronAPI?.getBackendPort) return false;
       try {
+        // Remote-backend mode: there is no local port to health-poll. The
+        // main process validated the edge endpoint at startup; reachability
+        // is the aion session layer's concern, not a readiness gate.
+        const transportConfig =
+          await host.electronAPI.getAionTransportConfig?.();
+        if (transportConfig?.mode === 'remote') {
+          if ('error' in transportConfig) {
+            console.error(
+              '[useInstallationSetup] Remote backend config invalid:',
+              transportConfig.error
+            );
+            return false;
+          }
+          backendReady.current = true;
+          setSuccess();
+          setInitState('done');
+          setNeedsBackendRestart(false);
+          return true;
+        }
         const backendPort = await host.electronAPI.getBackendPort();
         if (backendPort && backendPort > 0) {
           const backendEndpoint = `http://localhost:${backendPort}`;
@@ -310,10 +329,22 @@ export const useInstallationSetup = () => {
 
     const handleBackendReady = (data: {
       success: boolean;
-      port?: number;
+      port?: number | null;
+      remote?: boolean;
       error?: string;
     }) => {
       console.log('[useInstallationSetup] Backend ready event received:', data);
+
+      if (data.success && data.remote) {
+        // Remote-backend mode: ready without a localhost endpoint. The aion
+        // boundary gets its transport config via getAionTransportConfig.
+        backendReady.current = true;
+        installationCompleted.current = true;
+        setSuccess();
+        setNeedsBackendRestart(false);
+        checkAndSetDone();
+        return;
+      }
 
       if (data.success && data.port) {
         // Reset cached baseURL so next getBaseURL fetches fresh port (handles restart)

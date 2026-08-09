@@ -150,6 +150,11 @@ interface ElectronAPI {
     error?: string;
   }>;
   getBackendPort: () => Promise<number | null>;
+  getAionTransportConfig: () => Promise<
+    | { mode: 'local' }
+    | { mode: 'remote'; edgeBaseUrl: string; apiKey: string }
+    | { mode: 'remote'; error: string }
+  >;
   restartBackend: () => Promise<{ success: boolean; error?: string }>;
   onInstallDependenciesStart: (callback: () => void) => void;
   onInstallDependenciesLog: (
@@ -173,7 +178,8 @@ interface ElectronAPI {
   onBackendReady: (
     callback: (data: {
       success: boolean;
-      port?: number;
+      port?: number | null;
+      remote?: boolean;
       error?: string;
     }) => void
   ) => void;

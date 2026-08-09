@@ -51,6 +51,11 @@ import {
 } from './install-deps';
 import { setRoundedCorners } from './native/macos-window';
 import {
+  rendererTransportConfig,
+  resolveRemoteBackend,
+  type RemoteBackendResolution,
+} from './remoteBackend';
+import {
   completeCodexOAuthCallback,
   getCodexResolverEnv,
   registerCodexSubscriptionAuthIpcHandlers,
@@ -97,6 +102,16 @@ let browser_port = 9222;
 let use_external_cdp = false;
 let proxyUrl: string | null = null;
 
+// Remote-backend mode (doc 10 §10 WP3) is decided once at startup. In any
+// non-local mode the main process never installs dependencies, spawns
+// uvicorn, or health-polls a local port; a set-but-invalid configuration
+// stays remote (and fails visibly) rather than falling back to legacy mode.
+const remoteBackend: RemoteBackendResolution = resolveRemoteBackend(
+  process.env,
+  (file) => fs.readFileSync(file, 'utf-8')
+);
+const isRemoteBackendMode = remoteBackend.mode !== 'local';
+
 const PREVIEW_WEBVIEW_PARTITION = 'persist:session-preview';
 
 const isHttpOrHttpsUrl = (url: unknown): url is string => {
@@ -129,6 +144,7 @@ type BackendStartOptions = {
 
 type BackendStartResult =
   | { success: true; port: number }
+  | { success: true; remote: true; port: null }
   | { success: false; error: string };
 
 function formatErrorMessage(error: unknown): string {
@@ -185,6 +201,7 @@ function notifyBackendReady(result: BackendStartResult): void {
       ? {
           success: true,
           port: result.port,
+          ...('remote' in result && { remote: true }),
         }
       : {
           success: false,
@@ -1058,7 +1075,16 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('get-app-version', () => app.getVersion());
-  ipcMain.handle('get-backend-port', () => backendPort);
+  // In remote mode there is no local backend port — null keeps any legacy
+  // localhost URL construction visibly broken instead of silently wrong.
+  ipcMain.handle('get-backend-port', () =>
+    isRemoteBackendMode ? null : backendPort
+  );
+  // The minimum authenticated transport configuration for the renderer's
+  // aion boundary (src/api/aion/v1). Local mode returns { mode: 'local' }.
+  ipcMain.handle('get-aion-transport-config', () =>
+    rendererTransportConfig(remoteBackend)
+  );
 
   // ==================== restart app handler ====================
   ipcMain.handle('restart-app', async () => {
@@ -2227,6 +2253,18 @@ function registerIpcHandlers() {
     try {
       if (win === null) throw new Error('Window is null');
 
+      // Remote-backend mode has no local dependencies to install.
+      if (isRemoteBackendMode) {
+        if (!win.isDestroyed()) {
+          win.webContents.send('install-dependencies-complete', {
+            success: true,
+            code: 0,
+          });
+        }
+        await checkAndStartBackend();
+        return { success: true, isInstalled: true };
+      }
+
       // Prevent concurrent installations
       if (isInstallationInProgress) {
         log.info('[DEPS INSTALL] Installation already in progress, waiting...');
@@ -2280,6 +2318,10 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('check-tool-installed', async () => {
+    // Remote-backend mode needs no local uv/bun toolchain.
+    if (isRemoteBackendMode) {
+      return { success: true, isInstalled: true };
+    }
     try {
       const isInstalled = await checkToolInstalled();
       return { success: true, isInstalled: isInstalled.success };
@@ -2845,8 +2887,8 @@ async function createWindowInternal() {
   const { exists: venvExists, path: venvPath } =
     checkVenvExistsForPreCheck(currentVersion);
 
-  // If prebuilt deps are available, skip installation
-  const needsInstallation = hasPrebuiltDeps
+  // If the backend is remote or prebuilt deps are available, skip installation
+  const needsInstallation = isRemoteBackendMode || hasPrebuiltDeps
     ? false
     : !versionExists ||
       savedVersion !== currentVersion ||
@@ -2985,6 +3027,21 @@ async function createWindowInternal() {
   // Wait for React components to mount and register event listeners
   await new Promise((resolve) => setTimeout(resolve, 500));
 
+  // Remote-backend mode skips dependency installation and uvicorn startup
+  // entirely: the renderer still receives install-dependencies-complete and
+  // backend-ready so its state machine converges the same way.
+  if (isRemoteBackendMode) {
+    log.info('[REMOTE BACKEND] Skipping dependency installation and local backend');
+    if (!win.isDestroyed()) {
+      win.webContents.send('install-dependencies-complete', {
+        success: true,
+        code: 0,
+      });
+    }
+    await checkAndStartBackend();
+    return;
+  }
+
   // Now check and install dependencies
   let res: PromiseReturnType = await checkAndInstallDepsOnUpdate({ win });
   if (!res.success) {
@@ -3119,6 +3176,24 @@ async function restartBackendService(): Promise<BackendStartResult> {
 const checkAndStartBackend = async (
   options: BackendStartOptions = {}
 ): Promise<BackendStartResult> => {
+  // Remote-backend mode: there is no local backend to install, spawn,
+  // health-poll, or restart. Readiness was decided by config validation at
+  // startup; edge reachability is the renderer session layer's concern.
+  if (remoteBackend.mode === 'remote') {
+    const result: BackendStartResult = { success: true, remote: true, port: null };
+    notifyBackendReady(result);
+    return result;
+  }
+  if (remoteBackend.mode === 'remote-invalid') {
+    log.error('Remote backend configuration is invalid:', remoteBackend.error);
+    const result: BackendStartResult = {
+      success: false,
+      error: `Remote backend configuration is invalid: ${remoteBackend.error}`,
+    };
+    notifyBackendReady(result);
+    return result;
+  }
+
   if (backendStartPromise) {
     log.info('Backend startup already in progress, waiting...');
     return backendStartPromise;
