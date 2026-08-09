@@ -9,7 +9,9 @@
   ],
   "responses": [
     "create_project_response.json",
-    "submit_command_response.json"
+    "submit_command_response.json",
+    "models_catalog_response.json",
+    "integration_status_response.json"
   ],
   "events": [
     "event_run_accepted.json",
@@ -20,7 +22,8 @@
     "event_approval_resolved.json",
     "event_artifact_created.json",
     "event_run_completed.json",
-    "event_run_failed.json"
+    "event_run_failed.json",
+    "event_run_cancelled.json"
   ],
   "problems": [
     "problem_cursor_expired.json",

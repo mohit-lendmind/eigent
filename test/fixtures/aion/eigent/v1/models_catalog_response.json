@@ -1,0 +1,15 @@
+{
+  "aliases": [
+    {
+      "alias": "aion-default",
+      "display_name": "Aion Default",
+      "description": "Balanced quality and latency for everyday Projects.",
+      "is_default": true
+    },
+    {
+      "alias": "aion-fast",
+      "display_name": "Aion Fast",
+      "description": "Lower latency for short interactive tasks."
+    }
+  ]
+}

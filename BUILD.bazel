@@ -21,7 +21,27 @@ filegroup(
 
 filegroup(
     name = "edge_client_sources",
-    srcs = ["src/api/aion/v1/contracts.ts"],
+    srcs = [
+        "src/api/aion/v1/contracts.ts",
+        ":aion_contract_mirror",
+        ":aion_edge_client_gen_sources",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# The byte-for-byte mirror of aion-v1/api/eigent/v1 (see the README next to it
+# for the sync rule).
+filegroup(
+    name = "aion_contract_mirror",
+    srcs = glob(["src/api/aion/v1/contract/**"]),
+    visibility = ["//visibility:public"],
+)
+
+# Committed generator outputs (edge-api.ts + meta.ts). aion_edge_client_gen
+# fails when they no longer match the mirror.
+filegroup(
+    name = "aion_edge_client_gen_sources",
+    srcs = glob(["src/api/aion/v1/gen/**"]),
     visibility = ["//visibility:public"],
 )
 
@@ -126,6 +146,22 @@ js_test(
     name = "design_token_usage",
     data = [":desktop_sources"],
     entry_point = "scripts/check-design-token-usage.mjs",
+    visibility = ["//desktop:__pkg__"],
+)
+
+# Freshness gate for the generated aion edge client: regenerates from the
+# contract mirror in-memory and fails on any diff against the committed
+# src/api/aion/v1/gen/ outputs.
+js_test(
+    name = "aion_edge_client_gen",
+    args = ["--check"],
+    data = [
+        ":aion_contract_mirror",
+        ":aion_edge_client_gen_sources",
+        ":node_modules/openapi-typescript",
+        ":node_modules/yaml",
+    ],
+    entry_point = "scripts/gen-aion-edge-client.mjs",
     visibility = ["//desktop:__pkg__"],
 )
 

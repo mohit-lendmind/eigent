@@ -150,6 +150,9 @@ function main() {
     '.git',
     '.next',
     '.nuxt',
+    // Generated aion edge client: byte-exact with the contract mirror
+    // (bazel test //:aion_edge_client_gen); must not be rewritten
+    'src/api/aion/v1/gen',
   ];
 
   // Process each file passed as argument (from lint-staged)

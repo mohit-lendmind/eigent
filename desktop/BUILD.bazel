@@ -8,12 +8,14 @@ alias(name = "prebuild_compile", actual = "//:prebuild_compile", visibility = ["
 alias(name = "electron_main", actual = "//:electron_main_sources", visibility = ["//visibility:public"])
 alias(name = "electron_preload", actual = "//:electron_preload_sources", visibility = ["//visibility:public"])
 alias(name = "edge_client", actual = "//:edge_client_sources", visibility = ["//visibility:public"])
+test_suite(name = "edge_client_gen", tests = ["//:aion_edge_client_gen"], visibility = ["//visibility:public"])
 alias(name = "package_manifest", actual = "//:package_inputs", visibility = ["//visibility:public"])
 alias(name = "package_unsigned", actual = "//:package_unsigned", visibility = ["//visibility:public"])
 
 test_suite(
     name = "desktop_checks",
     tests = [
+        ":edge_client_gen",
         ":lint",
         ":type_check",
         ":vitest",

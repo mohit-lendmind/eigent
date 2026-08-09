@@ -44,3 +44,7 @@ uv.lock
 # Generated files
 messages.pot
 *.po
+
+# Generated aion edge client — byte-exact with the contract mirror
+# (bazel test //:aion_edge_client_gen); no rewriting tool may touch it
+src/api/aion/v1/gen/

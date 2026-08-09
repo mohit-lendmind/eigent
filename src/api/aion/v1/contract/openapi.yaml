@@ -1,0 +1,443 @@
+openapi: 3.1.0
+info:
+  title: Eigent Desktop Edge API
+  version: 1.2.0
+  description: |
+    Public, additive-only API used by the Eigent desktop application. The edge
+    authenticates the device/user, enforces tenant policy, and projects private
+    Ops events. Desktop clients select a policy-controlled model alias; provider
+    credentials, provider routes, inference grants, and internal service
+    addresses are never accepted or returned.
+
+    Every edge response carries the X-Eigent-Edge-Api-Version and
+    X-Eigent-Min-Desktop-Version headers (documented on getIntegrationStatus);
+    a client older than the advertised minimum must stop and update rather
+    than degrade unpredictably.
+servers:
+  - url: https://api.eternly.example/eigent/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: projects
+  - name: commands
+  - name: events
+  - name: approvals
+  - name: artifacts
+  - name: catalog
+paths:
+  /projects:
+    post:
+      operationId: createProject
+      tags: [projects]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateProjectRequest'}
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Project'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /projects/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      operationId: getProject
+      tags: [projects]
+      responses:
+        '200':
+          description: Current durable Project projection
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ProjectSnapshot'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /projects/{projectId}/commands:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      operationId: submitCommand
+      tags: [commands]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SubmitCommandRequest'}
+      responses:
+        '202':
+          description: Command admitted exactly once
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CommandReceipt'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+  /projects/{projectId}/events:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      operationId: subscribeProjectEvents
+      tags: [events]
+      description: |
+        Replays durable Project events strictly after the supplied cursor and
+        then tails live events. Reconnect is read-only and never re-executes a
+        command or tool. `sequence` and SSE `id` are decimal strings so browser
+        number limits cannot corrupt a cursor.
+      parameters:
+        - name: after
+          in: query
+          schema: {type: string, pattern: '^[0-9]+$'}
+        - name: Last-Event-ID
+          in: header
+          schema: {type: string, pattern: '^[0-9]+$'}
+          description: Takes precedence over `after` when present.
+      responses:
+        '200':
+          description: Project event stream defined by asyncapi.yaml
+          content:
+            text/event-stream:
+              schema: {type: string}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '410':
+          description: |
+            Cursor fell outside the retained replay window. The problem carries
+            `code: cursor_expired`, `minimum_sequence` (the smallest cursor
+            that still replays gapless), and `high_water_sequence` (the
+            Project's last allocated sequence at refusal). Recover by fetching
+            the Project snapshot (getProject) and resuming with
+            `after = last_sequence` — never by ignoring the gap.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /projects/{projectId}/runs/{runId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/RunId'
+    post:
+      operationId: cancelRun
+      tags: [commands]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CancelRunRequest'}
+      responses:
+        '202': {description: Epoch-fenced cancellation recorded}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /projects/{projectId}/approvals/{approvalId}/response:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ApprovalId'
+    post:
+      operationId: respondToApproval
+      tags: [approvals]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ApprovalResponse'}
+      responses:
+        '202': {description: Approval response recorded exactly once}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /models:
+    get:
+      operationId: listModelAliases
+      tags: [catalog]
+      description: |
+        Policy-controlled model alias catalog for this device/user. Aliases are
+        server-side names; concrete vendor models, routes, and credentials are
+        resolved privately and never returned.
+      responses:
+        '200':
+          description: Model aliases this client may select
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ModelAliasCatalog'}
+        '401': {$ref: '#/components/responses/Problem'}
+  /status:
+    get:
+      operationId: getIntegrationStatus
+      tags: [catalog]
+      # Unauthenticated by design (the Health-bypass precedent): an outdated or
+      # signed-out client must still learn the compatibility window.
+      security: []
+      description: |
+        Edge/backend integration handshake: contract versions and the minimum
+        desktop client version this edge still serves. The same values ride the
+        X-Eigent-Edge-Api-Version and X-Eigent-Min-Desktop-Version response
+        headers, which every edge response carries.
+      responses:
+        '200':
+          description: Integration status and compatibility window
+          headers:
+            X-Eigent-Edge-Api-Version: {$ref: '#/components/headers/EdgeApiVersion'}
+            X-Eigent-Min-Desktop-Version: {$ref: '#/components/headers/MinDesktopVersion'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IntegrationStatus'}
+  /projects/{projectId}/artifacts/{artifactId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ArtifactId'
+    get:
+      operationId: getArtifact
+      tags: [artifacts]
+      responses:
+        '200':
+          description: Artifact metadata and a short-lived authorized download URL
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactAccess'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 16, maxLength: 128}
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Identifier'}
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Identifier'}
+    ApprovalId:
+      name: approvalId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Identifier'}
+    ArtifactId:
+      name: artifactId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Identifier'}
+  headers:
+    EdgeApiVersion:
+      description: Semantic version of the edge API contract serving this response.
+      schema: {type: string}
+    MinDesktopVersion:
+      description: Oldest desktop client version this edge still serves.
+      schema: {type: string}
+  responses:
+    Problem:
+      description: RFC 9457 problem detail
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+  schemas:
+    Identifier: {type: string, minLength: 3, maxLength: 128}
+    CreateProjectRequest:
+      type: object
+      additionalProperties: false
+      required: [title, model_alias]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 200}
+        model_alias: {$ref: '#/components/schemas/ModelAlias'}
+    ModelAlias:
+      type: string
+      pattern: '^[a-z][a-z0-9_-]{1,63}$'
+      description: Server-controlled policy alias, never a literal vendor model identifier.
+    Project:
+      type: object
+      required: [project_id, title, model_alias, status, created_at, updated_at]
+      properties:
+        project_id: {$ref: '#/components/schemas/Identifier'}
+        title: {type: string}
+        model_alias: {$ref: '#/components/schemas/ModelAlias'}
+        status: {type: string, enum: [active, closed]}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+      additionalProperties: true
+    ProjectSnapshot:
+      type: object
+      required: [project, last_sequence]
+      properties:
+        project: {$ref: '#/components/schemas/Project'}
+        active_run: {$ref: '#/components/schemas/Run'}
+        last_sequence: {$ref: '#/components/schemas/Sequence'}
+        events_pruned_below:
+          $ref: '#/components/schemas/Sequence'
+          description: |
+            Bounded-retention floor: events at sequences <= this have been
+            pruned ("0" = nothing pruned). The smallest `after` cursor that
+            still replays gapless.
+      additionalProperties: true
+    SubmitCommandRequest:
+      type: object
+      additionalProperties: false
+      required: [command_id, text]
+      properties:
+        command_id: {$ref: '#/components/schemas/Identifier'}
+        text: {type: string, minLength: 1, maxLength: 200000}
+        attachment_ids:
+          type: array
+          maxItems: 32
+          items: {$ref: '#/components/schemas/Identifier'}
+    CommandReceipt:
+      type: object
+      required: [command_id, run_id, run_epoch, accepted_sequence]
+      properties:
+        command_id: {$ref: '#/components/schemas/Identifier'}
+        run_id: {$ref: '#/components/schemas/Identifier'}
+        run_epoch: {type: string, pattern: '^[1-9][0-9]*$'}
+        accepted_sequence: {$ref: '#/components/schemas/Sequence'}
+      additionalProperties: true
+    CancelRunRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_run_epoch]
+      properties:
+        expected_run_epoch: {type: string, pattern: '^[1-9][0-9]*$'}
+    ApprovalResponse:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision: {type: string, enum: [allow, deny]}
+        response_text: {type: string, maxLength: 10000}
+    Sequence: {type: string, pattern: '^[0-9]+$'}
+    Run:
+      type: object
+      required: [run_id, run_epoch, status]
+      properties:
+        run_id: {$ref: '#/components/schemas/Identifier'}
+        run_epoch: {type: string, pattern: '^[1-9][0-9]*$'}
+        # status is an OPEN string set like kind/visibility: the run state
+        # machine is additive-only, so a consumer must tolerate values it does
+        # not know (rendering policy: treat an unknown status as running/busy).
+        # x-aion-known-values documents the values this contract version emits;
+        # cancelling and recovery are non-terminal (cancellation recorded but
+        # unsettled; a durable recovery label awaiting its named reconciler).
+        status:
+          type: string
+          x-aion-known-values: [accepted, running, awaiting_approval, succeeded, failed, cancelled, cancelling, recovery]
+      additionalProperties: true
+    ProjectEvent:
+      type: object
+      x-aion-unknown-fields: preserve
+      additionalProperties: true
+      required: [event_id, schema_version, project_id, run_id, sequence, kind, visibility, occurred_at, data]
+      properties:
+        event_id: {$ref: '#/components/schemas/Identifier'}
+        schema_version: {type: string, pattern: '^1\.'}
+        project_id: {$ref: '#/components/schemas/Identifier'}
+        run_id: {$ref: '#/components/schemas/Identifier'}
+        sequence: {$ref: '#/components/schemas/Sequence'}
+        # kind and visibility are OPEN string sets: the event schema is
+        # additive-only, so a consumer must pass unknown values through
+        # (rendering policy: treat an unknown visibility as internal).
+        # x-aion-known-values documents the values this contract version emits.
+        kind:
+          type: string
+          x-aion-known-values: [run_accepted, text_delta, tool_call, tool_result, approval_required, approval_resolved, artifact_created, run_completed, run_failed, run_cancelled]
+        visibility:
+          type: string
+          x-aion-known-values: [user, internal, audit]
+        occurred_at: {type: string, format: date-time}
+        correlation:
+          type: object
+          additionalProperties: true
+        data:
+          type: object
+          additionalProperties: true
+    Artifact:
+      type: object
+      required: [artifact_id, project_id, name, media_type, size_bytes, sha256, created_at]
+      properties:
+        artifact_id: {$ref: '#/components/schemas/Identifier'}
+        project_id: {$ref: '#/components/schemas/Identifier'}
+        name: {type: string}
+        media_type: {type: string}
+        size_bytes: {type: string, pattern: '^[0-9]+$'}
+        sha256: {type: string, pattern: '^[a-f0-9]{64}$'}
+        created_at: {type: string, format: date-time}
+      additionalProperties: true
+    ArtifactAccess:
+      type: object
+      required: [artifact, download_url, expires_at]
+      properties:
+        artifact: {$ref: '#/components/schemas/Artifact'}
+        download_url: {type: string, format: uri}
+        expires_at: {type: string, format: date-time}
+      additionalProperties: true
+    ModelAliasCatalog:
+      type: object
+      required: [aliases]
+      properties:
+        aliases:
+          type: array
+          items: {$ref: '#/components/schemas/ModelAliasOption'}
+      additionalProperties: true
+    ModelAliasOption:
+      type: object
+      required: [alias]
+      properties:
+        alias: {$ref: '#/components/schemas/ModelAlias'}
+        display_name: {type: string}
+        description: {type: string}
+        is_default: {type: boolean}
+      additionalProperties: true
+    IntegrationStatus:
+      type: object
+      required: [edge_api_version, event_schema_version, minimum_desktop_version]
+      properties:
+        edge_api_version: {type: string}
+        event_schema_version: {type: string}
+        minimum_desktop_version: {type: string}
+        harness_generation: {type: string}
+        server_time: {type: string, format: date-time}
+      additionalProperties: true
+    Problem:
+      type: object
+      required: [type, title, status, code, trace_id]
+      properties:
+        type: {type: string, format: uri-reference}
+        title: {type: string}
+        status: {type: integer, minimum: 400, maximum: 599}
+        detail: {type: string}
+        instance: {type: string, format: uri-reference}
+        code: {type: string}
+        trace_id: {type: string}
+        retryable: {type: boolean}
+        minimum_sequence:
+          $ref: '#/components/schemas/Sequence'
+          description: |
+            For code cursor_expired — the retention floor: the smallest `after`
+            cursor that still replays gapless.
+        high_water_sequence:
+          $ref: '#/components/schemas/Sequence'
+          description: |
+            For code cursor_expired — the Project's last allocated sequence at
+            refusal; a snapshot rehydrate covers at least up to here.
+      additionalProperties: true

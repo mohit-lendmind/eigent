@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "edge_api": "1.2.0",
+  "event_schema": "1.0",
+  "desktop_client": "1.0.2",
+  "minimum_server": "0.1.0-m0",
+  "minimum_desktop": "1.0.2",
+  "source_pins": {
+    "aion": "9c2d9f3f8d67a6cf9670f870aae5dffaff7eadc4",
+    "eigent": "637d415435000cabf8ba43e566c37883fbe10808",
+    "eigen_atlas": "29f2ef69f10363c24e492d542a2d4ee03a4fe067"
+  },
+  "contracts": {
+    "public_openapi": "api/eigent/v1/openapi.yaml",
+    "public_asyncapi": "api/eigent/v1/asyncapi.yaml",
+    "private_inference": "proto/aion/inference/v1/inference.proto",
+    "private_ops": "proto/aion/ops/v1/ops.proto",
+    "fixtures": "testdata/eigent/v1/manifest.json"
+  }
+}

@@ -1,34 +1,33 @@
 // Public edge contract owned by api/eigent/v1 in aion-v1. This module is
 // provider-neutral by construction: the desktop selects only a model alias and
 // never accepts provider credentials, routes, grants, or internal endpoints.
+//
+// The known-value sets and version tuple come from the generated contract
+// metadata (gen/meta.ts, produced by `pnpm gen:aion-edge` from the mirrored
+// openapi.yaml) so this module cannot drift from the synced contract version.
 
-export const PROJECT_EVENT_SCHEMA_VERSION = '1.0' as const;
+import {
+  EVENT_SCHEMA_VERSION,
+  KNOWN_EVENT_VISIBILITIES,
+  KNOWN_PROJECT_EVENT_KINDS,
+  type KnownEventVisibility,
+  type KnownProjectEventKind,
+} from './gen/meta';
 
-export const ProjectEventKind = {
-  RUN_ACCEPTED: 'run_accepted',
-  TEXT_DELTA: 'text_delta',
-  TOOL_CALL: 'tool_call',
-  TOOL_RESULT: 'tool_result',
-  APPROVAL_REQUIRED: 'approval_required',
-  APPROVAL_RESOLVED: 'approval_resolved',
-  ARTIFACT_CREATED: 'artifact_created',
-  RUN_COMPLETED: 'run_completed',
-  RUN_FAILED: 'run_failed',
-} as const;
+export const PROJECT_EVENT_SCHEMA_VERSION = EVENT_SCHEMA_VERSION;
 
-export type ProjectEventKindValue =
-  (typeof ProjectEventKind)[keyof typeof ProjectEventKind];
+// Re-exported for rendering policy; decode itself never gates on either set
+// (both are open).
+export { KNOWN_EVENT_VISIBILITIES, KNOWN_PROJECT_EVENT_KINDS };
+
+export type ProjectEventKindValue = KnownProjectEventKind;
 
 // kind and visibility are OPEN sets: the event schema is additive-only, so a
 // server newer than this client may emit values outside the known unions.
 // Decode passes them through; rendering must treat an unknown kind as opaque
 // and an unknown visibility as 'internal' (never show it to the user).
 export type ProjectEventKindWire = ProjectEventKindValue | (string & {});
-export type ProjectEventVisibility =
-  | 'user'
-  | 'internal'
-  | 'audit'
-  | (string & {});
+export type ProjectEventVisibility = KnownEventVisibility | (string & {});
 
 export interface ProjectEvent extends Record<string, unknown> {
   event_id: string;
@@ -60,7 +59,7 @@ const requiredStringFields = [
   'occurred_at',
 ] as const;
 
-const eventKinds = new Set<string>(Object.values(ProjectEventKind));
+const eventKinds = new Set<string>(KNOWN_PROJECT_EVENT_KINDS);
 const supportedMajor = PROJECT_EVENT_SCHEMA_VERSION.split('.')[0] + '.';
 
 function asRecord(value: unknown, label: string): Record<string, unknown> {
