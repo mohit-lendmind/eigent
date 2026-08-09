@@ -205,6 +205,14 @@ test('backend-unavailable UX: set-but-invalid config is a typed error, never loc
 
 test('bootstrap → project → command → streaming → reconnect → replay, edge-only network', async () => {
   test.skip(!bootstrap || !edgeReady || !APP_BUILT, 'eigent-local stack not running or app not built');
+  // This scenario's command itself writes a file, so under the approval-gated
+  // stack (AION_APPROVAL_REQUIRED=write_file) it would suspend on the human
+  // gate by design. It runs against the default stack; approval mode runs the
+  // dedicated approval scenario below.
+  test.skip(
+    process.env.EIGENT_E2E_APPROVAL_MODE === '1',
+    'write_file is human-gated on the approval-mode stack'
+  );
 
   const { app, page } = await launchLab({
     EIGENT_REMOTE_BACKEND_URL: edgeBaseUrl!,
@@ -356,6 +364,85 @@ test('bootstrap → project → command → streaming → reconnect → replay, 
       }
       fs.writeFileSync(
         path.join(EVIDENCE_DIR, 'eigent-m4i-e2e-summary.json'),
+        payload
+      );
+    }
+  } finally {
+    await app.close();
+  }
+});
+
+// M6 approvals train (doc 10 §12): with the stack's durable human gate on
+// (AION_APPROVAL_REQUIRED=write_file), a command that writes a file parks its
+// run awaiting approval; the Lab surfaces the pending approval; Allow
+// delivers the verdict (respond-once on the backend) and the run resumes to
+// a succeeded terminal whose timeline carries the resolved approval. Bring
+// the stack up gated and opt this test in:
+//   AION_APPROVAL_REQUIRED=write_file bazel run //dev/eigent_local:up
+//   EIGENT_E2E_APPROVAL_MODE=1 npx playwright test --config e2e/playwright.config.ts aion-lab
+test('approval gate: gated write suspends, allow resumes to completion', async () => {
+  test.skip(
+    !bootstrap || !edgeReady || !APP_BUILT,
+    'eigent-local stack not running or app not built'
+  );
+  test.skip(
+    process.env.EIGENT_E2E_APPROVAL_MODE !== '1',
+    'stack not in approval mode (set AION_APPROVAL_REQUIRED=write_file on the stack and EIGENT_E2E_APPROVAL_MODE=1 here)'
+  );
+
+  const { app, page } = await launchLab({
+    EIGENT_REMOTE_BACKEND_URL: edgeBaseUrl!,
+    EIGENT_REMOTE_BACKEND_API_KEY_FILE: keyFile,
+    EIGENT_REMOTE_BACKEND_API_KEY: '',
+  });
+  const summary: Record<string, unknown> = {
+    captured_at: new Date().toISOString(),
+    edge_base_url: edgeBaseUrl,
+    approval_mode: true,
+  };
+  try {
+    await expect(byId(page, 'lab-health')).toHaveText('health: ok');
+    await byId(page, 'lab-project-create').click();
+    await expect(byId(page, 'lab-project-id')).toBeVisible();
+    summary.project_id = ((await byId(page, 'lab-project-id').textContent()) ?? '')
+      .replace('project:', '')
+      .trim();
+
+    await byId(page, 'lab-command-input').fill(
+      'Use the write_file tool to create approval-note.txt containing exactly "approved-path", then reply done.'
+    );
+    await byId(page, 'lab-command-submit').click();
+    await expect(byId(page, 'lab-command-receipts')).toContainText('run ');
+
+    // The gated tool parks the run: a pending approval surfaces with the
+    // tool it gates, streamed from the edge (approval_required).
+    const allowButton = page.locator('[data-testid^="lab-approval-allow-"]');
+    await expect(allowButton).toBeVisible({ timeout: 120_000 });
+    await expect(byId(page, 'lab-approvals')).toContainText('write_file');
+    summary.approval_surfaced = true;
+    await screenshot(page, 'approval-pending');
+
+    // Allow → the backend records the verdict once and resumes the run.
+    await allowButton.click();
+    await expect
+      .poll(
+        async () => (await byId(page, 'lab-runs').textContent()) ?? '',
+        { timeout: 180_000 }
+      )
+      .toMatch(/succeeded/);
+    // The pending list drains when approval_resolved streams back.
+    await expect(allowButton).toHaveCount(0, { timeout: 30_000 });
+    summary.run_terminal = 'succeeded';
+    await screenshot(page, 'approval-resumed');
+
+    if (EVIDENCE_DIR) {
+      fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
+      const payload = JSON.stringify(summary, null, 2);
+      if (payload.includes(bootstrap!.api_key)) {
+        throw new Error('evidence summary would leak the API key');
+      }
+      fs.writeFileSync(
+        path.join(EVIDENCE_DIR, 'eigent-m6-approval-summary.json'),
         payload
       );
     }
