@@ -75,6 +75,9 @@ describe('EdgeTransport REST (golden fixtures)', () => {
     expect(url).toBe('https://edge.local/eigent/v1/projects');
     expect(init.method).toBe('POST');
     expect(headers.Authorization).toBe('Bearer sk-test-key');
+    // The contract requires an Idempotency-Key (16..128 chars) on every
+    // mutation — the live edge rejects the request without one.
+    expect(headers['Idempotency-Key']).toMatch(/^idk_[0-9a-f]{32}$/);
     expect(JSON.parse(init.body as string)).toEqual(
       fixture('create_project_request.json')
     );
@@ -94,6 +97,18 @@ describe('EdgeTransport REST (golden fixtures)', () => {
     const { url, headers } = requestOf(fetchImpl);
     expect(url).toBe('https://edge.local/eigent/v1/projects/prj_1/commands');
     expect(headers['Idempotency-Key']).toBe(request.command_id);
+  });
+
+  it('sends a contract-conforming idempotency key on cancel and approval response', async () => {
+    const { transport, fetchImpl } = transportWith(() => jsonResponse({}, 202));
+    await transport.cancelRun('prj_1', 'run_1', { expected_run_epoch: '1' });
+    await transport.respondToApproval('prj_1', 'apr_1', {
+      decision: 'allow',
+    } as Parameters<typeof transport.respondToApproval>[2]);
+    for (const call of [0, 1]) {
+      const { headers } = requestOf(fetchImpl, call);
+      expect(headers['Idempotency-Key']).toMatch(/^idk_[0-9a-f]{32}$/);
+    }
   });
 
   it('decodes the model alias catalog', async () => {

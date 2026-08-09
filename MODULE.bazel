@@ -12,6 +12,9 @@ module(
 # 2.9.2 is the newest verified line compatible with the shared Bazel 7.4.1
 # toolchain used by the Aion cross-repository integration build.
 bazel_dep(name = "aspect_rules_js", version = "2.9.2")
+# Already in the resolved graph via aspect_rules_js; declared directly for
+# copy_to_bin (shared bin copies of the e2e sources — see BUILD.bazel).
+bazel_dep(name = "aspect_bazel_lib", version = "2.19.2")
 bazel_dep(name = "rules_nodejs", version = "6.7.3")
 
 node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")

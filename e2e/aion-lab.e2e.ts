@@ -1,0 +1,351 @@
+// M4-I development Electron E2E (doc 10 §10): the REAL desktop app in
+// remote-backend mode against the eigent-local Compose edge. The suite
+// drives the Integration Lab through bootstrap → project → command →
+// streaming → terminal run, then edge-restart reconnect and detach/attach
+// replay equivalence, and separately the backend-unavailable UX. All
+// renderer network traffic is captured and must target ONLY the edge.
+//
+// Preconditions (skipped cleanly when absent):
+//   bazel run //dev/eigent_local:images && bazel run //dev/eigent_local:up
+// in the sibling aion-v1 checkout, and `npx vite build` here. The desktop
+// API key comes from the gitignored run manifest and rides ONLY the env of
+// the launched app — never a committed file, never the evidence summary.
+
+import {
+  _electron as electron,
+  expect,
+  test,
+  type ElectronApplication,
+  type Page,
+} from '@playwright/test';
+import { execSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Under Bazel the spec runs from a bin-dir copy that has no built app —
+// EIGENT_E2E_APP_DIR points back at the source workspace (see BUILD.bazel).
+const REPO_ROOT =
+  process.env.EIGENT_E2E_APP_DIR ??
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const APP_BUILT = fs.existsSync(
+  path.join(REPO_ROOT, 'dist-electron', 'main', 'index.js')
+);
+const BOOTSTRAP_PATH =
+  process.env.EIGENT_E2E_BOOTSTRAP ??
+  path.resolve(REPO_ROOT, '../aion-v1/deploy/eigent-local/run/bootstrap.json');
+const EDGE_CONTAINER =
+  process.env.EIGENT_E2E_EDGE_CONTAINER ?? 'eigent-aion-local-aion-edge-1';
+const EVIDENCE_DIR = process.env.EIGENT_E2E_EVIDENCE_DIR;
+
+interface Bootstrap {
+  api_key: string;
+  edge_url: string;
+  tenant_id: string;
+}
+
+function readBootstrap(): Bootstrap | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(BOOTSTRAP_PATH, 'utf-8'));
+    if (typeof raw.api_key !== 'string' || typeof raw.edge_url !== 'string') {
+      return null;
+    }
+    return raw as Bootstrap;
+  } catch {
+    return null;
+  }
+}
+
+const bootstrap = readBootstrap();
+// The edge base already targets the mounted contract root.
+const edgeBaseUrl = bootstrap
+  ? `${bootstrap.edge_url.replace(/\/+$/, '')}/eigent/v1`
+  : null;
+let edgeReady = false;
+let workDir: string;
+let keyFile: string;
+
+test.beforeAll(async () => {
+  if (!bootstrap || !edgeBaseUrl) return;
+  try {
+    const response = await fetch(`${edgeBaseUrl}/status`, {
+      signal: AbortSignal.timeout(3_000),
+    });
+    edgeReady = response.ok;
+  } catch {
+    edgeReady = false;
+  }
+  workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eigent-e2e-'));
+  keyFile = path.join(workDir, 'edge-api-key');
+  if (bootstrap) {
+    fs.writeFileSync(keyFile, bootstrap.api_key, { mode: 0o600 });
+  }
+});
+
+test.afterAll(() => {
+  if (workDir) {
+    fs.rmSync(workDir, { recursive: true, force: true });
+  }
+});
+
+function launchEnv(extra: Record<string, string>): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === 'string') env[key] = value;
+  }
+  // A leaked dev-server URL would make the app load a live vite instead of
+  // the built renderer under test.
+  delete env.VITE_DEV_SERVER_URL;
+  env.EIGENT_E2E_USER_DATA = fs.mkdtempSync(
+    path.join(workDir, 'user-data-')
+  );
+  return { ...env, ...extra };
+}
+
+// The app opens hidden about:blank browser-tool windows (CDP pool, webviews)
+// before and around the main renderer, so firstWindow() is a lottery. The
+// real UI is the only window whose URL is the built dist/index.html.
+async function findMainWindow(app: ElectronApplication): Promise<Page> {
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    const main = app
+      .windows()
+      .find((w) => w.url().includes('/dist/index.html'));
+    if (main) return main;
+    if (Date.now() > deadline) {
+      const urls = app.windows().map((w) => w.url());
+      throw new Error(`main renderer window not found among: ${urls.join(', ')}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+}
+
+async function launchLab(
+  extra: Record<string, string>
+): Promise<{ app: ElectronApplication; page: Page }> {
+  const app = await electron.launch({
+    args: [REPO_ROOT],
+    cwd: REPO_ROOT,
+    env: launchEnv(extra),
+  });
+  const page = await findMainWindow(app);
+  await page.evaluate(() => {
+    window.location.hash = '#/integration-lab';
+  });
+  return { app, page };
+}
+
+const byId = (page: Page, id: string) => page.getByTestId(id);
+
+async function screenshot(page: Page, name: string): Promise<void> {
+  if (!EVIDENCE_DIR) return;
+  fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
+  await page.screenshot({
+    path: path.join(EVIDENCE_DIR, `eigent-m4i-${name}.png`),
+    fullPage: true,
+  });
+}
+
+function restartEdgeContainer(): boolean {
+  try {
+    execSync(`docker restart ${EDGE_CONTAINER}`, {
+      stdio: 'ignore',
+      timeout: 90_000,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function cursorValue(page: Page): Promise<bigint> {
+  const text = (await byId(page, 'lab-cursor').textContent()) ?? 'cursor: 0';
+  return BigInt(text.replace('cursor:', '').trim() || '0');
+}
+
+test('backend-unavailable UX: set-but-invalid config is a typed error, never local fallback', async () => {
+  test.skip(!bootstrap || !edgeReady || !APP_BUILT, 'eigent-local stack not running or app not built');
+  const { app, page } = await launchLab({
+    EIGENT_REMOTE_BACKEND_URL: edgeBaseUrl!,
+    EIGENT_REMOTE_BACKEND_API_KEY: '',
+    EIGENT_REMOTE_BACKEND_API_KEY_FILE: '',
+  });
+  try {
+    const error = byId(page, 'lab-config-error');
+    await expect(error).toBeVisible();
+    await expect(error).toContainText('invalid');
+    await screenshot(page, 'backend-unavailable');
+  } finally {
+    await app.close();
+  }
+});
+
+test('bootstrap → project → command → streaming → reconnect → replay, edge-only network', async () => {
+  test.skip(!bootstrap || !edgeReady || !APP_BUILT, 'eigent-local stack not running or app not built');
+
+  const { app, page } = await launchLab({
+    EIGENT_REMOTE_BACKEND_URL: edgeBaseUrl!,
+    EIGENT_REMOTE_BACKEND_API_KEY_FILE: keyFile,
+    EIGENT_REMOTE_BACKEND_API_KEY: '',
+  });
+  const networkUrls: string[] = [];
+  page.on('request', (request) => {
+    networkUrls.push(request.url());
+  });
+
+  const summary: Record<string, unknown> = {
+    captured_at: new Date().toISOString(),
+    edge_base_url: edgeBaseUrl,
+  };
+
+  try {
+    // --- bootstrap: status handshake over the real edge -------------------
+    await expect(byId(page, 'lab-health')).toHaveText('health: ok');
+    await expect(byId(page, 'lab-execution-mode')).toContainText('remote');
+    await expect(byId(page, 'lab-inference-status')).toContainText('managed');
+    await expect(byId(page, 'lab-auth-identity')).toContainText(
+      `tenant ${bootstrap!.tenant_id}`
+    );
+    await expect(byId(page, 'lab-model-row-aion-default')).toBeVisible();
+    await screenshot(page, 'status');
+
+    // --- project ----------------------------------------------------------
+    await byId(page, 'lab-project-create').click();
+    await expect(byId(page, 'lab-project-id')).toBeVisible();
+    const projectId = ((await byId(page, 'lab-project-id').textContent()) ?? '')
+      .replace('project:', '')
+      .trim();
+    expect(projectId).toMatch(/^prj[-_]/);
+    summary.project_id = projectId;
+
+    // --- command → streaming → terminal run -------------------------------
+    // The session reports `live` only once a frame is APPLIED (M4-F: progress
+    // proves the cursor is live) — a brand-new project has no events, so the
+    // command comes first and its run events flip the session to live.
+    await byId(page, 'lab-command-input').fill(
+      'Reply with a short greeting and finish.'
+    );
+    await byId(page, 'lab-command-submit').click();
+    await expect(byId(page, 'lab-command-receipts')).toContainText('run ');
+    await expect(byId(page, 'lab-session-status')).toHaveText('session: live');
+    // The run must reach a terminal state through real streaming.
+    await expect
+      .poll(
+        async () => (await byId(page, 'lab-runs').textContent()) ?? '',
+        { timeout: 120_000 }
+      )
+      .toMatch(/(succeeded|failed|cancelled)/);
+    const liveCursor = await cursorValue(page);
+    expect(liveCursor).toBeGreaterThan(0n);
+    const liveRuns = ((await byId(page, 'lab-runs').textContent()) ?? '').trim();
+    const liveTimelineCount = await page
+      .getByTestId('lab-timeline-entry')
+      .count();
+    expect(liveTimelineCount).toBeGreaterThan(0);
+    summary.live_cursor = liveCursor.toString();
+    summary.live_timeline_entries = liveTimelineCount;
+    summary.run_terminal = /succeeded/.test(liveRuns)
+      ? 'succeeded'
+      : /cancelled/.test(liveRuns)
+        ? 'cancelled'
+        : 'failed';
+    await screenshot(page, 'run-terminal');
+
+    // --- sanitized evidence export ---------------------------------------
+    await byId(page, 'lab-export').click();
+    const evidenceJson =
+      (await byId(page, 'lab-evidence-json').textContent()) ?? '';
+    expect(evidenceJson).toContain(projectId);
+    expect(evidenceJson).not.toContain(bootstrap!.api_key);
+    expect(evidenceJson).not.toContain('apiKey');
+
+    // --- reconnect: restart the edge under the live session --------------
+    const restarted = restartEdgeContainer();
+    summary.edge_restarted = restarted;
+    let finalCursor = liveCursor;
+    let finalRuns = liveRuns;
+    let finalTimelineCount = liveTimelineCount;
+    if (restarted) {
+      // Liveness is only observable through applied frames, so the proof the
+      // bounded-reconnect session survived the restart is a SECOND command
+      // whose run streams to terminal over the re-established subscription —
+      // with the acknowledged cursor moving strictly forward, never back.
+      await byId(page, 'lab-command-input').fill(
+        'Reply with a short farewell and finish.'
+      );
+      await byId(page, 'lab-command-submit').click();
+      await expect
+        .poll(
+          async () => {
+            const runs = (await byId(page, 'lab-runs').textContent()) ?? '';
+            return (runs.match(/succeeded|failed|cancelled/g) ?? []).length;
+          },
+          { timeout: 120_000 }
+        )
+        .toBeGreaterThanOrEqual(2);
+      await expect(byId(page, 'lab-session-status')).toHaveText('session: live');
+      finalCursor = await cursorValue(page);
+      expect(finalCursor > liveCursor).toBe(true);
+      finalRuns = ((await byId(page, 'lab-runs').textContent()) ?? '').trim();
+      finalTimelineCount = await page.getByTestId('lab-timeline-entry').count();
+      summary.cursor_after_reconnect = finalCursor.toString();
+      await screenshot(page, 'reconnected');
+    }
+
+    // --- replay equivalence: detach, attach, re-reduce from cursor 0 ------
+    await byId(page, 'lab-detach').click();
+    await byId(page, 'lab-project-attach-input').fill(projectId);
+    await byId(page, 'lab-project-attach').click();
+    await expect
+      .poll(async () => (await cursorValue(page)).toString(), {
+        timeout: 60_000,
+      })
+      .toBe(finalCursor.toString());
+    const replayRuns = ((await byId(page, 'lab-runs').textContent()) ?? '').trim();
+    const replayTimelineCount = await page
+      .getByTestId('lab-timeline-entry')
+      .count();
+    // Live tail and cold replay of the same event window must reduce to the
+    // same view (the reducer determinism invariant, proven on the real wire).
+    expect(replayRuns).toBe(finalRuns);
+    expect(replayTimelineCount).toBe(finalTimelineCount);
+    summary.replay_equivalent = true;
+    await screenshot(page, 'replay');
+
+    // --- edge-only network capture ----------------------------------------
+    // Upstream Eigent's index.html statically loads Amplitude analytics +
+    // session replay on every page — pre-existing product telemetry, not part
+    // of the aion loop. It is allowlisted here (and recorded verbatim in the
+    // evidence) rather than blocked, so the gate reports what the app truly
+    // sent; gating telemetry off in remote-backend mode is an M5 follow-up.
+    const UPSTREAM_TELEMETRY = /^https:\/\/([a-z0-9-]+\.)*amplitude\.com\//;
+    const edgeOrigin = new URL(edgeBaseUrl!).origin;
+    const httpRequests = networkUrls.filter((u) => /^https?:/.test(u));
+    const telemetry = httpRequests.filter((u) => UPSTREAM_TELEMETRY.test(u));
+    const offEdge = httpRequests.filter(
+      (u) => !u.startsWith(edgeOrigin) && !UPSTREAM_TELEMETRY.test(u)
+    );
+    expect(offEdge).toEqual([]);
+    // The loop itself must actually have run over the edge.
+    expect(httpRequests.length - telemetry.length).toBeGreaterThan(0);
+    summary.http_requests = httpRequests.length;
+    summary.edge_requests = httpRequests.length - telemetry.length;
+    summary.upstream_telemetry_requests = telemetry;
+    summary.off_edge_requests = offEdge;
+
+    if (EVIDENCE_DIR) {
+      fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
+      const payload = JSON.stringify(summary, null, 2);
+      if (payload.includes(bootstrap!.api_key)) {
+        throw new Error('evidence summary would leak the API key');
+      }
+      fs.writeFileSync(
+        path.join(EVIDENCE_DIR, 'eigent-m4i-e2e-summary.json'),
+        payload
+      );
+    }
+  } finally {
+    await app.close();
+  }
+});

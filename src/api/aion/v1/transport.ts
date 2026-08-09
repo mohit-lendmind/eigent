@@ -44,6 +44,15 @@ export interface SubscribeOptions {
   signal?: AbortSignal;
 }
 
+/**
+ * A contract-conforming Idempotency-Key (16..128 chars) for mutations without
+ * a caller-owned identity. submitCommand is the exception: its key IS the
+ * command_id, so session-level retries dedupe.
+ */
+export function newIdempotencyKey(): string {
+  return `idk_${crypto.randomUUID().replaceAll('-', '')}`;
+}
+
 /** One decoded SSE frame: the event plus its `id:` line (the cursor). */
 export interface ProjectEventFrame {
   id: string;
@@ -58,11 +67,20 @@ export class EdgeTransport {
   constructor(config: EdgeTransportConfig) {
     this.baseUrl = config.baseUrl.replace(/\/+$/, '');
     this.apiKey = config.apiKey;
-    this.fetchImpl = config.fetchImpl ?? fetch;
+    // Bound explicitly: stored as a method, an unbound global fetch would be
+    // invoked with the transport as `this` — an Illegal invocation in real
+    // Chromium (jsdom does not enforce this).
+    this.fetchImpl = config.fetchImpl ?? fetch.bind(globalThis);
   }
 
   createProject(request: CreateProjectRequest): Promise<Project> {
-    return this.json('POST', '/projects', { body: request });
+    // A fresh key per call: each createProject invocation is a distinct
+    // attempt. Callers that retry a create must go through a higher-level
+    // identity (there is none today — projects are created interactively).
+    return this.json('POST', '/projects', {
+      body: request,
+      headers: { 'Idempotency-Key': newIdempotencyKey() },
+    });
   }
 
   getProject(projectId: string): Promise<ProjectSnapshot> {
@@ -87,10 +105,12 @@ export class EdgeTransport {
     runId: string,
     request: CancelRunRequest
   ): Promise<void> {
+    // Cancel is naturally idempotent server-side (epoch-fenced); the key only
+    // has to satisfy the contract, so each attempt gets a fresh one.
     return this.json(
       'POST',
       `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/cancel`,
-      { body: request }
+      { body: request, headers: { 'Idempotency-Key': newIdempotencyKey() } }
     );
   }
 
@@ -102,7 +122,7 @@ export class EdgeTransport {
     return this.json(
       'POST',
       `/projects/${encodeURIComponent(projectId)}/approvals/${encodeURIComponent(approvalId)}/response`,
-      { body: request }
+      { body: request, headers: { 'Idempotency-Key': newIdempotencyKey() } }
     );
   }
 

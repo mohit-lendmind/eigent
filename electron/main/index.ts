@@ -557,6 +557,13 @@ if (os.release().startsWith('6.1')) app.disableHardwareAcceleration();
 // Set application name for Windows 10+ notifications
 if (process.platform === 'win32') app.setAppUserModelId(app.getName());
 
+// E2E harness hook (doc 10 §10 M4-I): an isolated userData keeps the test
+// instance's single-instance lock and storage away from a developer's real
+// app. Set only by the Playwright launcher.
+if (process.env.EIGENT_E2E_USER_DATA) {
+  app.setPath('userData', process.env.EIGENT_E2E_USER_DATA);
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
   process.exit(0);
