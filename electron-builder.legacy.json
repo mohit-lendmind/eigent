@@ -1,17 +1,17 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "productName": "Eigent",
-  "appId": "com.eigent.app",
+  "//": "Temporary legacy COMPARISON build (doc 10 §11 WP1): ships the local Python Brain exactly as before the thin cutover. Distinct product identity and output directory; never promoted to a release. Build with build:legacy, which sets EIGENT_THIN_BUILD=0.",
+  "productName": "Eigent Legacy",
+  "appId": "com.eigent.app.legacy",
   "asar": true,
   "asarUnpack": ["node_modules/node-pty/**", "node_modules/koffi/**"],
   "directories": {
-    "output": "release"
+    "output": "release-legacy"
   },
   "files": [
     "dist-electron",
     "dist",
     "resources",
-    "!resources/prebuilt",
     "!backend",
     "!dist/images",
     "!**/__pycache__",
@@ -19,6 +19,34 @@
     "!docs"
   ],
   "extraResources": [
+    {
+      "from": "backend",
+      "to": "backend",
+      "filter": ["**/*", "!.venv/**/*", "!workspace/.initial_env/**/*"]
+    },
+    {
+      "from": "resources/prebuilt",
+      "to": "prebuilt",
+      "filter": [
+        "**/*",
+        "!cache/**/*",
+        "!**/.npm-cache/**/*",
+        "!uv_python/**/*.pyc",
+        "!uv_python/**/__pycache__",
+        "!terminal_venv/**/*.pyc",
+        "!terminal_venv/**/__pycache__",
+        "!**/__pycache__/**",
+        "!**/*.pyc",
+        "!**/*.pyo",
+        "!venv/**/__pycache__/**",
+        "!venv/**/*.pyc",
+
+        "!venv/lib/python*/site-packages/yt_dlp/**",
+        "!venv/lib/python*/site-packages/yt_dlp-*.dist-info/**",
+        "!uv_python/**/site-packages/setuptools/**",
+        "!uv_python/**/site-packages/wheel/**"
+      ]
+    },
     {
       "from": "resources/example-skills",
       "to": "example-skills"
@@ -28,14 +56,6 @@
     {
       "name": "Eigent OAuth",
       "schemes": ["eigent"]
-    }
-  ],
-  "publish": [
-    {
-      "provider": "github",
-      "owner": "eigent-ai",
-      "repo": "eigent",
-      "releaseType": "release"
     }
   ],
   "icon": "build/icon.ico",
@@ -72,7 +92,7 @@
     "extendInfo": {
       "CFBundleURLTypes": [
         {
-          "CFBundleURLName": "com.eigent.app",
+          "CFBundleURLName": "com.eigent.app.legacy",
           "CFBundleURLSchemes": ["eigent"]
         }
       ]
@@ -92,7 +112,7 @@
   },
   "win": {
     "icon": "build/icon.ico",
-    "artifactName": "${productName}.Setup.${version}.exe",
+    "artifactName": "${productName}.Legacy.Setup.${version}.exe",
     "target": [
       {
         "target": "nsis",

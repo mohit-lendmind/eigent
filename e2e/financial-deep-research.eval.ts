@@ -315,18 +315,14 @@ test('deep-research financial-analysis evaluation on kimi-k3', async () => {
 
     // --- network log ------------------------------------------------------
     const edgeOrigin = new URL(edgeBaseUrl).origin;
-    const UPSTREAM_TELEMETRY = /^https:\/\/([a-z0-9-]+\.)*amplitude\.com\//;
+    // The Amplitude telemetry tag was deleted at M5; nothing off-edge is
+    // allowlisted anymore.
     const httpRequests = requests.filter((r) => /^https?:/.test(r.url));
     summary.network = {
       http_requests: httpRequests.length,
       edge_requests: httpRequests.filter((r) => r.url.startsWith(edgeOrigin))
         .length,
-      telemetry_requests: httpRequests.filter((r) =>
-        UPSTREAM_TELEMETRY.test(r.url)
-      ).length,
-      off_edge: httpRequests.filter(
-        (r) => !r.url.startsWith(edgeOrigin) && !UPSTREAM_TELEMETRY.test(r.url)
-      ),
+      off_edge: httpRequests.filter((r) => !r.url.startsWith(edgeOrigin)),
     };
     writeEvalFile(
       'network-log.json',

@@ -40,6 +40,12 @@ export default defineConfig(({ command, mode }) => {
   const isBuild = command === 'build';
   const sourcemap = isServe || !!process.env.VSCODE_DEBUG;
   const env = loadEnv(mode, process.cwd(), '');
+  // Thin (release) desktop build: no local Brain payload, remote backend
+  // required. Statically defined so the Brain lifecycle modules are
+  // dead-code-eliminated from main and preload. See electron/main/brain.ts.
+  const thinDefine = {
+    __EIGENT_THIN__: JSON.stringify(process.env.EIGENT_THIN_BUILD === '1'),
+  };
   return {
     resolve: {
       alias: {
@@ -66,6 +72,7 @@ export default defineConfig(({ command, mode }) => {
             }
           },
           vite: {
+            define: thinDefine,
             build: {
               sourcemap,
               minify: isBuild,
@@ -83,6 +90,7 @@ export default defineConfig(({ command, mode }) => {
           // Preload scripts may contain Web assets, so use the `build.rollupOptions.input` instead `build.lib.entry`.
           input: 'electron/preload/index.ts',
           vite: {
+            define: thinDefine,
             build: {
               sourcemap: sourcemap ? 'inline' : undefined, // #332
               minify: isBuild,

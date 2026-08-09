@@ -380,9 +380,11 @@ export const useInstallationSetup = () => {
 
     if (!host?.electronAPI) return;
 
-    host.electronAPI.onInstallDependenciesStart(handleInstallStart);
-    host.electronAPI.onInstallDependenciesLog(handleInstallLog);
-    host.electronAPI.onInstallDependenciesComplete(handleInstallComplete);
+    // Install listeners are absent from the thin (release) preload, which
+    // has no local Brain; backend-ready remains in every build.
+    host.electronAPI.onInstallDependenciesStart?.(handleInstallStart);
+    host.electronAPI.onInstallDependenciesLog?.(handleInstallLog);
+    host.electronAPI.onInstallDependenciesComplete?.(handleInstallComplete);
     host.electronAPI.onBackendReady(handleBackendReady);
 
     return () => {

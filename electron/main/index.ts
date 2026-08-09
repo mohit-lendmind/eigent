@@ -39,16 +39,14 @@ import kill from 'tree-kill';
 import { copyBrowserData } from './copy';
 import { FileReader } from './fileReader';
 import {
-  checkToolInstalled,
-  findAvailablePort,
-  killProcessOnPort,
-  startBackend,
-} from './init';
-import {
   checkAndInstallDepsOnUpdate,
+  checkToolInstalled,
   getInstallationStatus,
-  PromiseReturnType,
-} from './install-deps';
+  startBackend,
+  THIN_BUILD,
+  type PromiseReturnType,
+} from './brain';
+import { findAvailablePort, killProcessOnPort } from './utils/port';
 import { setRoundedCorners } from './native/macos-window';
 import {
   rendererTransportConfig,
@@ -108,7 +106,8 @@ let proxyUrl: string | null = null;
 // stays remote (and fails visibly) rather than falling back to legacy mode.
 const remoteBackend: RemoteBackendResolution = resolveRemoteBackend(
   process.env,
-  (file) => fs.readFileSync(file, 'utf-8')
+  (file) => fs.readFileSync(file, 'utf-8'),
+  { thinBuild: THIN_BUILD }
 );
 const isRemoteBackendMode = remoteBackend.mode !== 'local';
 

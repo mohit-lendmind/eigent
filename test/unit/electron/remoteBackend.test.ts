@@ -74,6 +74,14 @@ describe('resolveRemoteBackend', () => {
     ).toEqual({ mode: 'local' });
   });
 
+  it('never resolves local mode in a thin build', () => {
+    const result = resolveRemoteBackend({}, noFile, { thinBuild: true });
+    expect(result.mode).toBe('remote-invalid');
+    expect(result).toMatchObject({
+      error: expect.stringContaining('no local backend'),
+    });
+  });
+
   it('resolves remote mode from a direct API key', () => {
     expect(
       resolveRemoteBackend(

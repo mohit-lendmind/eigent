@@ -314,24 +314,16 @@ test('bootstrap → project → command → streaming → reconnect → replay, 
     await screenshot(page, 'replay');
 
     // --- edge-only network capture ----------------------------------------
-    // Upstream Eigent's index.html statically loads Amplitude analytics +
-    // session replay on every page — pre-existing product telemetry, not part
-    // of the aion loop. It is allowlisted here (and recorded verbatim in the
-    // evidence) rather than blocked, so the gate reports what the app truly
-    // sent; gating telemetry off in remote-backend mode is an M5 follow-up.
-    const UPSTREAM_TELEMETRY = /^https:\/\/([a-z0-9-]+\.)*amplitude\.com\//;
+    // The Amplitude telemetry tag was deleted at M5; nothing off-edge is
+    // allowlisted anymore.
     const edgeOrigin = new URL(edgeBaseUrl!).origin;
     const httpRequests = networkUrls.filter((u) => /^https?:/.test(u));
-    const telemetry = httpRequests.filter((u) => UPSTREAM_TELEMETRY.test(u));
-    const offEdge = httpRequests.filter(
-      (u) => !u.startsWith(edgeOrigin) && !UPSTREAM_TELEMETRY.test(u)
-    );
+    const offEdge = httpRequests.filter((u) => !u.startsWith(edgeOrigin));
     expect(offEdge).toEqual([]);
     // The loop itself must actually have run over the edge.
-    expect(httpRequests.length - telemetry.length).toBeGreaterThan(0);
+    expect(httpRequests.length).toBeGreaterThan(0);
     summary.http_requests = httpRequests.length;
-    summary.edge_requests = httpRequests.length - telemetry.length;
-    summary.upstream_telemetry_requests = telemetry;
+    summary.edge_requests = httpRequests.length;
     summary.off_edge_requests = offEdge;
 
     if (EVIDENCE_DIR) {

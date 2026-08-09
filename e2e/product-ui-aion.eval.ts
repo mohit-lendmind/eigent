@@ -237,9 +237,6 @@ test('product chat UI serves a real task from the aion edge', async () => {
       if (url.protocol === 'file:' || url.protocol === 'devtools:')
         return false;
       if (r.url.startsWith(edgeBaseUrl)) return false;
-      // Upstream Amplitude session-replay tag: on the M5 deletion list,
-      // counted rather than ignored.
-      if (url.hostname.endsWith('amplitude.com')) return false;
       return true;
     });
     writeOut(

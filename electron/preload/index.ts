@@ -113,33 +113,44 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteFolder: (email: string) => ipcRenderer.invoke('delete-folder', email),
   getMcpConfigPath: (email: string) =>
     ipcRenderer.invoke('get-mcp-config-path', email),
-  // install dependencies related API
-  checkAndInstallDepsOnUpdate: () => ipcRenderer.invoke('install-dependencies'),
-  checkInstallBrowser: () => ipcRenderer.invoke('check-install-browser'),
-  getInstallationStatus: () => ipcRenderer.invoke('get-installation-status'),
-  getBackendPort: () => ipcRenderer.invoke('get-backend-port'),
+  // Local-Brain install/lifecycle API: absent from the thin (release) build,
+  // whose only backend is the remote aion edge. Renderer call sites are
+  // optional-chained. `__EIGENT_THIN__` is statically defined, so the legacy
+  // branch is dead-code-eliminated from the thin preload bundle.
+  ...(__EIGENT_THIN__
+    ? {}
+    : {
+        checkAndInstallDepsOnUpdate: () =>
+          ipcRenderer.invoke('install-dependencies'),
+        checkInstallBrowser: () => ipcRenderer.invoke('check-install-browser'),
+        getInstallationStatus: () =>
+          ipcRenderer.invoke('get-installation-status'),
+        getBackendPort: () => ipcRenderer.invoke('get-backend-port'),
+        restartBackend: () => ipcRenderer.invoke('restart-backend'),
+        onInstallDependenciesStart: (callback: () => void) => {
+          ipcRenderer.on('install-dependencies-start', callback);
+        },
+        onInstallDependenciesLog: (
+          callback: (data: { type: string; data: string }) => void
+        ) => {
+          ipcRenderer.on('install-dependencies-log', (event, data) =>
+            callback(data)
+          );
+        },
+        onInstallDependenciesComplete: (
+          callback: (data: {
+            success: boolean;
+            code?: number;
+            error?: string;
+          }) => void
+        ) => {
+          ipcRenderer.on('install-dependencies-complete', (event, data) =>
+            callback(data)
+          );
+        },
+      }),
   getAionTransportConfig: () =>
     ipcRenderer.invoke('get-aion-transport-config'),
-  restartBackend: () => ipcRenderer.invoke('restart-backend'),
-  onInstallDependenciesStart: (callback: () => void) => {
-    ipcRenderer.on('install-dependencies-start', callback);
-  },
-  onInstallDependenciesLog: (
-    callback: (data: { type: string; data: string }) => void
-  ) => {
-    ipcRenderer.on('install-dependencies-log', (event, data) => callback(data));
-  },
-  onInstallDependenciesComplete: (
-    callback: (data: {
-      success: boolean;
-      code?: number;
-      error?: string;
-    }) => void
-  ) => {
-    ipcRenderer.on('install-dependencies-complete', (event, data) =>
-      callback(data)
-    );
-  },
   onUpdateNotification: (
     callback: (data: {
       type: string;

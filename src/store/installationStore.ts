@@ -170,12 +170,13 @@ export const useInstallationStore = create<InstallationStoreState>()(
           isBackendReady: false,
         });
 
-        // Call restart-backend via electronAPI
-        const result = await electronAPI?.restartBackend();
+        // Call restart-backend via electronAPI; absent from the thin
+        // (release) preload, which has no local Brain to restart.
+        const result = await electronAPI?.restartBackend?.();
 
         if (!result?.success) {
           set({
-            backendError: result.error || 'Failed to restart backend',
+            backendError: result?.error || 'Failed to restart backend',
             state: 'error',
             isBackendReady: false,
           });
@@ -209,7 +210,7 @@ export const useInstallationStore = create<InstallationStoreState>()(
       try {
         startInstallation();
         const electronAPI = getElectronAPI();
-        const result = await electronAPI?.checkAndInstallDepsOnUpdate();
+        const result = await electronAPI?.checkAndInstallDepsOnUpdate?.();
 
         if (result?.success) {
           // Keep waiting state until useInstallationSetup confirms backend readiness.

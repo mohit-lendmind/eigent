@@ -74,13 +74,24 @@ export function validateEdgeBaseUrl(raw: string): string {
  * Resolves the backend mode from the environment. `readFile` is injected so
  * the key-file path stays testable; the caller passes fs.readFileSync.
  * When both key sources are set, the direct key wins.
+ *
+ * A thin build carries no local Brain, so `local` is not a mode it can run:
+ * absent remote configuration resolves to `remote-invalid` with an
+ * actionable error instead of a backend that can never start.
  */
 export function resolveRemoteBackend(
   env: Record<string, string | undefined>,
-  readFile: (path: string) => string
+  readFile: (path: string) => string,
+  { thinBuild = false }: { thinBuild?: boolean } = {}
 ): RemoteBackendResolution {
   const rawUrl = env[REMOTE_BACKEND_URL_ENV]?.trim();
   if (!rawUrl) {
+    if (thinBuild) {
+      return {
+        mode: 'remote-invalid',
+        error: `this build has no local backend: set ${REMOTE_BACKEND_URL_ENV} and an API key via ${REMOTE_BACKEND_API_KEY_ENV} or ${REMOTE_BACKEND_API_KEY_FILE_ENV}`,
+      };
+    }
     return { mode: 'local' };
   }
 
