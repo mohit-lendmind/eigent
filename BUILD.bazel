@@ -21,8 +21,7 @@ filegroup(
 
 filegroup(
     name = "edge_client_sources",
-    srcs = [
-        "src/api/aion/v1/contracts.ts",
+    srcs = glob(["src/api/aion/v1/*.ts"]) + [
         ":aion_contract_mirror",
         ":aion_edge_client_gen_sources",
     ],
