@@ -12,17 +12,16 @@
     "dist",
     "resources",
     "!resources/prebuilt",
+    "!resources/example-skills",
     "!backend",
     "!dist/images",
     "!**/__pycache__",
+    "!**/*.py",
+    "!**/*.pyc",
+    "!**/*.pyo",
+    "!**/*.pyi",
     "!server",
     "!docs"
-  ],
-  "extraResources": [
-    {
-      "from": "resources/example-skills",
-      "to": "example-skills"
-    }
   ],
   "protocols": [
     {

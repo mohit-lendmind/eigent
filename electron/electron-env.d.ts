@@ -32,7 +32,7 @@ declare namespace NodeJS {
      * │ ├─┬ main
      * │ │ └── index.js    > Electron-Main
      * │ └─┬ preload
-     * │   └── index.mjs   > Preload-Scripts
+     * │   └── index.cjs   > Preload-Scripts
      * ├─┬ dist
      * │ └── index.html    > Electron-Renderer
      * ```

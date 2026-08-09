@@ -439,7 +439,9 @@ let protocolUrlQueue: string[] = [];
 let isWindowReady = false;
 
 // ==================== path config ====================
-const preload = path.join(__dirname, '../preload/index.mjs');
+// CJS on purpose: an ESM preload loads asynchronously and its contextBridge
+// exposures race the renderer's boot-time desktop detection (see vite.config.ts).
+const preload = path.join(__dirname, '../preload/index.cjs');
 const indexHtml = path.join(RENDERER_DIST, 'index.html');
 const logPath = log.transports.file.getFile().path;
 

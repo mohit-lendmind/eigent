@@ -17,6 +17,8 @@ dist-web
 dist-ssr
 dist-electron
 release
+# unsigned-package reports from `bazel run //:package_pipeline` (doc 10 §11)
+package-report
 *.local
 *.tsbuildinfo
 

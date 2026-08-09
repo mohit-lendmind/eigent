@@ -19,10 +19,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { installPackagedApp, type PackagedInstall } from './packaged';
 
 const REPO_ROOT =
   process.env.EIGENT_E2E_APP_DIR ??
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// WP3 packaged E2E: point EIGENT_E2E_PACKAGED_APP at the unsigned package
+// (e.g. bazel-bin/release) to run this same contract against the installed
+// app instead of dev Electron.
+const PACKAGED_SOURCE = process.env.EIGENT_E2E_PACKAGED_APP;
 const BOOTSTRAP_PATH =
   process.env.EIGENT_E2E_BOOTSTRAP ??
   path.resolve(REPO_ROOT, '../aion-v1/deploy/eigent-local/run/bootstrap.json');
@@ -125,7 +130,14 @@ test('product chat UI serves a real task from the aion edge', async () => {
   env.EIGENT_REMOTE_BACKEND_API_KEY_FILE = keyFile;
   env.EIGENT_REMOTE_BACKEND_API_KEY = '';
 
-  const app = await electron.launch({ args: [REPO_ROOT], cwd: REPO_ROOT, env });
+  const packaged: PackagedInstall | null = PACKAGED_SOURCE
+    ? installPackagedApp(PACKAGED_SOURCE)
+    : null;
+  const app = await electron.launch(
+    packaged
+      ? { executablePath: packaged.executablePath, args: [], env }
+      : { args: [REPO_ROOT], cwd: REPO_ROOT, env }
+  );
   try {
     const page = await findMainWindow(app);
     const requests: { t: string; method: string; url: string }[] = [];
@@ -255,6 +267,7 @@ test('product chat UI serves a real task from the aion edge', async () => {
           follow_up: FOLLOW_UP,
           follow_up_expected: FOLLOW_UP_EXPECTED,
           answered: true,
+          packaged: packaged !== null,
           request_count: requests.length,
           off_edge_count: offEdge.length,
         },
@@ -265,5 +278,13 @@ test('product chat UI serves a real task from the aion edge', async () => {
     expect(offEdge).toEqual([]);
   } finally {
     await app.close();
+  }
+
+  if (packaged) {
+    // Clean uninstall (doc 10 §11 WP3): removing the installed app must
+    // leave the user's data directory intact.
+    fs.rmSync(packaged.installDir, { recursive: true, force: true });
+    expect(fs.existsSync(packaged.installDir)).toBe(false);
+    expect(fs.readdirSync(env.EIGENT_E2E_USER_DATA).length).toBeGreaterThan(0);
   }
 });

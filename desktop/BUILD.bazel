@@ -11,7 +11,7 @@ alias(name = "edge_client", actual = "//:edge_client_sources", visibility = ["//
 test_suite(name = "edge_client_gen", tests = ["//:aion_edge_client_gen"], visibility = ["//visibility:public"])
 alias(name = "package_manifest", actual = "//:package_inputs", visibility = ["//visibility:public"])
 test_suite(name = "e2e_aion_lab", tags = ["manual"], tests = ["//:e2e_aion_lab"], visibility = ["//visibility:public"])
-alias(name = "package_unsigned", actual = "//:package_unsigned", visibility = ["//visibility:public"])
+alias(name = "package_pipeline", actual = "//:package_pipeline", visibility = ["//visibility:public"])
 
 test_suite(
     name = "desktop_checks",

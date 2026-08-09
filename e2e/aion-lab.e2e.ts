@@ -23,6 +23,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { installPackagedApp, type PackagedInstall } from './packaged';
 
 // Under Bazel the spec runs from a bin-dir copy that has no built app —
 // EIGENT_E2E_APP_DIR points back at the source workspace (see BUILD.bazel).
@@ -38,6 +39,11 @@ const BOOTSTRAP_PATH =
 const EDGE_CONTAINER =
   process.env.EIGENT_E2E_EDGE_CONTAINER ?? 'eigent-aion-local-aion-edge-1';
 const EVIDENCE_DIR = process.env.EIGENT_E2E_EVIDENCE_DIR;
+// WP3 packaged E2E (doc 10 §11): point EIGENT_E2E_PACKAGED_APP at the
+// unsigned package (e.g. bazel-bin/release) and this whole suite runs its
+// unchanged contract against the installed app instead of dev Electron.
+const PACKAGED_SOURCE = process.env.EIGENT_E2E_PACKAGED_APP;
+let packaged: PackagedInstall | null = null;
 
 interface Bootstrap {
   api_key: string;
@@ -81,11 +87,17 @@ test.beforeAll(async () => {
   if (bootstrap) {
     fs.writeFileSync(keyFile, bootstrap.api_key, { mode: 0o600 });
   }
+  if (PACKAGED_SOURCE) {
+    packaged = installPackagedApp(PACKAGED_SOURCE);
+  }
 });
 
 test.afterAll(() => {
   if (workDir) {
     fs.rmSync(workDir, { recursive: true, force: true });
+  }
+  if (packaged) {
+    fs.rmSync(packaged.installDir, { recursive: true, force: true });
   }
 });
 
@@ -124,11 +136,15 @@ async function findMainWindow(app: ElectronApplication): Promise<Page> {
 async function launchLab(
   extra: Record<string, string>
 ): Promise<{ app: ElectronApplication; page: Page }> {
-  const app = await electron.launch({
-    args: [REPO_ROOT],
-    cwd: REPO_ROOT,
-    env: launchEnv(extra),
-  });
+  const app = await electron.launch(
+    packaged
+      ? {
+          executablePath: packaged.executablePath,
+          args: [],
+          env: launchEnv(extra),
+        }
+      : { args: [REPO_ROOT], cwd: REPO_ROOT, env: launchEnv(extra) }
+  );
   const page = await findMainWindow(app);
   await page.evaluate(() => {
     window.location.hash = '#/integration-lab';

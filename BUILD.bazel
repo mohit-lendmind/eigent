@@ -1,8 +1,7 @@
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@aspect_bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
-load("@aspect_rules_js//js:defs.bzl", "js_test")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_test")
 load("@npm//:@playwright/test/package_json.bzl", playwright_bin = "bin")
-load("@npm//:electron-builder/package_json.bzl", electron_builder_bin = "bin")
 load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
 load("@npm//:typescript/package_json.bzl", typescript_bin = "bin")
 load("@npm//:vite/package_json.bzl", vite_bin = "bin")
@@ -83,6 +82,7 @@ filegroup(
         ":test_sources",
     ] + glob([
         "electron/*.ts",
+        "public/**",
         "resources/scripts/**",
         "scripts/**",
         "*.json",
@@ -94,14 +94,19 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
+# Thin-package inputs (doc 10 §11 WP1): no backend/ and no resources/prebuilt
+# — the release package carries no local-backend payload. The fat legacy
+# comparison build is npm-script-only (build:legacy) and has no Bazel path.
 filegroup(
     name = "package_inputs",
-    srcs = glob([
-        "backend/**",
-        "build/**",
-        "config/**",
-        "resources/**",
-    ]) + [
+    srcs = glob(
+        [
+            "build/**",
+            "config/**",
+            "resources/**",
+        ],
+        exclude = ["resources/prebuilt/**"],
+    ) + [
         "electron-builder.json",
         "entitlements.mac.plist",
         "package.json",
@@ -257,6 +262,10 @@ vite_bin.vite(
     name = "prebuild_compile",
     args = ["build"],
     chdir = package_name(),
+    # The Bazel pipeline always builds the THIN release (doc 10 §11 WP1):
+    # __EIGENT_THIN__ is defined true so Rollup dead-code-eliminates the
+    # Brain lifecycle from main and preload bundles.
+    env = {"EIGENT_THIN_BUILD": "1"},
     out_dirs = [
         "dist",
         "dist-electron",
@@ -269,43 +278,18 @@ vite_bin.vite(
     visibility = ["//desktop:__pkg__"],
 )
 
-electron_builder_bin.electron_builder(
-    name = "package_unsigned",
-    args = [
-        "--dir",
-        "--publish",
-        "never",
-        "--config",
-        "electron-builder.json",
-        # node-pty and koffi are N-API packages whose platform binaries are
-        # already installed by the rules_js lifecycle hooks. electron-builder's
-        # npm rebuild would reach for network and devDependencies (tsc) that a
-        # hermetic action does not have.
-        "-c.npmRebuild=false",
-    ],
-    chdir = package_name(),
-    env = {"CSC_IDENTITY_AUTO_DISCOVERY": "false"},
-    out_dirs = ["release"],
-    # electron-builder's file walker readlinks every dirent it sees. The
-    # rules_js fs patch hides sandbox symlinks from lstat but not readdir,
-    # so the walker readlinks a regular file and dies with EINVAL. The
-    # packager only reads inputs and writes into its own out_dir, so the
-    # anti-escape patch buys nothing here.
-    patch_node_fs = False,
-    srcs = [
-        ":node_modules",
-        ":package_inputs",
-        ":prebuild_compile",
-    ],
-    # Sandboxed staging turns every input into an absolute symlink, and
-    # electron-builder's FileCopier preserves out-of-project symlinks instead
-    # of copying content — extraResources (backend/, example-skills/) would
-    # ship as dangling links. Unsandboxed, the action reads the real
-    # copied-to-bin files; inputs stay declared either way.
-    tags = [
-        "manual",
-        "no-sandbox",
-    ],
+# WP2 package pipeline (doc 10 §11): `bazel run //:package_pipeline` stages
+# the declared thin vite outputs (:prebuild_compile) from runfiles into the
+# source workspace, runs electron-builder there (its v26 node-module
+# collector needs the real pnpm store, which the rules_js bin tree is not),
+# then runs the package-inspection gate and emits the file manifest, SBOM,
+# version manifest, and checksums into release/ + package-report/. The
+# dependency query report comes from the evidence driver:
+#   bazel query "deps(//:package_pipeline)" --output label
+js_binary(
+    name = "package_pipeline",
+    data = [":prebuild_compile"],
+    entry_point = "scripts/package-pipeline.mjs",
     visibility = ["//desktop:__pkg__"],
 )
 
