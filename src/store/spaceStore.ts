@@ -1120,6 +1120,14 @@ export const useSpaceStore = create<SpaceStore>()(
       },
 
       createSpaceOnServer: async (input) => {
+        // Remote-backend mode: Space organization stays local — the legacy
+        // cloud sync API has no session to talk to, and durable listing
+        // arrives with the M6 history train's aion-side persistence.
+        const { getAionRemoteConfig } = await import('@/store/aionChatBridge');
+        const remote = await getAionRemoteConfig();
+        if (remote && !('error' in remote)) {
+          return get().createSpace(input);
+        }
         const { proxyCreateSpace } = await import('@/service/spaceApi');
         const space = await proxyCreateSpace({
           id: input.id,
