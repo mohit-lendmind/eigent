@@ -24,6 +24,11 @@ import {
   uploadFile,
   waitForBackendReady,
 } from '@/api/http';
+import {
+  getAionRemoteConfig,
+  startAionTask,
+  stopAionTurn,
+} from '@/store/aionChatBridge';
 import { showCreditsToast } from '@/components/Toast/creditsToast';
 import { showStorageToast } from '@/components/Toast/storageToast';
 import type { AppHost } from '@/host/types';
@@ -1388,6 +1393,10 @@ const chatStore = (initial?: Partial<ChatStore>) =>
       });
     },
     stopTask(taskId: string) {
+      // aion remote mode: epoch-fenced cancel for the Run bound to this task
+      // (no-op when the task is legacy-backed). The run_cancelled event, not
+      // this call, is what settles the pane.
+      stopAionTurn(taskId);
       // Abort the SSE connection for this task
       try {
         if (activeSSEControllers[taskId]) {
@@ -1554,6 +1563,52 @@ const chatStore = (initial?: Partial<ChatStore>) =>
         targetChatStore
           .getState()
           .setTaskSessionMode(newTaskId, sessionModeForRequest);
+      }
+
+      // M6 train-1 preview: in remote-backend mode this turn is served by the
+      // aion edge — no local brain exists, and a misconfigured remote mode
+      // fails visibly instead of falling back. Replay/share stay legacy.
+      if (isLiveTask) {
+        const aionConfig = await getAionRemoteConfig();
+        if (aionConfig) {
+          const targetState = targetChatStore.getState();
+          // aion owns orchestration; the workforce projection arrives with
+          // its own M6 train, so the pane renders the single-agent layout.
+          targetState.setTaskSessionMode(newTaskId, SessionMode.SINGLE_AGENT);
+          const question =
+            messageContent ||
+            targetState.tasks[newTaskId]?.messages.findLast(
+              (m) => m.role === 'user'
+            )?.content ||
+            '';
+          try {
+            if ('error' in aionConfig) {
+              throw new Error(aionConfig.error);
+            }
+            await startAionTask({
+              chatStore: targetChatStore,
+              taskId: newTaskId,
+              eigentProjectId: project_id as string,
+              question,
+            });
+          } catch (error) {
+            recordTaskFailed({
+              error_type: 'backend_unavailable',
+              session_mode: sessionModeForRequest,
+            });
+            const failedState = targetChatStore.getState();
+            failedState.addMessages(newTaskId, {
+              id: generateUniqueId(),
+              role: 'agent',
+              content: `❌ ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            });
+            failedState.setIsPending(newTaskId, false);
+            failedState.setStatus(newTaskId, ChatTaskStatus.FINISHED);
+          }
+          return;
+        }
       }
 
       const finishStartupFailure = () => {

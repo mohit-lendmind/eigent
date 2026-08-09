@@ -30,6 +30,7 @@ import {
 } from '@/lib/projectAchievement';
 import { inferSessionModeFromTask } from '@/lib/sessionMode';
 import { proxyUpdateTriggerExecution } from '@/service/triggerApi';
+import { getAionRemoteConfig } from '@/store/aionChatBridge';
 import { useAuthStore } from '@/store/authStore';
 import { buildProjectContinuationContext } from '@/store/chatStore';
 import { usePageTabStore } from '@/store/pageTabStore';
@@ -872,6 +873,40 @@ export default function ChatBox(): JSX.Element {
             }
             // keep hasWaitComfirm as true so that follow-up improves work as usual
           } else {
+            // aion remote mode: a follow-up is just another command on the
+            // same aion Project — conversation context lives server-side, so
+            // the normal startTask path serves it (and opens the next turn's
+            // pane). The legacy improve endpoint has no remote counterpart.
+            const aionConfig = await getAionRemoteConfig();
+            if (aionConfig) {
+              const remoteAttaches = JSON.parse(
+                JSON.stringify(chatStore.tasks[_taskId]?.attaches || [])
+              );
+              setMessage('');
+              try {
+                ensureActiveProjectMode();
+                await chatStore.startTask(
+                  _taskId,
+                  undefined,
+                  undefined,
+                  undefined,
+                  tempMessageContent,
+                  remoteAttaches,
+                  executionId,
+                  targetProjectId,
+                  effectiveSessionMode
+                );
+                chatStore.setAttaches(_taskId, []);
+                const remoteActiveId = chatStore.activeTaskId;
+                if (remoteActiveId && remoteActiveId !== _taskId) {
+                  chatStore.setAttaches(remoteActiveId, []);
+                }
+              } catch (err: any) {
+                console.error('Failed to start follow-up task:', err);
+                toast.error(err?.message || 'Failed to send message.');
+              }
+              return;
+            }
             // Continue conversation: simple response, complex task, or finished task
             const attachesForThisTurn = JSON.parse(
               JSON.stringify(chatStore.tasks[_taskId]?.attaches || [])
