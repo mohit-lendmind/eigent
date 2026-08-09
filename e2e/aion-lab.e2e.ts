@@ -439,6 +439,12 @@ test('browser fixture: sandbox browser run publishes a screenshot artifact', asy
     ]) {
       expect(timeline).toContain(`${tool} (done)`);
     }
+    // Browser action failures are reported IN-BAND (exit-0 tool results the
+    // model can react to), so "(done)" alone can mask a broken pod — the
+    // fixture's final message echoes the last result, which must be a real
+    // screenshot save, not an error body.
+    expect(timeline).not.toContain('browser tool failed');
+    expect(timeline).not.toContain('browser error:');
     summary.browser_tools_settled = true;
 
     // The screenshot harvested from the pod workspace is a published product
