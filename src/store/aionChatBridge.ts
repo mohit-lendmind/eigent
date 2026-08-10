@@ -10,6 +10,10 @@ import type {
   ProjectUIState,
   TimelineEntry,
 } from '@/api/aion/v1/reducer';
+import {
+  IncompatibleBackendError,
+  negotiateCompatibility,
+} from '@/api/aion/v1/compat';
 import { ProjectSession, newCommandId } from '@/api/aion/v1/session';
 import { EdgeTransport } from '@/api/aion/v1/transport';
 import {
@@ -103,6 +107,14 @@ async function createBinding(
     baseUrl: config.edgeBaseUrl,
     apiKey: config.apiKey,
   });
+  // Version negotiation precedes any project traffic: an incompatible
+  // backend fails the turn visibly instead of degrading mid-stream.
+  const verdict = negotiateCompatibility(
+    await transport.getIntegrationStatus()
+  );
+  if (!verdict.compatible) {
+    throw new IncompatibleBackendError(verdict.reason);
+  }
   const alias = await pickModelAlias(transport);
   const title = firstQuestion.trim().slice(0, 120) || 'Eigent conversation';
   const project = await transport.createProject({
