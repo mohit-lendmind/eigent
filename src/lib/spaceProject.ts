@@ -14,6 +14,7 @@
 
 import { generateUniqueId } from '@/lib';
 import { isLegacySpace } from '@/lib/spaceLabel';
+import { getAionRemoteConfig } from '@/store/aionChatBridge';
 import {
   proxyCreateSpaceProject,
   proxyEnsureLegacySpace,
@@ -102,6 +103,28 @@ export const createSyncedProjectInSpace = async ({
     (requestedSpace && isLegacySpace(requestedSpace))
   ) {
     throw new LegacySpaceProjectError();
+  }
+
+  // Remote-backend mode: the Project record stays local — conversation truth
+  // lives in the aion Project the chat bridge creates, and durable listing
+  // arrives with the M6 history train's aion-side persistence.
+  const remote = await getAionRemoteConfig();
+  if (remote && !('error' in remote)) {
+    const localOnlyProjectId = projectStore.createProject(
+      name,
+      description,
+      generateUniqueId(),
+      undefined,
+      undefined,
+      setActive,
+      {
+        spaceId,
+        mode,
+        workdirMode,
+        metadata: { ...metadata, serverSynced: false },
+      }
+    );
+    return { projectId: localOnlyProjectId, spaceId };
   }
 
   const resolvedSpaceId = await resolveServerBackedSpaceId(

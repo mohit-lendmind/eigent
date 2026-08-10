@@ -78,6 +78,9 @@ export default [
       // Generated files
       '**/*.d.ts',
       '**/*.map',
+      // Generated aion edge client — byte-exact with the contract mirror
+      // (bazel test //:aion_edge_client_gen); no rewriting tool may touch it
+      'src/api/aion/v1/gen/**',
       // Python files
       '**/*.py',
       '__pycache__/**',

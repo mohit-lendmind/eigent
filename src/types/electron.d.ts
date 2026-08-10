@@ -136,12 +136,15 @@ interface ElectronAPI {
     token: string
   ) => Promise<any>;
   startBrowserImport: (args?: any) => Promise<any>;
-  checkAndInstallDepsOnUpdate: () => Promise<{
+  // Local-Brain install/lifecycle surface: absent from the thin (release)
+  // preload, whose only backend is the remote aion edge — call sites must
+  // optional-chain.
+  checkAndInstallDepsOnUpdate?: () => Promise<{
     success: boolean;
     error?: string;
   }>;
-  checkInstallBrowser: () => Promise<{ data: any[] }>;
-  getInstallationStatus: () => Promise<{
+  checkInstallBrowser?: () => Promise<{ data: any[] }>;
+  getInstallationStatus?: () => Promise<{
     success: boolean;
     isInstalling?: boolean;
     hasLockFile?: boolean;
@@ -149,13 +152,18 @@ interface ElectronAPI {
     timestamp?: number;
     error?: string;
   }>;
-  getBackendPort: () => Promise<number | null>;
-  restartBackend: () => Promise<{ success: boolean; error?: string }>;
-  onInstallDependenciesStart: (callback: () => void) => void;
-  onInstallDependenciesLog: (
+  getBackendPort?: () => Promise<number | null>;
+  getAionTransportConfig: () => Promise<
+    | { mode: 'local' }
+    | { mode: 'remote'; edgeBaseUrl: string; apiKey: string }
+    | { mode: 'remote'; error: string }
+  >;
+  restartBackend?: () => Promise<{ success: boolean; error?: string }>;
+  onInstallDependenciesStart?: (callback: () => void) => void;
+  onInstallDependenciesLog?: (
     callback: (data: { type: string; data: string }) => void
   ) => void;
-  onInstallDependenciesComplete: (
+  onInstallDependenciesComplete?: (
     callback: (data: {
       success: boolean;
       code?: number;
@@ -173,7 +181,8 @@ interface ElectronAPI {
   onBackendReady: (
     callback: (data: {
       success: boolean;
-      port?: number;
+      port?: number | null;
+      remote?: boolean;
       error?: string;
     }) => void
   ) => void;

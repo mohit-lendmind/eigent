@@ -6,5 +6,6 @@
   "code": "cursor_expired",
   "trace_id": "trc_01JY0000000000000000000001",
   "retryable": false,
-  "minimum_sequence": "1042"
+  "minimum_sequence": "1042",
+  "high_water_sequence": "1730"
 }

@@ -14,6 +14,7 @@
 
 import { proxyFetchPost } from '@/api/http';
 import { isDesktop } from '@/client/platform';
+import { getAionRemoteConfig } from '@/store/aionChatBridge';
 import { useAuthStore } from '@/store/authStore';
 import { lazy, useEffect, useReducer } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
@@ -26,6 +27,7 @@ const Workspace = lazy(() => import('@/pages/Workspace'));
 const History = lazy(() => import('@/pages/History'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 const RemoteControl = lazy(() => import('@/pages/RemoteControl'));
+const IntegrationLab = lazy(() => import('@/pages/IntegrationLab'));
 
 const IS_LOCAL_MODE = import.meta.env.VITE_USE_LOCAL_PROXY === 'true';
 const ENABLE_DESKTOP_REMOTE_CONTROL_FALLBACK = isDesktop();
@@ -93,14 +95,55 @@ const ProtectedRoute = () => {
       }
     }
 
-    // Local mode: auto-login when no token
-    if (IS_LOCAL_MODE && !token) {
-      proxyFetchPost('/api/v1/user/auto-login', {})
-        .then((data) => {
-          if (data && data.token) {
-            setAuth({ email: data.email, ...data });
-            setLocalProxyValue(import.meta.env.VITE_USE_LOCAL_PROXY || null);
-            setModelType('custom');
+    let cancelled = false;
+
+    const legacyInitialize = () => {
+      if (cancelled) return;
+      // Local mode: auto-login when no token
+      if (IS_LOCAL_MODE && !token) {
+        proxyFetchPost('/api/v1/user/auto-login', {})
+          .then((data) => {
+            if (cancelled) return;
+            if (data && data.token) {
+              setAuth({ email: data.email, ...data });
+              setLocalProxyValue(import.meta.env.VITE_USE_LOCAL_PROXY || null);
+              setModelType('custom');
+              setInitState('done');
+              setIsFirstLaunch(false);
+              dispatch({
+                type: 'INITIALIZE',
+                payload: { isAuthenticated: true },
+              });
+            } else {
+              dispatch({
+                type: 'INITIALIZE',
+                payload: { isAuthenticated: false },
+              });
+            }
+          })
+          .catch(() => {
+            if (cancelled) return;
+            dispatch({
+              type: 'INITIALIZE',
+              payload: { isAuthenticated: false },
+            });
+          });
+        return;
+      }
+
+      dispatch({ type: 'INITIALIZE', payload: { isAuthenticated: !!token } });
+    };
+
+    if (!token) {
+      // Remote-backend mode: the desktop's credential is the edge API key
+      // the main process resolved (M4-G); there is no local brain to
+      // auto-login against and no cloud session to require. A misconfigured
+      // remote config still falls through to the legacy guard, whose login
+      // wall makes the failure visible.
+      getAionRemoteConfig()
+        .then((config) => {
+          if (cancelled) return;
+          if (config && !('error' in config)) {
             setInitState('done');
             setIsFirstLaunch(false);
             dispatch({
@@ -108,22 +151,17 @@ const ProtectedRoute = () => {
               payload: { isAuthenticated: true },
             });
           } else {
-            dispatch({
-              type: 'INITIALIZE',
-              payload: { isAuthenticated: false },
-            });
+            legacyInitialize();
           }
         })
-        .catch(() => {
-          dispatch({
-            type: 'INITIALIZE',
-            payload: { isAuthenticated: false },
-          });
-        });
-      return;
+        .catch(legacyInitialize);
+    } else {
+      legacyInitialize();
     }
 
-    dispatch({ type: 'INITIALIZE', payload: { isAuthenticated: !!token } });
+    return () => {
+      cancelled = true;
+    };
   }, [
     token,
     localProxyValue,
@@ -160,6 +198,10 @@ const AppRoutes = () => (
     {ENABLE_DESKTOP_REMOTE_CONTROL_FALLBACK ? (
       <Route path="/remote-control/:sessionId" element={<RemoteControl />} />
     ) : null}
+    {/* Outside ProtectedRoute: the guard's auto-login talks to the legacy
+        local brain, absent in remote-backend mode. The page gates itself on
+        the resolved aion transport mode. */}
+    <Route path="/integration-lab" element={<IntegrationLab />} />
     <Route element={<ProtectedRoute />}>
       <Route element={<Layout />}>
         <Route path="/" element={<Workspace />} />

@@ -39,17 +39,20 @@ import kill from 'tree-kill';
 import { copyBrowserData } from './copy';
 import { FileReader } from './fileReader';
 import {
-  checkToolInstalled,
-  findAvailablePort,
-  killProcessOnPort,
-  startBackend,
-} from './init';
-import {
   checkAndInstallDepsOnUpdate,
+  checkToolInstalled,
   getInstallationStatus,
-  PromiseReturnType,
-} from './install-deps';
+  startBackend,
+  THIN_BUILD,
+  type PromiseReturnType,
+} from './brain';
+import { findAvailablePort, killProcessOnPort } from './utils/port';
 import { setRoundedCorners } from './native/macos-window';
+import {
+  rendererTransportConfig,
+  resolveRemoteBackend,
+  type RemoteBackendResolution,
+} from './remoteBackend';
 import {
   completeCodexOAuthCallback,
   getCodexResolverEnv,
@@ -97,6 +100,17 @@ let browser_port = 9222;
 let use_external_cdp = false;
 let proxyUrl: string | null = null;
 
+// Remote-backend mode (doc 10 §10 WP3) is decided once at startup. In any
+// non-local mode the main process never installs dependencies, spawns
+// uvicorn, or health-polls a local port; a set-but-invalid configuration
+// stays remote (and fails visibly) rather than falling back to legacy mode.
+const remoteBackend: RemoteBackendResolution = resolveRemoteBackend(
+  process.env,
+  (file) => fs.readFileSync(file, 'utf-8'),
+  { thinBuild: THIN_BUILD }
+);
+const isRemoteBackendMode = remoteBackend.mode !== 'local';
+
 const PREVIEW_WEBVIEW_PARTITION = 'persist:session-preview';
 
 const isHttpOrHttpsUrl = (url: unknown): url is string => {
@@ -129,6 +143,7 @@ type BackendStartOptions = {
 
 type BackendStartResult =
   | { success: true; port: number }
+  | { success: true; remote: true; port: null }
   | { success: false; error: string };
 
 function formatErrorMessage(error: unknown): string {
@@ -185,6 +200,7 @@ function notifyBackendReady(result: BackendStartResult): void {
       ? {
           success: true,
           port: result.port,
+          ...('remote' in result && { remote: true }),
         }
       : {
           success: false,
@@ -423,7 +439,9 @@ let protocolUrlQueue: string[] = [];
 let isWindowReady = false;
 
 // ==================== path config ====================
-const preload = path.join(__dirname, '../preload/index.mjs');
+// CJS on purpose: an ESM preload loads asynchronously and its contextBridge
+// exposures race the renderer's boot-time desktop detection (see vite.config.ts).
+const preload = path.join(__dirname, '../preload/index.cjs');
 const indexHtml = path.join(RENDERER_DIST, 'index.html');
 const logPath = log.transports.file.getFile().path;
 
@@ -436,32 +454,44 @@ let profileInitPromise: Promise<void>;
 // 2. WebView: partition 'persist:user_login' in app userData → will import cookies from tool_controller via session API
 // 3. tool_controller: ~/.eigent/browser_profiles/profile_user_login → source of truth for login cookies
 // 4. CDP browser: uses separate profile (doesn't share with main app)
-profileInitPromise = findAvailablePort(browser_port).then(async (port) => {
-  browser_port = port;
-  app.commandLine.appendSwitch('remote-debugging-port', port + '');
-
-  // Create isolated profile for CDP browser only
-  const browserProfilesBase = path.join(
-    os.homedir(),
-    '.eigent',
-    'browser_profiles'
+//
+// In remote-backend mode the browser runs headless inside the aion sandbox
+// pod (browser_* tools over the exec seam), so the app must not open a local
+// CDP debugging port — an unauthenticated localhost control surface with no
+// consumer.
+if (isRemoteBackendMode) {
+  profileInitPromise = Promise.resolve();
+  log.info(
+    '[CDP BROWSER] disabled in remote-backend mode: the browser runs in the aion sandbox pod'
   );
-  const cdpProfile = path.join(browserProfilesBase, `cdp_profile_${port}`);
+} else {
+  profileInitPromise = findAvailablePort(browser_port).then(async (port) => {
+    browser_port = port;
+    app.commandLine.appendSwitch('remote-debugging-port', port + '');
 
-  try {
-    await fsp.mkdir(cdpProfile, { recursive: true });
-    log.info(`[CDP BROWSER] Created CDP profile directory at ${cdpProfile}`);
-  } catch (error) {
-    log.error(`[CDP BROWSER] Failed to create directory: ${error}`);
-  }
+    // Create isolated profile for CDP browser only
+    const browserProfilesBase = path.join(
+      os.homedir(),
+      '.eigent',
+      'browser_profiles'
+    );
+    const cdpProfile = path.join(browserProfilesBase, `cdp_profile_${port}`);
 
-  // Set user-data-dir for Chrome DevTools Protocol only
-  app.commandLine.appendSwitch('user-data-dir', cdpProfile);
+    try {
+      await fsp.mkdir(cdpProfile, { recursive: true });
+      log.info(`[CDP BROWSER] Created CDP profile directory at ${cdpProfile}`);
+    } catch (error) {
+      log.error(`[CDP BROWSER] Failed to create directory: ${error}`);
+    }
 
-  log.info(`[CDP BROWSER] Chrome DevTools Protocol enabled on port ${port}`);
-  log.info(`[CDP BROWSER] CDP profile directory: ${cdpProfile}`);
-  log.info(`[STORAGE] Main app userData: ${app.getPath('userData')}`);
-});
+    // Set user-data-dir for Chrome DevTools Protocol only
+    app.commandLine.appendSwitch('user-data-dir', cdpProfile);
+
+    log.info(`[CDP BROWSER] Chrome DevTools Protocol enabled on port ${port}`);
+    log.info(`[CDP BROWSER] CDP profile directory: ${cdpProfile}`);
+    log.info(`[STORAGE] Main app userData: ${app.getPath('userData')}`);
+  });
+}
 
 // Memory optimization settings
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096');
@@ -539,6 +569,13 @@ if (os.release().startsWith('6.1')) app.disableHardwareAcceleration();
 
 // Set application name for Windows 10+ notifications
 if (process.platform === 'win32') app.setAppUserModelId(app.getName());
+
+// E2E harness hook (doc 10 §10 M4-I): an isolated userData keeps the test
+// instance's single-instance lock and storage away from a developer's real
+// app. Set only by the Playwright launcher.
+if (process.env.EIGENT_E2E_USER_DATA) {
+  app.setPath('userData', process.env.EIGENT_E2E_USER_DATA);
+}
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -796,6 +833,13 @@ function registerIpcHandlers() {
 
   // ==================== basic info handler ====================
   ipcMain.handle('get-browser-port', () => {
+    if (isRemoteBackendMode) {
+      // No local CDP browser exists in remote mode; null keeps any legacy
+      // localhost CDP URL construction visibly broken instead of silently
+      // pointing at a port nothing listens on (same convention as
+      // get-backend-port).
+      return null;
+    }
     log.info('Getting browser port');
     return browser_port;
   });
@@ -804,6 +848,12 @@ function registerIpcHandlers() {
   ipcMain.handle(
     'set-browser-port',
     (event, port: number, isExternal: boolean = false) => {
+      if (isRemoteBackendMode) {
+        return {
+          success: false,
+          error: 'CDP browsers are disabled in remote-backend mode',
+        };
+      }
       log.info(`Setting browser port to ${port}, external: ${isExternal}`);
       browser_port = port;
       use_external_cdp = isExternal;
@@ -829,6 +879,12 @@ function registerIpcHandlers() {
   ipcMain.handle(
     'add-cdp-browser',
     (event, port: number, isExternal: boolean, name?: string) => {
+      if (isRemoteBackendMode) {
+        return {
+          success: false,
+          error: 'CDP browsers are disabled in remote-backend mode',
+        };
+      }
       const existing = cdp_browser_pool.find((b) => b.port === port);
       if (existing) {
         log.warn(
@@ -887,6 +943,12 @@ function registerIpcHandlers() {
 
   // Launch CDP browser with automatic port assignment
   ipcMain.handle('launch-cdp-browser', async () => {
+    if (isRemoteBackendMode) {
+      return {
+        success: false,
+        error: 'CDP browsers are disabled in remote-backend mode',
+      };
+    }
     try {
       // 1. Always increment port from the last assigned port
       // Port 9223 is reserved for the login browser
@@ -1058,7 +1120,16 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('get-app-version', () => app.getVersion());
-  ipcMain.handle('get-backend-port', () => backendPort);
+  // In remote mode there is no local backend port — null keeps any legacy
+  // localhost URL construction visibly broken instead of silently wrong.
+  ipcMain.handle('get-backend-port', () =>
+    isRemoteBackendMode ? null : backendPort
+  );
+  // The minimum authenticated transport configuration for the renderer's
+  // aion boundary (src/api/aion/v1). Local mode returns { mode: 'local' }.
+  ipcMain.handle('get-aion-transport-config', () =>
+    rendererTransportConfig(remoteBackend)
+  );
 
   // ==================== restart app handler ====================
   ipcMain.handle('restart-app', async () => {
@@ -2227,6 +2298,18 @@ function registerIpcHandlers() {
     try {
       if (win === null) throw new Error('Window is null');
 
+      // Remote-backend mode has no local dependencies to install.
+      if (isRemoteBackendMode) {
+        if (!win.isDestroyed()) {
+          win.webContents.send('install-dependencies-complete', {
+            success: true,
+            code: 0,
+          });
+        }
+        await checkAndStartBackend();
+        return { success: true, isInstalled: true };
+      }
+
       // Prevent concurrent installations
       if (isInstallationInProgress) {
         log.info('[DEPS INSTALL] Installation already in progress, waiting...');
@@ -2280,6 +2363,10 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('check-tool-installed', async () => {
+    // Remote-backend mode needs no local uv/bun toolchain.
+    if (isRemoteBackendMode) {
+      return { success: true, isInstalled: true };
+    }
     try {
       const isInstalled = await checkToolInstalled();
       return { success: true, isInstalled: isInstalled.success };
@@ -2544,11 +2631,16 @@ async function createWindowInternal() {
   ensureEigentDirectories();
   await seedDefaultSkillsIfEmpty();
 
-  // Load persisted CDP browser pool from disk
-  loadCdpPool();
+  // Load persisted CDP browser pool from disk (local backend only — in
+  // remote-backend mode the pool stays empty and its IPC surface is inert)
+  if (!isRemoteBackendMode) {
+    loadCdpPool();
+  }
 
   log.info(
-    `[PROJECT BROWSER WINDOW] Creating BrowserWindow which will start Chrome with CDP on port ${browser_port}`
+    isRemoteBackendMode
+      ? '[PROJECT BROWSER WINDOW] Creating BrowserWindow (CDP disabled: remote-backend mode)'
+      : `[PROJECT BROWSER WINDOW] Creating BrowserWindow which will start Chrome with CDP on port ${browser_port}`
   );
   log.info(
     `[PROJECT BROWSER WINDOW] Current user data path: ${app.getPath(
@@ -2790,7 +2882,9 @@ async function createWindowInternal() {
   handleBeforeClose();
 
   // Start CDP health-check polling (probes every 3s, removes dead browsers)
-  startCdpHealthCheck();
+  if (!isRemoteBackendMode) {
+    startCdpHealthCheck();
+  }
 
   // ==================== auto update ====================
   update(win);
@@ -2845,8 +2939,8 @@ async function createWindowInternal() {
   const { exists: venvExists, path: venvPath } =
     checkVenvExistsForPreCheck(currentVersion);
 
-  // If prebuilt deps are available, skip installation
-  const needsInstallation = hasPrebuiltDeps
+  // If the backend is remote or prebuilt deps are available, skip installation
+  const needsInstallation = isRemoteBackendMode || hasPrebuiltDeps
     ? false
     : !versionExists ||
       savedVersion !== currentVersion ||
@@ -2985,6 +3079,21 @@ async function createWindowInternal() {
   // Wait for React components to mount and register event listeners
   await new Promise((resolve) => setTimeout(resolve, 500));
 
+  // Remote-backend mode skips dependency installation and uvicorn startup
+  // entirely: the renderer still receives install-dependencies-complete and
+  // backend-ready so its state machine converges the same way.
+  if (isRemoteBackendMode) {
+    log.info('[REMOTE BACKEND] Skipping dependency installation and local backend');
+    if (!win.isDestroyed()) {
+      win.webContents.send('install-dependencies-complete', {
+        success: true,
+        code: 0,
+      });
+    }
+    await checkAndStartBackend();
+    return;
+  }
+
   // Now check and install dependencies
   let res: PromiseReturnType = await checkAndInstallDepsOnUpdate({ win });
   if (!res.success) {
@@ -3119,6 +3228,24 @@ async function restartBackendService(): Promise<BackendStartResult> {
 const checkAndStartBackend = async (
   options: BackendStartOptions = {}
 ): Promise<BackendStartResult> => {
+  // Remote-backend mode: there is no local backend to install, spawn,
+  // health-poll, or restart. Readiness was decided by config validation at
+  // startup; edge reachability is the renderer session layer's concern.
+  if (remoteBackend.mode === 'remote') {
+    const result: BackendStartResult = { success: true, remote: true, port: null };
+    notifyBackendReady(result);
+    return result;
+  }
+  if (remoteBackend.mode === 'remote-invalid') {
+    log.error('Remote backend configuration is invalid:', remoteBackend.error);
+    const result: BackendStartResult = {
+      success: false,
+      error: `Remote backend configuration is invalid: ${remoteBackend.error}`,
+    };
+    notifyBackendReady(result);
+    return result;
+  }
+
   if (backendStartPromise) {
     log.info('Backend startup already in progress, waiting...');
     return backendStartPromise;

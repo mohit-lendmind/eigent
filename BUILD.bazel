@@ -1,6 +1,7 @@
 load("@npm//:defs.bzl", "npm_link_all_packages")
-load("@aspect_rules_js//js:defs.bzl", "js_test")
-load("@npm//:electron-builder/package_json.bzl", electron_builder_bin = "bin")
+load("@aspect_bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_test")
+load("@npm//:@playwright/test/package_json.bzl", playwright_bin = "bin")
 load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
 load("@npm//:typescript/package_json.bzl", typescript_bin = "bin")
 load("@npm//:vite/package_json.bzl", vite_bin = "bin")
@@ -21,7 +22,26 @@ filegroup(
 
 filegroup(
     name = "edge_client_sources",
-    srcs = ["src/api/aion/v1/contracts.ts"],
+    srcs = glob(["src/api/aion/v1/*.ts"]) + [
+        ":aion_contract_mirror",
+        ":aion_edge_client_gen_sources",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# The byte-for-byte mirror of aion-v1/api/eigent/v1 (see the README next to it
+# for the sync rule).
+filegroup(
+    name = "aion_contract_mirror",
+    srcs = glob(["src/api/aion/v1/contract/**"]),
+    visibility = ["//visibility:public"],
+)
+
+# Committed generator outputs (edge-api.ts + meta.ts). aion_edge_client_gen
+# fails when they no longer match the mirror.
+filegroup(
+    name = "aion_edge_client_gen_sources",
+    srcs = glob(["src/api/aion/v1/gen/**"]),
     visibility = ["//visibility:public"],
 )
 
@@ -43,6 +63,16 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
+# Copied to bin exactly once. Consumers (eslint, type_check, e2e_aion_lab)
+# must share these copies: raw source labels in a js_test's data are copied
+# per consumer, and the e2e target's no-sandbox/local tags propagate into its
+# copy actions — same output, different action key, an action conflict.
+copy_to_bin(
+    name = "e2e_sources",
+    srcs = glob(["e2e/**"]),
+    visibility = ["//visibility:public"],
+)
+
 filegroup(
     name = "desktop_sources",
     srcs = [
@@ -52,6 +82,7 @@ filegroup(
         ":test_sources",
     ] + glob([
         "electron/*.ts",
+        "public/**",
         "resources/scripts/**",
         "scripts/**",
         "*.json",
@@ -63,14 +94,19 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
+# Thin-package inputs (doc 10 §11 WP1): no backend/ and no resources/prebuilt
+# — the release package carries no local-backend payload. The fat legacy
+# comparison build is npm-script-only (build:legacy) and has no Bazel path.
 filegroup(
     name = "package_inputs",
-    srcs = glob([
-        "backend/**",
-        "build/**",
-        "config/**",
-        "resources/**",
-    ]) + [
+    srcs = glob(
+        [
+            "build/**",
+            "config/**",
+            "resources/**",
+        ],
+        exclude = ["resources/prebuilt/**"],
+    ) + [
         "electron-builder.json",
         "entitlements.mac.plist",
         "package.json",
@@ -88,6 +124,7 @@ typescript_bin.tsc_test(
     chdir = package_name(),
     data = [
         ":desktop_sources",
+        ":e2e_sources",
         ":node_modules",
     ],
     visibility = ["//desktop:__pkg__"],
@@ -117,6 +154,7 @@ eslint_bin.eslint_test(
     chdir = package_name(),
     data = [
         ":desktop_sources",
+        ":e2e_sources",
         ":node_modules",
     ],
     visibility = ["//desktop:__pkg__"],
@@ -126,6 +164,22 @@ js_test(
     name = "design_token_usage",
     data = [":desktop_sources"],
     entry_point = "scripts/check-design-token-usage.mjs",
+    visibility = ["//desktop:__pkg__"],
+)
+
+# Freshness gate for the generated aion edge client: regenerates from the
+# contract mirror in-memory and fails on any diff against the committed
+# src/api/aion/v1/gen/ outputs.
+js_test(
+    name = "aion_edge_client_gen",
+    args = ["--check"],
+    data = [
+        ":aion_contract_mirror",
+        ":aion_edge_client_gen_sources",
+        ":node_modules/openapi-typescript",
+        ":node_modules/yaml",
+    ],
+    entry_point = "scripts/gen-aion-edge-client.mjs",
     visibility = ["//desktop:__pkg__"],
 )
 
@@ -154,6 +208,40 @@ vitest_bin.vitest_test(
     visibility = ["//desktop:__pkg__"],
 )
 
+# M4-I development Electron E2E (doc 10 §10): the real desktop app against the
+# live eigent-local Compose stack, so it can never be hermetic — it needs the
+# Docker daemon, the display server, the gitignored run bootstrap, and a
+# `npx vite build` of the app in the source workspace (EIGENT_E2E_APP_DIR;
+# depending on :prebuild_compile instead would copy the same sources to bin
+# from both the test and the trimmed configuration — an action conflict).
+# Manual by design; run it with the stack up, from the repo root:
+#   bazel test //desktop:e2e_aion_lab --test_output=streamed \
+#     --test_env=HOME --test_env=PATH \
+#     --test_env=EIGENT_E2E_APP_DIR=$PWD \
+#     --test_env=EIGENT_E2E_BOOTSTRAP=/abs/path/to/aion-v1/deploy/eigent-local/run/bootstrap.json \
+#     --test_env=EIGENT_E2E_EVIDENCE_DIR=/abs/path/to/m4-evidence
+playwright_bin.playwright_test(
+    name = "e2e_aion_lab",
+    timeout = "long",
+    args = [
+        "test",
+        "--config",
+        "e2e/playwright.config.ts",
+    ],
+    chdir = package_name(),
+    data = [
+        ":e2e_sources",
+        ":node_modules",
+    ],
+    tags = [
+        "exclusive",
+        "local",
+        "manual",
+        "no-sandbox",
+    ],
+    visibility = ["//desktop:__pkg__"],
+)
+
 vite_bin.vite(
     name = "vite_renderer",
     args = [
@@ -174,6 +262,10 @@ vite_bin.vite(
     name = "prebuild_compile",
     args = ["build"],
     chdir = package_name(),
+    # The Bazel pipeline always builds the THIN release (doc 10 §11 WP1):
+    # __EIGENT_THIN__ is defined true so Rollup dead-code-eliminates the
+    # Brain lifecycle from main and preload bundles.
+    env = {"EIGENT_THIN_BUILD": "1"},
     out_dirs = [
         "dist",
         "dist-electron",
@@ -186,43 +278,18 @@ vite_bin.vite(
     visibility = ["//desktop:__pkg__"],
 )
 
-electron_builder_bin.electron_builder(
-    name = "package_unsigned",
-    args = [
-        "--dir",
-        "--publish",
-        "never",
-        "--config",
-        "electron-builder.json",
-        # node-pty and koffi are N-API packages whose platform binaries are
-        # already installed by the rules_js lifecycle hooks. electron-builder's
-        # npm rebuild would reach for network and devDependencies (tsc) that a
-        # hermetic action does not have.
-        "-c.npmRebuild=false",
-    ],
-    chdir = package_name(),
-    env = {"CSC_IDENTITY_AUTO_DISCOVERY": "false"},
-    out_dirs = ["release"],
-    # electron-builder's file walker readlinks every dirent it sees. The
-    # rules_js fs patch hides sandbox symlinks from lstat but not readdir,
-    # so the walker readlinks a regular file and dies with EINVAL. The
-    # packager only reads inputs and writes into its own out_dir, so the
-    # anti-escape patch buys nothing here.
-    patch_node_fs = False,
-    srcs = [
-        ":node_modules",
-        ":package_inputs",
-        ":prebuild_compile",
-    ],
-    # Sandboxed staging turns every input into an absolute symlink, and
-    # electron-builder's FileCopier preserves out-of-project symlinks instead
-    # of copying content — extraResources (backend/, example-skills/) would
-    # ship as dangling links. Unsandboxed, the action reads the real
-    # copied-to-bin files; inputs stay declared either way.
-    tags = [
-        "manual",
-        "no-sandbox",
-    ],
+# WP2 package pipeline (doc 10 §11): `bazel run //:package_pipeline` stages
+# the declared thin vite outputs (:prebuild_compile) from runfiles into the
+# source workspace, runs electron-builder there (its v26 node-module
+# collector needs the real pnpm store, which the rules_js bin tree is not),
+# then runs the package-inspection gate and emits the file manifest, SBOM,
+# version manifest, and checksums into release/ + package-report/. The
+# dependency query report comes from the evidence driver:
+#   bazel query "deps(//:package_pipeline)" --output label
+js_binary(
+    name = "package_pipeline",
+    data = [":prebuild_compile"],
+    entry_point = "scripts/package-pipeline.mjs",
     visibility = ["//desktop:__pkg__"],
 )
 

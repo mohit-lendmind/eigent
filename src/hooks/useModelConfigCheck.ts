@@ -14,6 +14,7 @@
 
 import { proxyFetchGet } from '@/api/http';
 import { createHost } from '@/host/createHost';
+import { getAionRemoteConfig } from '@/store/aionChatBridge';
 import { getAuthStore, useAuthStore } from '@/store/authStore';
 import { getCloudModelStore } from '@/store/cloudModelStore';
 import { useCallback, useEffect, useState } from 'react';
@@ -53,6 +54,15 @@ export function useModelConfigCheck(): {
 
   const checkModelConfig = useCallback(async () => {
     try {
+      // Remote-backend mode: models are aion edge aliases resolved by the
+      // bridge (the M6 model-settings train wires the product picker); the
+      // legacy provider/cloud checks below target services that don't exist.
+      const remote = await getAionRemoteConfig();
+      if (remote && !('error' in remote)) {
+        setCloudUsageLimitReached(false);
+        setHasModelConfigured(true);
+        return;
+      }
       if (modelType === 'cloud') {
         const { token, cloud_model_type } = getAuthStore();
         if (!token) {

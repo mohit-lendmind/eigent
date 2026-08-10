@@ -11,45 +11,17 @@
     "dist-electron",
     "dist",
     "resources",
+    "!resources/prebuilt",
+    "!resources/example-skills",
     "!backend",
     "!dist/images",
     "!**/__pycache__",
+    "!**/*.py",
+    "!**/*.pyc",
+    "!**/*.pyo",
+    "!**/*.pyi",
     "!server",
     "!docs"
-  ],
-  "extraResources": [
-    {
-      "from": "backend",
-      "to": "backend",
-      "filter": ["**/*", "!.venv/**/*", "!workspace/.initial_env/**/*"]
-    },
-    {
-      "from": "resources/prebuilt",
-      "to": "prebuilt",
-      "filter": [
-        "**/*",
-        "!cache/**/*",
-        "!**/.npm-cache/**/*",
-        "!uv_python/**/*.pyc",
-        "!uv_python/**/__pycache__",
-        "!terminal_venv/**/*.pyc",
-        "!terminal_venv/**/__pycache__",
-        "!**/__pycache__/**",
-        "!**/*.pyc",
-        "!**/*.pyo",
-        "!venv/**/__pycache__/**",
-        "!venv/**/*.pyc",
-
-        "!venv/lib/python*/site-packages/yt_dlp/**",
-        "!venv/lib/python*/site-packages/yt_dlp-*.dist-info/**",
-        "!uv_python/**/site-packages/setuptools/**",
-        "!uv_python/**/site-packages/wheel/**"
-      ]
-    },
-    {
-      "from": "resources/example-skills",
-      "to": "example-skills"
-    }
   ],
   "protocols": [
     {

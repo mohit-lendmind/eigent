@@ -1,0 +1,30 @@
+asyncapi: 3.0.0
+info:
+  title: Eigent Project Event Stream
+  version: '1.0'
+  description: |
+    Canonical desktop SSE projection. Each frame uses `id: <sequence>`,
+    `event: project_event`, and a JSON ProjectEvent in `data:`. A clean stream
+    may reconnect at any event boundary without re-executing work.
+servers:
+  edge:
+    host: api.eternly.example
+    protocol: https
+channels:
+  projectEvents:
+    address: /eigent/v1/projects/{projectId}/events
+    parameters:
+      projectId: {description: Durable Project identifier}
+    messages:
+      projectEvent: {$ref: '#/components/messages/ProjectEvent'}
+operations:
+  receiveProjectEvents:
+    action: receive
+    channel: {$ref: '#/channels/projectEvents'}
+components:
+  messages:
+    ProjectEvent:
+      name: project_event
+      contentType: application/json
+      payload:
+        $ref: './openapi.yaml#/components/schemas/ProjectEvent'

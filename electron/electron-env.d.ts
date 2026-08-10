@@ -14,6 +14,13 @@
 
 /// <reference types="vite-electron-plugin/electron-env" />
 
+/**
+ * Vite define, set from EIGENT_THIN_BUILD at build time. `true` in the thin
+ * (release) package: no local Brain payload, remote backend required. See
+ * electron/main/brain.ts.
+ */
+declare const __EIGENT_THIN__: boolean;
+
 declare namespace NodeJS {
   interface ProcessEnv {
     VSCODE_DEBUG?: 'true';
@@ -25,7 +32,7 @@ declare namespace NodeJS {
      * │ ├─┬ main
      * │ │ └── index.js    > Electron-Main
      * │ └─┬ preload
-     * │   └── index.mjs   > Preload-Scripts
+     * │   └── index.cjs   > Preload-Scripts
      * ├─┬ dist
      * │ └── index.html    > Electron-Renderer
      * ```
