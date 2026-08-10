@@ -300,6 +300,11 @@ export type components = {
             display_name?: string;
             description?: string;
             is_default?: boolean;
+            /**
+             * @description Marks a diagnostic/CI fixture alias. Still valid on
+             *     createProject; user-facing model pickers must not offer it.
+             */
+            internal?: boolean;
         } & {
             [key: string]: unknown;
         };

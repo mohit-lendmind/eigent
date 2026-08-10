@@ -415,6 +415,11 @@ components:
         display_name: {type: string}
         description: {type: string}
         is_default: {type: boolean}
+        internal:
+          type: boolean
+          description: |
+            Marks a diagnostic/CI fixture alias. Still valid on
+            createProject; user-facing model pickers must not offer it.
       additionalProperties: true
     IntegrationStatus:
       type: object

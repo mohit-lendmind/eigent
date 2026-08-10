@@ -185,6 +185,10 @@
   "reset-success": "Reset successfully!",
   "reset-failed": "Reset failed!",
   "select-default-model": "Select Default Model",
+  "aion-models-loading": "Loading model catalog…",
+  "aion-models-error": "Couldn't load the model catalog — open again to retry",
+  "aion-model-default": "· default",
+  "aion-model-hint": "Applies when a new conversation starts.",
 
   "browser-login": "Browser Login",
   "browser-login-description": "Open a Chrome browser to log in to your accounts. Your login data will be saved locally in a secure profile.",

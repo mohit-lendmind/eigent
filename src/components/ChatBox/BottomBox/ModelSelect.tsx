@@ -46,6 +46,13 @@ import {
   getModelImage,
   needsInvertModelImage,
 } from '@/shared/modelProviderImages';
+import type { ModelAliasCatalog } from '@/api/aion/v1/transport';
+import {
+  getAionModelCatalog,
+  getAionRemoteConfig,
+  resolveModelAlias,
+} from '@/store/aionChatBridge';
+import { useAionModelStore } from '@/store/aionModelStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCloudModelStore } from '@/store/cloudModelStore';
 import { useProjectRuntimeStore } from '@/store/projectRuntimeStore';
@@ -483,6 +490,71 @@ export function ModelSelect({
     ]
   );
 
+  // Remote-backend mode: the legacy provider menus are meaningless (provider
+  // config lives server-side) — the picker lists the edge's alias catalog
+  // instead. Mode is decided once per renderer lifetime, like the transport.
+  const [aionMode, setAionMode] = useState<'unknown' | 'local' | 'remote'>(
+    'unknown'
+  );
+  const [aionCatalog, setAionCatalog] = useState<ModelAliasCatalog | null>(
+    null
+  );
+  const [aionCatalogState, setAionCatalogState] = useState<
+    'loading' | 'ready' | 'error'
+  >('loading');
+  const aionSelectedAlias = useAionModelStore((s) => s.selectedAlias);
+  const aionPinnedAlias = useAionModelStore((s) =>
+    projectId ? (s.projectAlias[projectId] ?? null) : null
+  );
+  const setAionSelectedAlias = useAionModelStore((s) => s.setSelectedAlias);
+  const setAionProjectAlias = useAionModelStore((s) => s.setProjectAlias);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getAionRemoteConfig().then((config) => {
+      if (cancelled) return;
+      setAionMode(config ? 'remote' : 'local');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const loadAionCatalog = useCallback(() => {
+    setAionCatalogState((prev) => (prev === 'ready' ? prev : 'loading'));
+    getAionModelCatalog()
+      .then((catalog) => {
+        if (!catalog) {
+          // Remote mode with an invalid config: tasks fail visibly, and so
+          // does the picker.
+          setAionCatalogState('error');
+          return;
+        }
+        setAionCatalog(catalog);
+        setAionCatalogState('ready');
+      })
+      .catch(() => setAionCatalogState('error'));
+  }, []);
+
+  useEffect(() => {
+    if (aionMode === 'remote') loadAionCatalog();
+  }, [aionMode, loadAionCatalog]);
+
+  // aionSelectedAlias / aionPinnedAlias subscriptions re-render this memo;
+  // the resolver itself reads the same store state.
+  const aionEffectiveAlias = useMemo(() => {
+    if (!aionCatalog) return aionPinnedAlias ?? aionSelectedAlias;
+    return resolveModelAlias(aionCatalog, projectId ?? undefined);
+  }, [aionCatalog, aionPinnedAlias, aionSelectedAlias, projectId]);
+
+  const aionTriggerName = useMemo(() => {
+    if (!aionEffectiveAlias) return t('setting.select-default-model');
+    const option = aionCatalog?.aliases?.find(
+      (a) => a.alias === aionEffectiveAlias
+    );
+    return option?.display_name || aionEffectiveAlias;
+  }, [aionCatalog, aionEffectiveAlias, t]);
+
   // Grow the trigger to match the open dropdown's content width (never shrink
   // below its own natural content width). Keep in sync with the `w-[180px]`
   // on `DropdownMenuContent` below.
@@ -502,6 +574,130 @@ export function ModelSelect({
     if (subH <= 0 || trigH <= 0) return;
     el.style.marginTop = `${trigH - subH}px`;
   }, []);
+
+  if (aionMode !== 'local') {
+    // 'unknown' renders the same shell with the placeholder for the one
+    // round-trip it takes to resolve the mode — never the legacy menus,
+    // which would flash a meaningless provider list in remote mode.
+    const label =
+      aionMode === 'unknown'
+        ? t('setting.select-default-model')
+        : aionTriggerName;
+    if (readOnly || aionMode === 'unknown') {
+      return (
+        <div
+          role="status"
+          title={label}
+          aria-label={label}
+          className={cn(
+            modelTriggerShellClass,
+            'pointer-events-none bg-transparent',
+            { 'opacity-50': disabled }
+          )}
+        >
+          <span className="inline-flex min-h-[1.25rem] min-w-0 items-center gap-1.5 overflow-hidden">
+            <span className="min-w-0 truncate !text-label-xs font-semibold">
+              {label}
+            </span>
+          </span>
+        </div>
+      );
+    }
+    return (
+      <DropdownMenu
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (next && aionCatalogState === 'error') loadAionCatalog();
+        }}
+      >
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            disabled={disabled}
+            title={label}
+            aria-label={label}
+            aria-haspopup="menu"
+            className={cn(
+              modelTriggerShellClass,
+              'min-w-0 cursor-pointer border-0 text-left',
+              'duration-[160ms] ease-[cubic-bezier(0.23,1,0.32,1)] justify-between font-semibold transition-[background-color,box-shadow,opacity]',
+              'hover:bg-ds-bg-neutral-subtle-default active:bg-ds-bg-neutral-subtle-default data-[state=open]:bg-ds-bg-neutral-subtle-default',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-border-neutral-strong-default focus-visible:ring-offset-2 focus-visible:ring-offset-ds-bg-neutral-default-default',
+              'disabled:pointer-events-none disabled:opacity-50',
+              open && 'min-w-[220px]'
+            )}
+          >
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+              <span className="min-w-0 flex-1 truncate text-center !text-label-xs text-ds-text-neutral-default-default">
+                {label}
+              </span>
+            </span>
+            <ChevronDown
+              className="h-3.5 w-3.5 shrink-0 opacity-80"
+              aria-hidden
+              strokeWidth={2}
+            />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          side="top"
+          sideOffset={4}
+          collisionPadding={12}
+          avoidCollisions
+          className="w-[280px]"
+        >
+          {aionCatalogState !== 'ready' ? (
+            <DropdownMenuItem disabled className="text-body-sm">
+              {aionCatalogState === 'loading'
+                ? t('setting.aion-models-loading')
+                : t('setting.aion-models-error')}
+            </DropdownMenuItem>
+          ) : (
+            // Internal aliases (diagnostic/CI fixtures) are API-selectable
+            // but never offered here.
+            (aionCatalog?.aliases ?? [])
+              .filter((option) => !option.internal)
+              .map((option) => (
+              <DropdownMenuItem
+                key={option.alias}
+                onSelect={() => {
+                  if (projectId) {
+                    setAionProjectAlias(projectId, option.alias);
+                  } else {
+                    setAionSelectedAlias(option.alias);
+                  }
+                }}
+                className="flex items-start justify-between gap-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="text-body-sm">
+                    {option.display_name || option.alias}
+                    {option.is_default && (
+                      <span className="ml-1 text-xs text-ds-text-neutral-subtle-default">
+                        {t('setting.aion-model-default')}
+                      </span>
+                    )}
+                  </span>
+                  {option.description && (
+                    <div className="text-xs text-ds-text-neutral-subtle-default">
+                      {option.description}
+                    </div>
+                  )}
+                </div>
+                {option.alias === aionEffectiveAlias && (
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-ds-text-success-default-default" />
+                )}
+              </DropdownMenuItem>
+            ))
+          )}
+          <div className="px-2 pb-1 pt-1.5 text-xs text-ds-text-neutral-subtle-default">
+            {t('setting.aion-model-hint')}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
 
   if (readOnly) {
     return (
