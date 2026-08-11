@@ -100,6 +100,47 @@ export function parseSkillMd(contents: string): SkillMeta | null {
   };
 }
 
+/** A SKILL.md document found inside an assistant reply. */
+export interface ReplySkill {
+  meta: SkillMeta;
+  /**
+   * Frontmatter keys beyond name/description (e.g. entrypoint,
+   * allowed_tools), verbatim as authored — surfaced in the save-as-skill
+   * dialog and forwarded to the store, which reports inert ones back.
+   */
+  extras: Record<string, string>;
+}
+
+/**
+ * Finds a SKILL.md document in an assistant reply: the whole message, or the
+ * first fenced code block that parses. Returns null when the reply carries no
+ * saveable skill.
+ */
+export function extractSkillFromReply(content: string): ReplySkill | null {
+  const candidates: string[] = [content];
+  const fence = /```[^\n]*\n([\s\S]*?)```/g;
+  for (let match = fence.exec(content); match; match = fence.exec(content)) {
+    candidates.push(match[1]);
+  }
+  for (const candidate of candidates) {
+    const meta = parseSkillMd(candidate);
+    if (!meta) continue;
+    const { frontmatter } = splitFrontmatter(candidate.trimStart());
+    const extras: Record<string, string> = {};
+    if (frontmatter) {
+      for (const [key, value] of Object.entries(
+        parseSimpleYaml(frontmatter)
+      )) {
+        if (key !== 'name' && key !== 'description') {
+          extras[key] = value;
+        }
+      }
+    }
+    return { meta, extras };
+  }
+  return null;
+}
+
 /**
  * Build SKILL.md content from name, description, and body (CAMEL-compatible).
  */

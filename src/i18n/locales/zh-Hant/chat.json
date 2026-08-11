@@ -112,5 +112,9 @@
   "expand-plan": "展開計劃",
   "minimize-plan": "最小化計劃",
   "expand-subtasks": "展開子任務",
-  "add-subtask-placeholder": "新增子任務，按 Enter 新增更多"
+  "add-subtask-placeholder": "新增子任務，按 Enter 新增更多",
+  "save-as-skill": "儲存為技能",
+  "skill-saved": "技能「{{name}}」已儲存。",
+  "skill-saved-ignored-fields": "未儲存的欄位：{{fields}}。",
+  "save-as-skill-broad-whitelist": "此技能要求存取所有工具。僅在信任其指令時才儲存。"
 }

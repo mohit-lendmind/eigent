@@ -112,5 +112,9 @@
   "expand-plan": "Plan erweitern",
   "minimize-plan": "Plan minimieren",
   "expand-subtasks": "Teilaufgaben erweitern",
-  "add-subtask-placeholder": "Neue Teilaufgabe hinzufügen und Enter drücken, um weitere hinzuzufügen"
+  "add-subtask-placeholder": "Neue Teilaufgabe hinzufügen und Enter drücken, um weitere hinzuzufügen",
+  "save-as-skill": "Als Fähigkeit speichern",
+  "skill-saved": "Fähigkeit \"{{name}}\" gespeichert.",
+  "skill-saved-ignored-fields": "Nicht gespeicherte Felder: {{fields}}.",
+  "save-as-skill-broad-whitelist": "Diese Fähigkeit fordert Zugriff auf alle Tools an. Speichern Sie sie nur, wenn Sie ihren Anweisungen vertrauen."
 }

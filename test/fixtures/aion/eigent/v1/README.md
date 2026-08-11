@@ -8,8 +8,8 @@ aion-v1 (including `manifest.json`) when the contract adds fixtures, and record
 the aion-v1 commit below. The desktop test suite iterates `manifest.json`, so a
 fixture added upstream fails loudly here until this mirror is refreshed.
 
-- Contract version: schema_version 1.x (compatibility tuple edge_api `1.2.0`)
+- Contract version: schema_version 1.x (compatibility tuple edge_api `1.4.0`)
 - Source path: `aion-v1/testdata/eigent/v1/`
 - Last synced from: aion-v1 commit
-  `d3a2132` (branch `codex/eigent-aion-m4-edge`; restate the merge SHA in the
-  M4 provenance follow-up once that branch lands on main)
+  `47f34a5` (branch `codex/eigent-aion-m4-edge`; restate the merge SHA in the
+  SkillStore-train provenance follow-up once that branch lands on main)

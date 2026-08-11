@@ -55,5 +55,14 @@
   "create-skill-default-name": "New skill",
   "create-skill-default-description": "Describe what this skill does.",
   "save-skill": "Save skill",
-  "compose-skill-hint": "Edit SKILL.md (YAML frontmatter with name and description is required), then save."
+  "compose-skill-hint": "Edit SKILL.md (YAML frontmatter with name and description is required), then save.",
+  "skills-backend-too-old": "Skills are unavailable: the connected backend (edge API {{version}}) predates the skills surface. Update the backend to manage skills.",
+  "skills-remote-error": "Skills are unavailable: {{message}}",
+  "skill-fields-ignored": "Some fields were not stored: {{fields}}",
+  "skills-sync-up-title": "Upload local skills?",
+  "skills-sync-up-hint": "This workspace stores skills on your backend. Choose which of your local skills to upload. This offer is shown only once.",
+  "skills-sync-up-upload": "Upload ({{count}})",
+  "skills-sync-up-skip": "Not now",
+  "skills-sync-up-done": "Done",
+  "skills-sync-up-uploaded": "Uploaded"
 }

@@ -112,5 +112,9 @@
   "expand-plan": "Espandi piano",
   "minimize-plan": "Riduci piano",
   "expand-subtasks": "Espandi sottoattività",
-  "add-subtask-placeholder": "Aggiungi una nuova sottoattività e premi Invio per aggiungerne altre"
+  "add-subtask-placeholder": "Aggiungi una nuova sottoattività e premi Invio per aggiungerne altre",
+  "save-as-skill": "Salva come competenza",
+  "skill-saved": "Competenza \"{{name}}\" salvata.",
+  "skill-saved-ignored-fields": "Campi non salvati: {{fields}}.",
+  "save-as-skill-broad-whitelist": "Questa competenza richiede accesso a tutti gli strumenti. Salvala solo se ti fidi delle sue istruzioni."
 }

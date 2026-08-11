@@ -55,5 +55,14 @@
   "create-skill-default-name": "Nuova abilità",
   "create-skill-default-description": "Descrivi cosa fa questa abilità.",
   "save-skill": "Salva abilità",
-  "compose-skill-hint": "Modifica SKILL.md (è richiesto il frontmatter YAML con nome e descrizione), poi salva."
+  "compose-skill-hint": "Modifica SKILL.md (è richiesto il frontmatter YAML con nome e descrizione), poi salva.",
+  "skills-backend-too-old": "Le competenze non sono disponibili: il backend connesso (edge API {{version}}) è precedente alla superficie delle competenze. Aggiorna il backend per gestire le competenze.",
+  "skills-remote-error": "Le competenze non sono disponibili: {{message}}",
+  "skill-fields-ignored": "Alcuni campi non sono stati salvati: {{fields}}",
+  "skills-sync-up-title": "Caricare le competenze locali?",
+  "skills-sync-up-hint": "Questo spazio di lavoro salva le competenze sul backend. Scegli quali competenze locali caricare. Questa offerta viene mostrata una sola volta.",
+  "skills-sync-up-upload": "Carica ({{count}})",
+  "skills-sync-up-skip": "Non ora",
+  "skills-sync-up-done": "Fatto",
+  "skills-sync-up-uploaded": "Caricata"
 }

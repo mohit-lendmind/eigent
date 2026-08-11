@@ -112,5 +112,9 @@
   "expand-plan": "計画を展開",
   "minimize-plan": "計画を最小化",
   "expand-subtasks": "サブタスクを展開",
-  "add-subtask-placeholder": "新しいサブタスクを追加し、Enter キーでさらに追加"
+  "add-subtask-placeholder": "新しいサブタスクを追加し、Enter キーでさらに追加",
+  "save-as-skill": "スキルとして保存",
+  "skill-saved": "スキル「{{name}}」を保存しました。",
+  "skill-saved-ignored-fields": "保存されなかったフィールド: {{fields}}。",
+  "save-as-skill-broad-whitelist": "このスキルはすべてのツールへのアクセスを要求しています。指示内容を信頼できる場合にのみ保存してください。"
 }

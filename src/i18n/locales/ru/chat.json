@@ -112,5 +112,9 @@
   "expand-plan": "Развернуть план",
   "minimize-plan": "Свернуть план",
   "expand-subtasks": "Развернуть подзадачи",
-  "add-subtask-placeholder": "Добавьте новую подзадачу и нажмите Enter, чтобы добавить еще"
+  "add-subtask-placeholder": "Добавьте новую подзадачу и нажмите Enter, чтобы добавить еще",
+  "save-as-skill": "Сохранить как навык",
+  "skill-saved": "Навык «{{name}}» сохранён.",
+  "skill-saved-ignored-fields": "Несохранённые поля: {{fields}}.",
+  "save-as-skill-broad-whitelist": "Этот навык запрашивает доступ ко всем инструментам. Сохраняйте его, только если доверяете его инструкциям."
 }

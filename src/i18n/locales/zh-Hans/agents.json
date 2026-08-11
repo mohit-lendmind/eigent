@@ -55,5 +55,14 @@
   "create-skill-default-name": "新技能",
   "create-skill-default-description": "描述此技能的作用。",
   "save-skill": "保存技能",
-  "compose-skill-hint": "编辑 SKILL.md（需要包含名称和描述的 YAML 前言），然后保存。"
+  "compose-skill-hint": "编辑 SKILL.md（需要包含名称和描述的 YAML 前言），然后保存。",
+  "skills-backend-too-old": "技能不可用：已连接的后端（edge API {{version}}）尚不支持技能功能。请更新后端以管理技能。",
+  "skills-remote-error": "技能不可用：{{message}}",
+  "skill-fields-ignored": "部分字段未被保存：{{fields}}",
+  "skills-sync-up-title": "上传本地技能？",
+  "skills-sync-up-hint": "此工作区将技能存储在后端。请选择要上传的本地技能。此提示仅显示一次。",
+  "skills-sync-up-upload": "上传（{{count}}）",
+  "skills-sync-up-skip": "暂不",
+  "skills-sync-up-done": "完成",
+  "skills-sync-up-uploaded": "已上传"
 }

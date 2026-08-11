@@ -184,6 +184,76 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Latest version of every stored skill in the tenant catalog. Skill
+         *     routes are served only by an edge connected to a cell; elsewhere they
+         *     answer 501 (`code: not_implemented`) so clients can degrade cleanly.
+         */
+        get: operations["listSkills"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["SkillName"];
+            };
+            cookie?: never;
+        };
+        get: operations["getSkill"];
+        /**
+         * @description Author or update a skill. The store is append-only: a content change
+         *     writes a new version; an unchanged document dedups against the latest
+         *     active version (`changed: false`, no new row). Writes are conditioned
+         *     with If-Match (see the parameter), not Idempotency-Key — PUT here is
+         *     naturally idempotent. A skill saved without activation rules is
+         *     `manual`: registered and loadable on request, never auto-injected.
+         */
+        put: operations["putSkill"];
+        post?: never;
+        /**
+         * @description Mark the skill deleted (a new version row carrying status `deleted` —
+         *     the append-only history is retained). Deletion lives on DELETE only;
+         *     the status route's set is {active, disabled}.
+         */
+        delete: operations["deleteSkill"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills/{name}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["SkillName"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setSkillStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 };
 export type webhooks = Record<string, never>;
 export type components = {
@@ -366,6 +436,87 @@ export type components = {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * @description Skill name. Full syntax is validated server-side; the `aion-` prefix
+         *     is reserved for builtins.
+         */
+        SkillName: string;
+        Skill: {
+            name: components["schemas"]["SkillName"];
+            /**
+             * Format: int64
+             * @description Append-only store version (a content or status change writes the
+             *     next version; history is never rewritten). Distinct from any
+             *     `Version` field inside the document, which is the author's own
+             *     label.
+             */
+            version: number;
+            status: string;
+            /**
+             * @description How the skill enters a session: `manual` = registered and loadable
+             *     via the skill tool only (the default for documents saved without
+             *     activation rules), `always` = injected every turn, `rules` =
+             *     stored predicates evaluated per turn.
+             */
+            activation: string;
+            /**
+             * @description The full skill document. Canonical field names are Go PascalCase
+             *     (the Agent spec_json convention — Name, Description, PromptText,
+             *     Files[].Path/Content/Mode, ...); snake_case keys are accepted on
+             *     input. File Content is base64-encoded raw bytes; Mode is unix
+             *     permission bits as a number.
+             */
+            document: {
+                [key: string]: unknown;
+            };
+            /** @description Hex sha256 of the canonical document (the dedup key). */
+            content_hash: string;
+            origin?: string;
+            created_by?: string;
+            /** Format: date-time */
+            created_at?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        SkillCatalog: {
+            skills: components["schemas"]["Skill"][];
+        } & {
+            [key: string]: unknown;
+        };
+        PutSkillRequest: {
+            /** @description The skill document to store (see Skill.document). */
+            document: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description Provenance label recorded on the version row. Default
+             *     `desktop_ui`.
+             */
+            origin?: string;
+        };
+        PutSkillResult: {
+            skill: components["schemas"]["Skill"];
+            /**
+             * @description false = content-hash dedup: the latest active version already
+             *     carries this document, so no new version was written.
+             */
+            changed: boolean;
+            /**
+             * @description Document fields that are inert in the stored context (e.g.
+             *     `model`, `mcp_servers`) — accepted but stripped, named here so
+             *     authors learn they did not take effect.
+             */
+            ignored_fields: string[];
+        } & {
+            [key: string]: unknown;
+        };
+        SetSkillStatusRequest: {
+            /**
+             * @description Deletion lives on the DELETE method, not here.
+             * @enum {string}
+             */
+            status: "active" | "disabled";
+        };
     };
     responses: {
         /** @description RFC 9457 problem detail */
@@ -384,6 +535,14 @@ export type components = {
         RunId: components["schemas"]["Identifier"];
         ApprovalId: components["schemas"]["Identifier"];
         ArtifactId: components["schemas"]["Identifier"];
+        SkillName: components["schemas"]["SkillName"];
+        /**
+         * @description Optimistic-concurrency fence: the decimal skill version this write is
+         *     conditioned on. The write succeeds only while that is still the
+         *     latest version (any status); otherwise 409 `skill_stale`. Omitted =
+         *     unconditional write.
+         */
+        SkillIfMatch: string;
     };
     requestBodies: never;
     headers: {
@@ -654,6 +813,207 @@ export interface operations {
             };
             401: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+        };
+    };
+    listSkills: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tenant's durable skill catalog */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillCatalog"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
+        };
+    };
+    getSkill: {
+        parameters: {
+            query?: {
+                /** @description Specific version to fetch; omitted = the latest version. */
+                version?: number;
+            };
+            header?: never;
+            path: {
+                name: components["parameters"]["SkillName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One stored skill version */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Skill"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
+        };
+    };
+    putSkill: {
+        parameters: {
+            query?: never;
+            header?: {
+                /**
+                 * @description Optimistic-concurrency fence: the decimal skill version this write is
+                 *     conditioned on. The write succeeds only while that is still the
+                 *     latest version (any status); otherwise 409 `skill_stale`. Omitted =
+                 *     unconditional write.
+                 */
+                "If-Match"?: components["parameters"]["SkillIfMatch"];
+            };
+            path: {
+                name: components["parameters"]["SkillName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutSkillRequest"];
+            };
+        };
+        responses: {
+            /** @description Skill written (or deduplicated) onto an existing name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PutSkillResult"];
+                };
+            };
+            /** @description Skill created (this write produced version 1) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PutSkillResult"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            /**
+             * @description If-Match named a version that is no longer the latest. The problem
+             *     carries `code: skill_stale`; re-read the skill and retry on the
+             *     current version.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description Request body exceeds the route's byte limit. The problem carries
+             *     `code: payload_too_large`.
+             */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description The document failed skill validation. The problem carries
+             *     `code: skill_invalid` and an itemized detail.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description The tenant skill quota (count or encoded size) is full. The
+             *     problem carries `code: skill_quota_exceeded`; this is a durable
+             *     quota, not a rate limit — free space by deleting skills.
+             */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            501: components["responses"]["Problem"];
+        };
+    };
+    deleteSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["SkillName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Skill marked deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
+        };
+    };
+    setSkillStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["SkillName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetSkillStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description The new latest skill version carrying the status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Skill"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
         };
     };
 }

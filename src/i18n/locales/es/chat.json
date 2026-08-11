@@ -112,5 +112,9 @@
   "expand-plan": "Expandir plan",
   "minimize-plan": "Minimizar plan",
   "expand-subtasks": "Expandir subtareas",
-  "add-subtask-placeholder": "Añade una nueva subtarea y pulsa Enter para añadir más"
+  "add-subtask-placeholder": "Añade una nueva subtarea y pulsa Enter para añadir más",
+  "save-as-skill": "Guardar como habilidad",
+  "skill-saved": "Habilidad \"{{name}}\" guardada.",
+  "skill-saved-ignored-fields": "Campos no guardados: {{fields}}.",
+  "save-as-skill-broad-whitelist": "Esta habilidad solicita acceso a todas las herramientas. Guárdala solo si confías en sus instrucciones."
 }

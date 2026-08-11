@@ -55,5 +55,14 @@
   "create-skill-default-name": "Nouvelle compétence",
   "create-skill-default-description": "Décrivez ce que fait cette compétence.",
   "save-skill": "Enregistrer la compétence",
-  "compose-skill-hint": "Modifiez SKILL.md (un en-tête YAML avec nom et description est requis), puis enregistrez."
+  "compose-skill-hint": "Modifiez SKILL.md (un en-tête YAML avec nom et description est requis), puis enregistrez.",
+  "skills-backend-too-old": "Les compétences sont indisponibles : le backend connecté (edge API {{version}}) est antérieur à la surface des compétences. Mettez à jour le backend pour gérer les compétences.",
+  "skills-remote-error": "Les compétences sont indisponibles : {{message}}",
+  "skill-fields-ignored": "Certains champs n'ont pas été enregistrés : {{fields}}",
+  "skills-sync-up-title": "Téléverser les compétences locales ?",
+  "skills-sync-up-hint": "Cet espace de travail stocke les compétences sur votre backend. Choisissez les compétences locales à téléverser. Cette offre n'apparaît qu'une seule fois.",
+  "skills-sync-up-upload": "Téléverser ({{count}})",
+  "skills-sync-up-skip": "Pas maintenant",
+  "skills-sync-up-done": "Terminé",
+  "skills-sync-up-uploaded": "Téléversée"
 }

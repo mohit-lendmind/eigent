@@ -55,5 +55,14 @@
   "create-skill-default-name": "Новый навык",
   "create-skill-default-description": "Опишите, что делает этот навык.",
   "save-skill": "Сохранить навык",
-  "compose-skill-hint": "Отредактируйте SKILL.md (нужен YAML frontmatter с именем и описанием), затем сохраните."
+  "compose-skill-hint": "Отредактируйте SKILL.md (нужен YAML frontmatter с именем и описанием), затем сохраните.",
+  "skills-backend-too-old": "Навыки недоступны: подключённый бэкенд (edge API {{version}}) не поддерживает работу с навыками. Обновите бэкенд, чтобы управлять навыками.",
+  "skills-remote-error": "Навыки недоступны: {{message}}",
+  "skill-fields-ignored": "Некоторые поля не были сохранены: {{fields}}",
+  "skills-sync-up-title": "Загрузить локальные навыки?",
+  "skills-sync-up-hint": "Это рабочее пространство хранит навыки на бэкенде. Выберите, какие локальные навыки загрузить. Это предложение показывается только один раз.",
+  "skills-sync-up-upload": "Загрузить ({{count}})",
+  "skills-sync-up-skip": "Не сейчас",
+  "skills-sync-up-done": "Готово",
+  "skills-sync-up-uploaded": "Загружено"
 }

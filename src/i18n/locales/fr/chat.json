@@ -112,5 +112,9 @@
   "expand-plan": "Développer le plan",
   "minimize-plan": "Réduire le plan",
   "expand-subtasks": "Développer les sous-tâches",
-  "add-subtask-placeholder": "Ajoutez une nouvelle sous-tâche et appuyez sur Entrée pour en ajouter d’autres"
+  "add-subtask-placeholder": "Ajoutez une nouvelle sous-tâche et appuyez sur Entrée pour en ajouter d’autres",
+  "save-as-skill": "Enregistrer comme compétence",
+  "skill-saved": "Compétence \"{{name}}\" enregistrée.",
+  "skill-saved-ignored-fields": "Champs non enregistrés : {{fields}}.",
+  "save-as-skill-broad-whitelist": "Cette compétence demande l'accès à tous les outils. Ne l'enregistrez que si vous faites confiance à ses instructions."
 }

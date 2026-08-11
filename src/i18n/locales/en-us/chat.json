@@ -112,5 +112,9 @@
   "expand-plan": "Expand plan",
   "minimize-plan": "Minimize plan",
   "expand-subtasks": "Expand subtasks",
-  "add-subtask-placeholder": "Add a new subtask and press Enter to add more"
+  "add-subtask-placeholder": "Add a new subtask and press Enter to add more",
+  "save-as-skill": "Save as skill",
+  "skill-saved": "Skill \"{{name}}\" saved.",
+  "skill-saved-ignored-fields": "Fields not stored: {{fields}}.",
+  "save-as-skill-broad-whitelist": "This skill requests access to all tools. Save it only if you trust its instructions."
 }

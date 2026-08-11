@@ -55,5 +55,14 @@
   "create-skill-default-name": "Nueva habilidad",
   "create-skill-default-description": "Describe qué hace esta habilidad.",
   "save-skill": "Guardar habilidad",
-  "compose-skill-hint": "Edita SKILL.md (se requiere frontmatter YAML con nombre y descripción) y luego guarda."
+  "compose-skill-hint": "Edita SKILL.md (se requiere frontmatter YAML con nombre y descripción) y luego guarda.",
+  "skills-backend-too-old": "Las habilidades no están disponibles: el backend conectado (edge API {{version}}) es anterior a la superficie de habilidades. Actualiza el backend para gestionar habilidades.",
+  "skills-remote-error": "Las habilidades no están disponibles: {{message}}",
+  "skill-fields-ignored": "Algunos campos no se guardaron: {{fields}}",
+  "skills-sync-up-title": "¿Subir habilidades locales?",
+  "skills-sync-up-hint": "Este espacio de trabajo guarda las habilidades en el backend. Elige cuáles de tus habilidades locales subir. Esta oferta se muestra solo una vez.",
+  "skills-sync-up-upload": "Subir ({{count}})",
+  "skills-sync-up-skip": "Ahora no",
+  "skills-sync-up-done": "Listo",
+  "skills-sync-up-uploaded": "Subida"
 }

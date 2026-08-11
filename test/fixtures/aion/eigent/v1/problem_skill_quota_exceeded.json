@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/skill-quota-exceeded",
+  "title": "Skill quota exceeded",
+  "status": 429,
+  "detail": "skill store: tenant quota exceeded",
+  "code": "skill_quota_exceeded",
+  "trace_id": "trc_01JY0000000000000000000005",
+  "retryable": false
+}

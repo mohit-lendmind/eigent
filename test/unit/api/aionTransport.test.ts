@@ -116,12 +116,17 @@ describe('EdgeTransport REST (golden fixtures)', () => {
       jsonResponse(fixture('models_catalog_response.json'))
     );
     const catalog = await transport.listModelAliases();
-    expect(catalog.aliases).toHaveLength(2);
+    expect(catalog.aliases).toHaveLength(3);
     expect(catalog.aliases[0]).toMatchObject({
       alias: 'aion-default',
       is_default: true,
     });
     expect(catalog.aliases[1].alias).toBe('aion-fast');
+    // Internal rows stay on the wire (the picker filters them client-side).
+    expect(catalog.aliases[2]).toMatchObject({
+      alias: 'aion-fixture',
+      internal: true,
+    });
   });
 
   it('decodes the integration status handshake', async () => {
@@ -129,7 +134,7 @@ describe('EdgeTransport REST (golden fixtures)', () => {
       jsonResponse(fixture('integration_status_response.json'))
     );
     const status = await transport.getIntegrationStatus();
-    expect(status.edge_api_version).toBe('1.3.0');
+    expect(status.edge_api_version).toBe('1.4.0');
     expect(status.event_schema_version).toBe('1.0');
     expect(status.minimum_desktop_version).toBe('1.0.2');
     expect(status.harness_generation).toBe('aion-go/1');
@@ -172,6 +177,145 @@ describe('EdgeTransport REST (golden fixtures)', () => {
     expect(url).toBe(
       'https://edge.local/eigent/v1/projects/prj%2F..%2Fsneaky'
     );
+  });
+});
+
+describe('EdgeTransport skills (golden fixtures)', () => {
+  it('decodes the skill catalog', async () => {
+    const { transport, fetchImpl } = transportWith(
+      jsonResponse(fixture('skill_catalog_response.json'))
+    );
+    const catalog = await transport.listSkills();
+    expect(catalog.skills).toHaveLength(2);
+    expect(catalog.skills[0]).toMatchObject({
+      name: 'release-notes',
+      version: 3,
+      status: 'active',
+      activation: 'manual',
+    });
+    expect(catalog.skills[1]).toMatchObject({
+      name: 'triage-report',
+      status: 'disabled',
+      activation: 'rules',
+    });
+
+    const { url, init, headers } = requestOf(fetchImpl);
+    expect(url).toBe('https://edge.local/eigent/v1/skills');
+    expect(init.method).toBe('GET');
+    expect(headers.Authorization).toBe('Bearer sk-test-key');
+  });
+
+  it('gets a skill at head and at a pinned version', async () => {
+    const { transport, fetchImpl } = transportWith(() =>
+      jsonResponse(fixture('skill_response.json'))
+    );
+    const head = await transport.getSkill('release-notes');
+    // The wire version is a JSON number, not a string.
+    expect(head.version).toBe(3);
+    expect(head.document.Name).toBe('release-notes');
+    await transport.getSkill('release-notes', 2);
+
+    expect(requestOf(fetchImpl, 0).url).toBe(
+      'https://edge.local/eigent/v1/skills/release-notes'
+    );
+    expect(requestOf(fetchImpl, 1).url).toBe(
+      'https://edge.local/eigent/v1/skills/release-notes?version=2'
+    );
+  });
+
+  it('puts a skill with If-Match and no Idempotency-Key', async () => {
+    const { transport, fetchImpl } = transportWith(
+      jsonResponse(fixture('put_skill_response.json'))
+    );
+    const request = fixture('put_skill_request.json') as Parameters<
+      typeof transport.putSkill
+    >[1];
+    const result = await transport.putSkill('release-notes', request, 2);
+    expect(result.changed).toBe(true);
+    expect(result.skill.version).toBe(3);
+    expect(result.ignored_fields).toEqual(['model']);
+
+    const { url, init, headers } = requestOf(fetchImpl);
+    expect(url).toBe('https://edge.local/eigent/v1/skills/release-notes');
+    expect(init.method).toBe('PUT');
+    expect(headers['If-Match']).toBe('2');
+    // PUT is naturally idempotent — the contract requires no Idempotency-Key.
+    expect(headers['Idempotency-Key']).toBeUndefined();
+    expect(JSON.parse(init.body as string)).toEqual(
+      fixture('put_skill_request.json')
+    );
+  });
+
+  it('omits If-Match on an unconditional put (first write)', async () => {
+    const { transport, fetchImpl } = transportWith(
+      jsonResponse(fixture('put_skill_response.json'), 201)
+    );
+    const request = fixture('put_skill_request.json') as Parameters<
+      typeof transport.putSkill
+    >[1];
+    await transport.putSkill('release-notes', request);
+    const { headers } = requestOf(fetchImpl);
+    expect(headers['If-Match']).toBeUndefined();
+  });
+
+  it('treats the 204 from delete as void', async () => {
+    const { transport, fetchImpl } = transportWith(
+      new Response(null, { status: 204 })
+    );
+    await expect(transport.deleteSkill('release-notes')).resolves.toBeUndefined();
+    const { url, init } = requestOf(fetchImpl);
+    expect(url).toBe('https://edge.local/eigent/v1/skills/release-notes');
+    expect(init.method).toBe('DELETE');
+  });
+
+  it('sets skill status from the golden request', async () => {
+    const { transport, fetchImpl } = transportWith(
+      jsonResponse(fixture('skill_response.json'))
+    );
+    const request = fixture('set_skill_status_request.json') as Parameters<
+      typeof transport.setSkillStatus
+    >[1];
+    const skill = await transport.setSkillStatus('release-notes', request);
+    expect(skill.name).toBe('release-notes');
+
+    const { url, init } = requestOf(fetchImpl);
+    expect(url).toBe(
+      'https://edge.local/eigent/v1/skills/release-notes/status'
+    );
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({ status: 'disabled' });
+  });
+
+  it('raises the typed skill problems', async () => {
+    const cases = [
+      { fixtureName: 'problem_skill_stale.json', status: 409, code: 'skill_stale' },
+      { fixtureName: 'problem_skill_invalid.json', status: 422, code: 'skill_invalid' },
+      { fixtureName: 'problem_skill_quota_exceeded.json', status: 429, code: 'skill_quota_exceeded' },
+    ];
+    for (const { fixtureName, status, code } of cases) {
+      const { transport } = transportWith(problemResponse(fixtureName, status));
+      const request = fixture('put_skill_request.json') as Parameters<
+        typeof transport.putSkill
+      >[1];
+      const error = await transport.putSkill('release-notes', request).then(
+        () => null,
+        (e: unknown) => e
+      );
+      expect(error).toBeInstanceOf(EdgeProblemError);
+      if (error instanceof EdgeProblemError) {
+        expect(error.problem.code).toBe(code);
+        expect(error.problem.status).toBe(status);
+      }
+    }
+  });
+
+  it('escapes the skill name in every skill path', async () => {
+    const { transport, fetchImpl } = transportWith(
+      jsonResponse(fixture('skill_response.json'))
+    );
+    await transport.getSkill('a/../b');
+    const { url } = requestOf(fetchImpl);
+    expect(url).toBe('https://edge.local/eigent/v1/skills/a%2F..%2Fb');
   });
 });
 

@@ -28,6 +28,11 @@ export type ApprovalResponse = Schemas['ApprovalResponse'];
 export type ModelAliasCatalog = Schemas['ModelAliasCatalog'];
 export type IntegrationStatus = Schemas['IntegrationStatus'];
 export type ArtifactAccess = Schemas['ArtifactAccess'];
+export type Skill = Schemas['Skill'];
+export type SkillCatalog = Schemas['SkillCatalog'];
+export type PutSkillRequest = Schemas['PutSkillRequest'];
+export type PutSkillResult = Schemas['PutSkillResult'];
+export type SetSkillStatusRequest = Schemas['SetSkillStatusRequest'];
 
 export interface EdgeTransportConfig {
   /** Base URL of the mounted contract, e.g. `https://edge.example/eigent/v1`. */
@@ -141,6 +146,47 @@ export class EdgeTransport {
     );
   }
 
+  listSkills(): Promise<SkillCatalog> {
+    return this.json('GET', '/skills');
+  }
+
+  getSkill(name: string, version?: number): Promise<Skill> {
+    const query = version !== undefined ? `?version=${version}` : '';
+    return this.json('GET', `/skills/${encodeURIComponent(name)}${query}`);
+  }
+
+  /**
+   * Stores a skill document (append-only version rows; an identical re-put
+   * dedupes as `changed: false`). PUT is naturally idempotent — no
+   * Idempotency-Key; optimistic concurrency rides `If-Match: <version>`.
+   */
+  putSkill(
+    name: string,
+    request: PutSkillRequest,
+    ifMatchVersion?: number
+  ): Promise<PutSkillResult> {
+    return this.json('PUT', `/skills/${encodeURIComponent(name)}`, {
+      body: request,
+      ...(ifMatchVersion !== undefined
+        ? { headers: { 'If-Match': String(ifMatchVersion) } }
+        : {}),
+    });
+  }
+
+  deleteSkill(name: string): Promise<void> {
+    // Idempotent server-side (a deleted skill 404s the second time; the store
+    // row is a status version, not a hard delete) — no Idempotency-Key.
+    return this.json('DELETE', `/skills/${encodeURIComponent(name)}`);
+  }
+
+  setSkillStatus(name: string, request: SetSkillStatusRequest): Promise<Skill> {
+    return this.json(
+      'POST',
+      `/skills/${encodeURIComponent(name)}/status`,
+      { body: request }
+    );
+  }
+
   /**
    * Subscribes to the Project event stream: replay strictly after the cursor,
    * then live tail. Yields each frame in order until the server ends the
@@ -178,7 +224,7 @@ export class EdgeTransport {
   }
 
   private async json<T>(
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     path: string,
     options: { body?: unknown; headers?: Record<string, string> } = {}
   ): Promise<T> {

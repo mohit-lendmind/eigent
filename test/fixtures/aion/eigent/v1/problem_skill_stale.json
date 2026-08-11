@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/skill-stale",
+  "title": "Skill version conflict",
+  "status": 409,
+  "detail": "The skill changed since the version named in If-Match; re-read and retry.",
+  "code": "skill_stale",
+  "trace_id": "trc_01JY0000000000000000000003",
+  "retryable": false
+}

@@ -15,21 +15,27 @@
 import SearchInput from '@/components/Dashboard/SearchInput';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { getAionSyncUpCandidates } from '@/store/aionSkillsStore';
 import { useSkillsStore, type Skill } from '@/store/skillsStore';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Plus } from 'lucide-react';
+import { AlertCircle, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import SkillDeleteDialog from './components/SkillDeleteDialog';
 import SkillListItem from './components/SkillListItem';
+import SkillSyncUpDialog from './components/SkillSyncUpDialog';
 import SkillUploadDialog from './components/SkillUploadDialog';
+
+// One-time sync-up marker (plan C5): once the offer has been shown on a
+// skills-capable remote stack it never repeats, accepted or not.
+const SYNC_UP_MARKER = 'aion-skills-sync-up-offered';
 
 export default function Skills() {
   const { t } = useTranslation();
   const shouldReduceMotion = useReducedMotion();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { skills, syncFromDisk } = useSkillsStore();
+  const { skills, syncFromDisk, remoteMode } = useSkillsStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [hasCompletedInitialSync, setHasCompletedInitialSync] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -38,8 +44,10 @@ export default function Skills() {
   );
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [skillToDelete, setSkillToDelete] = useState<Skill | null>(null);
+  const [syncUpOpen, setSyncUpOpen] = useState(false);
 
-  // On first mount, sync skills from local SKILL.md files
+  // On first mount, sync skills from the backing provider (the remote
+  // SkillStore in aion remote mode, else local SKILL.md files)
   useEffect(() => {
     let isActive = true;
 
@@ -54,6 +62,27 @@ export default function Skills() {
       isActive = false;
     };
   }, [syncFromDisk]);
+
+  // One-time sync-up offer once the first remote list has landed (C5)
+  useEffect(() => {
+    if (!hasCompletedInitialSync || remoteMode.kind !== 'remote') return;
+    if (localStorage.getItem(SYNC_UP_MARKER)) return;
+    if (getAionSyncUpCandidates().length === 0) {
+      localStorage.setItem(SYNC_UP_MARKER, '1');
+      return;
+    }
+    setSyncUpOpen(true);
+  }, [hasCompletedInitialSync, remoteMode]);
+
+  const handleSyncUpClose = () => {
+    localStorage.setItem(SYNC_UP_MARKER, '1');
+    setSyncUpOpen(false);
+  };
+
+  // Remote mode that cannot serve skills renders a visible state — never a
+  // silent fallback to the local list (which does not apply remotely).
+  const remoteUnavailable =
+    remoteMode.kind === 'unsupported' || remoteMode.kind === 'error';
 
   useEffect(() => {
     const action = searchParams.get('skillAction');
@@ -208,6 +237,26 @@ export default function Skills() {
 
       {/* Content Section */}
       <div className="mb-12 flex flex-col gap-6">
+        {remoteUnavailable ? (
+          <div
+            className="mx-6 flex items-center gap-4 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-6"
+            role="alert"
+            data-testid="skills-remote-banner"
+          >
+            <AlertCircle className="h-5 w-5 shrink-0 text-ds-icon-status-error-default-default" />
+            <span className="text-body-sm text-ds-text-neutral-default-default">
+              {remoteMode.kind === 'unsupported'
+                ? t('agents.skills-backend-too-old', {
+                    version: remoteMode.edgeApiVersion,
+                  })
+                : remoteMode.kind === 'error'
+                  ? t('agents.skills-remote-error', {
+                      message: remoteMode.message,
+                    })
+                  : null}
+            </span>
+          </div>
+        ) : (
         <div className="flex w-full flex-col items-center justify-between gap-4 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
           <Tabs defaultValue="your-skills" className="w-full">
             <div className="z-10 flex w-full items-center justify-between gap-4 border-x-0 border-b-[0.5px] border-t-0 border-solid border-ds-border-neutral-default-default bg-ds-bg-neutral-default-default">
@@ -232,6 +281,7 @@ export default function Skills() {
                 <Button
                   variant="primary"
                   size="sm"
+                  data-testid="skills-add"
                   onClick={() => {
                     setSkillDialogMode('upload');
                     setUploadDialogOpen(true);
@@ -271,6 +321,7 @@ export default function Skills() {
             </TabsContent>
           </Tabs>
         </div>
+        )}
       </div>
 
       {/* Upload Dialog */}
@@ -286,6 +337,13 @@ export default function Skills() {
         skill={skillToDelete}
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
+      />
+
+      {/* One-time sync-up offer (remote mode, C5) */}
+      <SkillSyncUpDialog
+        open={syncUpOpen}
+        candidates={getAionSyncUpCandidates()}
+        onClose={handleSyncUpClose}
       />
     </div>
   );

@@ -55,5 +55,14 @@
   "create-skill-default-name": "Neue Fähigkeit",
   "create-skill-default-description": "Beschreiben Sie, was diese Fähigkeit tut.",
   "save-skill": "Fähigkeit speichern",
-  "compose-skill-hint": "Bearbeiten Sie SKILL.md (YAML-Frontmatter mit Name und Beschreibung ist erforderlich), dann speichern."
+  "compose-skill-hint": "Bearbeiten Sie SKILL.md (YAML-Frontmatter mit Name und Beschreibung ist erforderlich), dann speichern.",
+  "skills-backend-too-old": "Fähigkeiten sind nicht verfügbar: Das verbundene Backend (Edge-API {{version}}) unterstützt die Fähigkeiten-Oberfläche noch nicht. Aktualisieren Sie das Backend, um Fähigkeiten zu verwalten.",
+  "skills-remote-error": "Fähigkeiten sind nicht verfügbar: {{message}}",
+  "skill-fields-ignored": "Einige Felder wurden nicht gespeichert: {{fields}}",
+  "skills-sync-up-title": "Lokale Fähigkeiten hochladen?",
+  "skills-sync-up-hint": "Dieser Arbeitsbereich speichert Fähigkeiten im Backend. Wählen Sie aus, welche Ihrer lokalen Fähigkeiten hochgeladen werden sollen. Dieses Angebot erscheint nur einmal.",
+  "skills-sync-up-upload": "Hochladen ({{count}})",
+  "skills-sync-up-skip": "Nicht jetzt",
+  "skills-sync-up-done": "Fertig",
+  "skills-sync-up-uploaded": "Hochgeladen"
 }

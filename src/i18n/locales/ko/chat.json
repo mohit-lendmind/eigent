@@ -112,5 +112,9 @@
   "expand-plan": "계획 펼치기",
   "minimize-plan": "계획 최소화",
   "expand-subtasks": "하위 작업 펼치기",
-  "add-subtask-placeholder": "새 하위 작업을 추가하고 Enter를 눌러 더 추가하세요"
+  "add-subtask-placeholder": "새 하위 작업을 추가하고 Enter를 눌러 더 추가하세요",
+  "save-as-skill": "스킬로 저장",
+  "skill-saved": "스킬 \"{{name}}\"이(가) 저장되었습니다.",
+  "skill-saved-ignored-fields": "저장되지 않은 필드: {{fields}}.",
+  "save-as-skill-broad-whitelist": "이 스킬은 모든 도구에 대한 접근을 요청합니다. 지침을 신뢰할 수 있는 경우에만 저장하세요."
 }

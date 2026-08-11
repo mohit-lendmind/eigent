@@ -1,0 +1,22 @@
+{
+  "name": "release-notes",
+  "version": 3,
+  "status": "active",
+  "activation": "manual",
+  "document": {
+    "Name": "release-notes",
+    "Description": "Draft customer-facing release notes from a change summary.",
+    "PromptText": "Summarise the change set as customer-facing release notes using template.md.",
+    "Files": [
+      {
+        "Path": "template.md",
+        "Content": "IyBSZWxlYXNlIG5vdGVzCg==",
+        "Mode": 420
+      }
+    ]
+  },
+  "content_hash": "9f3c0d4e2b715a6c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c",
+  "origin": "desktop_ui",
+  "created_by": "dev-user",
+  "created_at": "2026-08-10T12:00:00Z"
+}

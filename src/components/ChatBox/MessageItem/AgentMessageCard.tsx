@@ -13,13 +13,29 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import { fileInfoFromPath } from '@/lib/fileInfo';
+import { extractSkillFromReply } from '@/lib/skillToolkit';
+import { getAionSkillsMode } from '@/store/aionSkillsStore';
 import { usePageTabStore } from '@/store/pageTabStore';
-import { Check, Copy, FileText, ThumbsDown, ThumbsUp } from 'lucide-react';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import {
+  BookmarkPlus,
+  Check,
+  Copy,
+  FileText,
+  ThumbsDown,
+  ThumbsUp,
+} from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
 import { MarkDown } from './MarkDown';
+import SaveSkillDialog from './SaveSkillDialog';
 
 const COPIED_RESET_MS = 2000;
 
@@ -65,6 +81,23 @@ export function AgentMessageCard({
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<MessageFeedback>(null);
   const { t } = useTranslation();
+
+  // Save-as-skill (remote mode only): offered when the reply carries a
+  // parseable SKILL.md document and the renderer talks to an aion backend
+  // with the skills surface.
+  const replySkill = useMemo(() => extractSkillFromReply(content), [content]);
+  const [remoteSkills, setRemoteSkills] = useState(false);
+  const [saveSkillOpen, setSaveSkillOpen] = useState(false);
+  useEffect(() => {
+    if (!replySkill) return;
+    let active = true;
+    void getAionSkillsMode().then((mode) => {
+      if (active) setRemoteSkills(mode.kind === 'remote');
+    });
+    return () => {
+      active = false;
+    };
+  }, [replySkill]);
 
   useEffect(() => {
     setFeedback(null);
@@ -194,7 +227,26 @@ export function AgentMessageCard({
               className={`h-4 w-4 ${feedback === 'down' ? 'text-ds-text-brand-default-default' : ''}`}
             />
           </Button>
+          {replySkill && remoteSkills && (
+            <Button
+              onClick={() => setSaveSkillOpen(true)}
+              variant="ghost"
+              size="xs"
+              buttonContent="icon-only"
+              aria-label={t('chat.save-as-skill')}
+              data-testid="save-as-skill"
+            >
+              <BookmarkPlus className="h-4 w-4" />
+            </Button>
+          )}
         </div>
+      )}
+      {replySkill && (
+        <SaveSkillDialog
+          open={saveSkillOpen}
+          skill={replySkill}
+          onClose={() => setSaveSkillOpen(false)}
+        />
       )}
     </div>
   );
