@@ -116,5 +116,12 @@
   "save-as-skill": "스킬로 저장",
   "skill-saved": "스킬 \"{{name}}\"이(가) 저장되었습니다.",
   "skill-saved-ignored-fields": "저장되지 않은 필드: {{fields}}.",
-  "save-as-skill-broad-whitelist": "이 스킬은 모든 도구에 대한 접근을 요청합니다. 지침을 신뢰할 수 있는 경우에만 저장하세요."
+  "save-as-skill-broad-whitelist": "이 스킬은 모든 도구에 대한 접근을 요청합니다. 지침을 신뢰할 수 있는 경우에만 저장하세요.",
+  "approval-required": "{{tool}}에 대한 승인이 필요합니다",
+  "approval-publish-skill-title": "에이전트가 스킬 게시를 요청합니다",
+  "approval-allow": "허용",
+  "approval-deny": "거부",
+  "approval-resolved-allow": "승인됨 — 작업이 계속됩니다.",
+  "approval-resolved-deny": "거부됨 — 작업은 계속됩니다.",
+  "approval-respond-failed": "결정을 전달하지 못했습니다. 다시 시도하세요."
 }

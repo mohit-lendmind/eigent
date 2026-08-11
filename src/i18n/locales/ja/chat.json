@@ -116,5 +116,12 @@
   "save-as-skill": "スキルとして保存",
   "skill-saved": "スキル「{{name}}」を保存しました。",
   "skill-saved-ignored-fields": "保存されなかったフィールド: {{fields}}。",
-  "save-as-skill-broad-whitelist": "このスキルはすべてのツールへのアクセスを要求しています。指示内容を信頼できる場合にのみ保存してください。"
+  "save-as-skill-broad-whitelist": "このスキルはすべてのツールへのアクセスを要求しています。指示内容を信頼できる場合にのみ保存してください。",
+  "approval-required": "{{tool}} の承認が必要です",
+  "approval-publish-skill-title": "エージェントがスキルの公開を求めています",
+  "approval-allow": "許可",
+  "approval-deny": "拒否",
+  "approval-resolved-allow": "承認されました — タスクは続行します。",
+  "approval-resolved-deny": "拒否されました — タスクはそのまま続行します。",
+  "approval-respond-failed": "決定を送信できませんでした。もう一度お試しください。"
 }

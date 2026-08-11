@@ -111,6 +111,22 @@ describe('EdgeTransport REST (golden fixtures)', () => {
     }
   });
 
+  // The real edge accepts these mutations with headers ONLY (202, empty
+  // body) — a body-expecting decode would turn every recorded decision into
+  // a client-side "delivery failed" error.
+  it('resolves accepted mutations that carry no response body', async () => {
+    const empty202 = () => new Response(null, { status: 202 });
+    const { transport } = transportWith(empty202);
+    await expect(
+      transport.respondToApproval('prj_1', 'apr_1', {
+        decision: 'deny',
+      } as Parameters<typeof transport.respondToApproval>[2])
+    ).resolves.toBeUndefined();
+    await expect(
+      transport.cancelRun('prj_1', 'run_1', { expected_run_epoch: '1' })
+    ).resolves.toBeUndefined();
+  });
+
   it('decodes the model alias catalog', async () => {
     const { transport } = transportWith(
       jsonResponse(fixture('models_catalog_response.json'))

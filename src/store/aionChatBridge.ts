@@ -261,6 +261,25 @@ export async function startAionTask(args: StartAionTaskArgs): Promise<void> {
   }
 }
 
+/**
+ * Delivers a human verdict for a parked approval over the edge. The backend
+ * records it exactly once; the UI never resolves optimistically — the
+ * approval_resolved event streaming back is what flips the card.
+ */
+export async function respondToAionApproval(
+  aionProjectId: string,
+  approvalId: string,
+  decision: 'allow' | 'deny'
+): Promise<void> {
+  const binding = liveBindings.find((b) => b.aionProjectId === aionProjectId);
+  if (!binding) {
+    throw new Error('No live aion project is bound to this approval.');
+  }
+  await binding.transport.respondToApproval(aionProjectId, approvalId, {
+    decision,
+  });
+}
+
 /** Epoch-fenced cancel for the unsettled Run bound to this task, if any. */
 export function stopAionTurn(taskId: string): void {
   for (const binding of liveBindings) {
@@ -366,13 +385,25 @@ function projectTurn(
         role: 'agent',
         content: entry.text,
       });
-    } else if (entry.type === 'approval' && entry.decision === undefined) {
+    } else if (entry.type === 'approval') {
+      // Pending renders the interactive card; a resolved entry keeps the
+      // same message id with the verdict, so the card flips in place when
+      // approval_resolved streams back (the content change triggers the
+      // update below).
       wanted.push({
         id: `aion:${turn.runId}:approval:${entry.approvalId}`,
         role: 'agent',
-        content: `⏸️ Approval required for \`${entry.toolName ?? 'a tool'}\`${
-          entry.reason ? ` — ${entry.reason}` : ''
-        }. Respond from the Integration Lab; in-chat approvals arrive with the M6 approvals train.`,
+        content: entry.decision
+          ? `Approval ${entry.decision} for ${entry.toolName ?? 'a tool'}.`
+          : `Approval required for ${entry.toolName ?? 'a tool'}.`,
+        approval: {
+          projectId: binding.aionProjectId,
+          approvalId: entry.approvalId,
+          toolName: entry.toolName,
+          reason: entry.reason,
+          argumentsJson: entry.argumentsJson,
+          decision: entry.decision,
+        },
       });
     }
   }

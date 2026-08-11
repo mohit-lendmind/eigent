@@ -116,5 +116,12 @@
   "save-as-skill": "儲存為技能",
   "skill-saved": "技能「{{name}}」已儲存。",
   "skill-saved-ignored-fields": "未儲存的欄位：{{fields}}。",
-  "save-as-skill-broad-whitelist": "此技能要求存取所有工具。僅在信任其指令時才儲存。"
+  "save-as-skill-broad-whitelist": "此技能要求存取所有工具。僅在信任其指令時才儲存。",
+  "approval-required": "{{tool}} 需要核准",
+  "approval-publish-skill-title": "智慧代理請求發佈一項技能",
+  "approval-allow": "允許",
+  "approval-deny": "拒絕",
+  "approval-resolved-allow": "已核准 — 任務繼續。",
+  "approval-resolved-deny": "已拒絕 — 任務將繼續。",
+  "approval-respond-failed": "無法送出你的決定,請重試。"
 }

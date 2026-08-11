@@ -116,5 +116,12 @@
   "save-as-skill": "保存为技能",
   "skill-saved": "技能“{{name}}”已保存。",
   "skill-saved-ignored-fields": "未保存的字段：{{fields}}。",
-  "save-as-skill-broad-whitelist": "此技能请求访问所有工具。仅在信任其指令时才保存。"
+  "save-as-skill-broad-whitelist": "此技能请求访问所有工具。仅在信任其指令时才保存。",
+  "approval-required": "{{tool}} 需要批准",
+  "approval-publish-skill-title": "智能体请求发布一个技能",
+  "approval-allow": "允许",
+  "approval-deny": "拒绝",
+  "approval-resolved-allow": "已批准 — 任务继续。",
+  "approval-resolved-deny": "已拒绝 — 任务将继续。",
+  "approval-respond-failed": "无法提交你的决定,请重试。"
 }

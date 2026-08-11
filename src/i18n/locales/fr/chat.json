@@ -116,5 +116,12 @@
   "save-as-skill": "Enregistrer comme compétence",
   "skill-saved": "Compétence \"{{name}}\" enregistrée.",
   "skill-saved-ignored-fields": "Champs non enregistrés : {{fields}}.",
-  "save-as-skill-broad-whitelist": "Cette compétence demande l'accès à tous les outils. Ne l'enregistrez que si vous faites confiance à ses instructions."
+  "save-as-skill-broad-whitelist": "Cette compétence demande l'accès à tous les outils. Ne l'enregistrez que si vous faites confiance à ses instructions.",
+  "approval-required": "Approbation requise pour {{tool}}",
+  "approval-publish-skill-title": "L’agent souhaite publier une compétence",
+  "approval-allow": "Autoriser",
+  "approval-deny": "Refuser",
+  "approval-resolved-allow": "Approuvé — la tâche continue.",
+  "approval-resolved-deny": "Refusé — la tâche continue sans cela.",
+  "approval-respond-failed": "Impossible d’envoyer votre décision. Réessayez."
 }

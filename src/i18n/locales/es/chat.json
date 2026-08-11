@@ -116,5 +116,12 @@
   "save-as-skill": "Guardar como habilidad",
   "skill-saved": "Habilidad \"{{name}}\" guardada.",
   "skill-saved-ignored-fields": "Campos no guardados: {{fields}}.",
-  "save-as-skill-broad-whitelist": "Esta habilidad solicita acceso a todas las herramientas. Guárdala solo si confías en sus instrucciones."
+  "save-as-skill-broad-whitelist": "Esta habilidad solicita acceso a todas las herramientas. Guárdala solo si confías en sus instrucciones.",
+  "approval-required": "Se requiere aprobación para {{tool}}",
+  "approval-publish-skill-title": "El agente quiere publicar una habilidad",
+  "approval-allow": "Permitir",
+  "approval-deny": "Denegar",
+  "approval-resolved-allow": "Aprobado: la tarea continúa.",
+  "approval-resolved-deny": "Denegado: la tarea continúa sin ello.",
+  "approval-respond-failed": "No se pudo enviar tu decisión. Inténtalo de nuevo."
 }

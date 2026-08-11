@@ -116,5 +116,12 @@
   "save-as-skill": "Als Fähigkeit speichern",
   "skill-saved": "Fähigkeit \"{{name}}\" gespeichert.",
   "skill-saved-ignored-fields": "Nicht gespeicherte Felder: {{fields}}.",
-  "save-as-skill-broad-whitelist": "Diese Fähigkeit fordert Zugriff auf alle Tools an. Speichern Sie sie nur, wenn Sie ihren Anweisungen vertrauen."
+  "save-as-skill-broad-whitelist": "Diese Fähigkeit fordert Zugriff auf alle Tools an. Speichern Sie sie nur, wenn Sie ihren Anweisungen vertrauen.",
+  "approval-required": "Genehmigung erforderlich für {{tool}}",
+  "approval-publish-skill-title": "Der Agent möchte einen Skill veröffentlichen",
+  "approval-allow": "Erlauben",
+  "approval-deny": "Ablehnen",
+  "approval-resolved-allow": "Genehmigt — die Aufgabe wird fortgesetzt.",
+  "approval-resolved-deny": "Abgelehnt — die Aufgabe wird ohne fortgesetzt.",
+  "approval-respond-failed": "Entscheidung konnte nicht übermittelt werden. Bitte erneut versuchen."
 }

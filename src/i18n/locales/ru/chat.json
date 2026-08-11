@@ -116,5 +116,12 @@
   "save-as-skill": "Сохранить как навык",
   "skill-saved": "Навык «{{name}}» сохранён.",
   "skill-saved-ignored-fields": "Несохранённые поля: {{fields}}.",
-  "save-as-skill-broad-whitelist": "Этот навык запрашивает доступ ко всем инструментам. Сохраняйте его, только если доверяете его инструкциям."
+  "save-as-skill-broad-whitelist": "Этот навык запрашивает доступ ко всем инструментам. Сохраняйте его, только если доверяете его инструкциям.",
+  "approval-required": "Требуется одобрение для {{tool}}",
+  "approval-publish-skill-title": "Агент хочет опубликовать навык",
+  "approval-allow": "Разрешить",
+  "approval-deny": "Отклонить",
+  "approval-resolved-allow": "Одобрено — задача продолжается.",
+  "approval-resolved-deny": "Отклонено — задача продолжается без этого.",
+  "approval-respond-failed": "Не удалось отправить решение. Попробуйте ещё раз."
 }

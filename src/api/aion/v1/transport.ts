@@ -245,10 +245,10 @@ export class EdgeTransport {
     if (!response.ok) {
       throw await this.problemFrom(response);
     }
-    if (response.status === 204) {
-      return undefined as T;
-    }
-    return (await response.json()) as T;
+    // Accepted mutations answer with headers only (202/204 and no body) —
+    // parsing '' as JSON would turn a recorded decision into a client error.
+    const text = await response.text();
+    return (text === '' ? undefined : JSON.parse(text)) as T;
   }
 
   private async problemFrom(response: Response): Promise<Error> {

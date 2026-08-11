@@ -116,5 +116,12 @@
   "save-as-skill": "Save as skill",
   "skill-saved": "Skill \"{{name}}\" saved.",
   "skill-saved-ignored-fields": "Fields not stored: {{fields}}.",
-  "save-as-skill-broad-whitelist": "This skill requests access to all tools. Save it only if you trust its instructions."
+  "save-as-skill-broad-whitelist": "This skill requests access to all tools. Save it only if you trust its instructions.",
+  "approval-required": "Approval required for {{tool}}",
+  "approval-publish-skill-title": "The agent wants to publish a skill",
+  "approval-allow": "Allow",
+  "approval-deny": "Deny",
+  "approval-resolved-allow": "Approved — the task continues.",
+  "approval-resolved-deny": "Denied — the task continues without it.",
+  "approval-respond-failed": "Could not deliver your decision. Try again."
 }
