@@ -12,7 +12,11 @@ import {
   type PutSkillResult,
   type Skill as AionSkillRow,
 } from '@/api/aion/v1/transport';
-import { buildSkillMd, type SkillMeta } from '@/lib/skillToolkit';
+import {
+  buildSkillMd,
+  parseSkillScopeTag,
+  type SkillMeta,
+} from '@/lib/skillToolkit';
 import { getAionRemoteConfig } from './aionChatBridge';
 import type { Skill } from './skillsStore';
 
@@ -102,6 +106,12 @@ let catalogPromise: Promise<Skill[]> | null = null;
 // safe instead of last-writer-wins.
 const knownVersions = new Map<string, number>();
 
+// Latest stored document per skill name, harvested alongside the versions.
+// A put starts from this echo so a partial update (a content edit, a scope
+// change) never strips fields it did not touch — Files, activation rules,
+// other Metadata annotations.
+const knownDocuments = new Map<string, Record<string, unknown>>();
+
 export function invalidateAionSkillCatalog(): void {
   catalogPromise = null;
 }
@@ -112,8 +122,10 @@ export function listAionSkills(): Promise<Skill[]> {
     const catalog = await transport.listSkills();
     const rows = catalog.skills ?? [];
     knownVersions.clear();
+    knownDocuments.clear();
     for (const row of rows) {
       knownVersions.set(row.name, row.version);
+      knownDocuments.set(row.name, row.document ?? {});
     }
     return rows
       .map(toUiSkill)
@@ -139,9 +151,7 @@ function toUiSkill(row: AionSkillRow): Skill {
     fileContent: buildSkillMd(name, description, promptText),
     skillDirName: name,
     addedAt: Number.isNaN(createdAt) ? 0 : createdAt,
-    // Scope stays UI-global until the SK-D worker-scoping train writes
-    // metadata tags; the store rows carry no scope yet.
-    scope: { isGlobal: true, selectedAgents: [] },
+    scope: parseSkillScopeTag(metadataField(row.document, 'scope')),
     enabled: row.status === 'active',
     isExample: false,
   };
@@ -150,6 +160,27 @@ function toUiSkill(row: AionSkillRow): Skill {
 function stringField(document: Record<string, unknown>, key: string): string {
   const value = document[key];
   return typeof value === 'string' ? value : '';
+}
+
+function metadataOf(
+  document: Record<string, unknown> | undefined
+): Record<string, string> {
+  const metadata = document?.Metadata;
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return {};
+  }
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (typeof value === 'string') out[key] = value;
+  }
+  return out;
+}
+
+function metadataField(
+  document: Record<string, unknown>,
+  key: string
+): string {
+  return metadataOf(document)[key] ?? '';
 }
 
 /** A skill file for the document's Files list (base64 content, unix mode). */
@@ -166,18 +197,30 @@ export interface AionSkillFile {
 export async function putAionSkill(
   meta: SkillMeta,
   files: AionSkillFile[] = [],
-  extras: Record<string, string> = {}
+  metadata: Record<string, string> = {}
 ): Promise<PutSkillResult> {
   const transport = await remoteTransport();
-  // Extra frontmatter keys ride along verbatim (the contract accepts
-  // snake_case input keys); canonical fields always win, and the store names
-  // inert extras back in ignored_fields.
+  // The document starts from the last-seen stored echo so a partial update
+  // never strips fields it did not touch. String annotations (entrypoint,
+  // scope, extra frontmatter keys) ride the Metadata map — the store's strict
+  // decoder rejects unknown TOP-LEVEL keys, so they must never be spread onto
+  // the document root. An empty value clears its annotation.
+  const stored = knownDocuments.get(meta.name);
   const document: Record<string, unknown> = {
-    ...extras,
+    ...(stored ?? {}),
     Name: meta.name,
     Description: meta.description,
     PromptText: meta.body,
   };
+  const mergedMetadata = { ...metadataOf(stored), ...metadata };
+  for (const [key, value] of Object.entries(mergedMetadata)) {
+    if (value.trim() === '') delete mergedMetadata[key];
+  }
+  if (Object.keys(mergedMetadata).length > 0) {
+    document.Metadata = mergedMetadata;
+  } else {
+    delete document.Metadata;
+  }
   if (files.length > 0) {
     document.Files = files.map((file) => ({
       Path: file.path,
@@ -191,6 +234,7 @@ export async function putAionSkill(
     knownVersions.get(meta.name)
   );
   knownVersions.set(meta.name, result.skill.version);
+  knownDocuments.set(meta.name, result.skill.document ?? document);
   invalidateAionSkillCatalog();
   return result;
 }
@@ -199,6 +243,7 @@ export async function deleteAionSkill(name: string): Promise<void> {
   const transport = await remoteTransport();
   await transport.deleteSkill(name);
   knownVersions.delete(name);
+  knownDocuments.delete(name);
   invalidateAionSkillCatalog();
 }
 
@@ -211,6 +256,9 @@ export async function setAionSkillEnabled(
     status: enabled ? 'active' : 'disabled',
   });
   knownVersions.set(name, skill.version);
+  if (skill.document) {
+    knownDocuments.set(name, skill.document);
+  }
   invalidateAionSkillCatalog();
 }
 

@@ -1,8 +1,9 @@
 // SkillStore desktop E2E (SK-C): the REAL desktop app in remote-backend mode
 // against the eigent-local Compose edge, driving the product Skills surfaces —
 // not the Integration Lab. Three scenarios:
-//   1. CRUD: compose → row → disable (server round-trip) → delete, all
-//      persisted across a full reload, with an edge-only network audit.
+//   1. CRUD: compose → row → scope to one worker (SK-D Metadata tag) →
+//      disable (server round-trip) → delete, all persisted across a full
+//      reload, with an edge-only network audit.
 //   2. Save-as-skill: the deterministic `aion-fast` echo model returns the
 //      user's SKILL.md verbatim, the reply offers the save action, and the
 //      saved skill is usable next turn via the # picker.
@@ -222,6 +223,45 @@ test('skills CRUD: compose, disable, delete — all server-persisted', async () 
     await expect(byId(page, `skill-row-${name}`)).toBeVisible();
     summary.created = true;
     await screenshot(page, 'crud-created');
+
+    // Scope (SK-D): scoping the skill to one worker writes the stored
+    // document's Metadata scope tag. The chips re-project from the remote
+    // list after a reload, and the tag itself is asserted over the edge API.
+    const row = byId(page, `skill-row-${name}`);
+    const chip = (label: string) => row.getByRole('button', { name: label });
+    const check = (label: string) =>
+      chip(label).locator('svg[class*="lucide-check"]');
+    const scopePut = () =>
+      page.waitForResponse(
+        (r) => r.url().includes('/skills/') && r.request().method() === 'PUT'
+      );
+    await row.getByRole('button', { name: 'Select agent access' }).click();
+    await expect(check('All Agents')).toBeVisible(); // new skills are global
+    // Unselect All Agents (names-nothing still reads as global), then pick
+    // one worker; await each PUT so the If-Match version chain stays ordered.
+    let put = scopePut();
+    await chip('All Agents').click();
+    expect((await put).ok()).toBe(true);
+    put = scopePut();
+    await chip('Developer Agent').click();
+    expect((await put).ok()).toBe(true);
+    await expect(check('Developer Agent')).toBeVisible();
+    await page.reload();
+    await expect(row).toBeVisible({ timeout: 60_000 });
+    await row.getByRole('button', { name: 'Select agent access' }).click();
+    await expect(check('Developer Agent')).toBeVisible();
+    await expect(check('All Agents')).toHaveCount(0);
+    await expect(check('Single Agent')).toHaveCount(0);
+    // The stored document carries exactly the worker id (node-side fetch —
+    // stays out of the renderer's edge-only network audit).
+    const storedRow = (await (
+      await fetch(`${edgeBaseUrl}/skills/${encodeURIComponent(name)}`, {
+        headers: { Authorization: `Bearer ${bootstrap!.api_key}` },
+      })
+    ).json()) as { document?: { Metadata?: Record<string, string> } };
+    expect(storedRow.document?.Metadata?.scope).toBe('developer_agent');
+    summary.scope_persisted = true;
+    await screenshot(page, 'crud-scoped');
 
     // Disable, then prove the status survived a full reload (the row is
     // re-projected from the remote list, not from optimistic state).

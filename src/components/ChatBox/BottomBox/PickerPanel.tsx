@@ -20,6 +20,10 @@ import {
   useIntegrationManagement,
   type IntegrationItem,
 } from '@/hooks/useIntegrationManagement';
+import {
+  normalizeSkillScopeAgentId,
+  SINGLE_AGENT_ID,
+} from '@/components/WorkFlow/agents';
 import { integrationLeadingIconUrl } from '@/lib/connectorIcons';
 import {
   RICH_CONNECTOR_STYLE_CLASSES,
@@ -403,18 +407,31 @@ export function SkillPickerPanel({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const skills = useSkillsStore((s) => s.skills);
+  const remoteMode = useSkillsStore((s) => s.remoteMode);
 
   const items = useMemo(
     () =>
       skills
         .filter((s) => s.enabled)
+        // In remote mode the composer speaks to the orchestrator chat
+        // surface, so a skill scoped away from it (worker-only, SK-D) is not
+        // loadable here and stays out of the picker. Local-mode scope keeps
+        // its legacy meaning and never filters.
+        .filter(
+          (s) =>
+            remoteMode.kind !== 'remote' ||
+            s.scope.isGlobal ||
+            s.scope.selectedAgents.some(
+              (agent) => normalizeSkillScopeAgentId(agent) === SINGLE_AGENT_ID
+            )
+        )
         .map((s) => ({
           id: s.id,
           name: s.name,
           token: `#${s.skillDirName || skillNameToDirName(s.name)}`,
           description: s.description || undefined,
         })),
-    [skills]
+    [skills, remoteMode]
   );
 
   return (

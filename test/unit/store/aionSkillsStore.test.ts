@@ -132,6 +132,11 @@ describe('aionSkillsStore catalog', () => {
       'Summarise the change set as customer-facing release notes'
     );
     expect(triage.enabled).toBe(false); // status: disabled
+    // The Metadata scope tag projects onto the UI scope shape (SK-D).
+    expect(triage.scope).toEqual({
+      isGlobal: false,
+      selectedAgents: ['developer_agent', 'search_agent'],
+    });
   });
 
   it('shares one fetch across concurrent opens and refetches after invalidation', async () => {
@@ -176,8 +181,11 @@ describe('aionSkillsStore mutations', () => {
       Name: 'release-notes',
       Description: 'Draft release notes.',
       PromptText: 'Do the thing.',
-      entrypoint: 'template.md',
     });
+    // Annotations ride the Metadata map — never the document root, whose
+    // unknown keys the store's strict decoder rejects.
+    expect(request.document.Metadata).toEqual({ entrypoint: 'template.md' });
+    expect(request.document).not.toHaveProperty('entrypoint');
     expect(request.document.Files).toEqual([
       { Path: 'template.md', Content: 'IyBSZWxlYXNlCg==', Mode: 0o644 },
     ]);
@@ -185,9 +193,64 @@ describe('aionSkillsStore mutations', () => {
     // A brand-new name has no known version: the put is unconditional.
     await store.putAionSkill({ name: 'fresh', description: 'd', body: 'b' });
     expect(putSkill.mock.calls[1][2]).toBeUndefined();
+    expect(putSkill.mock.calls[1][1].document).not.toHaveProperty('Metadata');
 
     await store.listAionSkills();
     expect(listSkills).toHaveBeenCalledTimes(2); // invalidated by the puts
+  });
+
+  it('echoes the stored document so partial updates never strip fields', async () => {
+    setRemoteConfig();
+    getIntegrationStatus.mockResolvedValue(remoteStatus());
+    listSkills.mockResolvedValue(fixture('skill_catalog_response.json'));
+    // The store echoes back the document it just wrote (the canonical shape),
+    // which is what feeds the next put's baseline.
+    putSkill.mockImplementation(async (_name: string, request: any) => ({
+      skill: {
+        ...fixture('put_skill_response.json').skill,
+        version: 4,
+        document: request.document,
+      },
+      changed: true,
+    }));
+    const store = await freshModule();
+    await store.listAionSkills(); // learns release-notes' stored document
+
+    // A scope-only update: content unchanged, Files preserved from the echo.
+    await store.putAionSkill(
+      {
+        name: 'release-notes',
+        description: 'Draft customer-facing release notes from a change summary.',
+        body: 'Summarise the change set as customer-facing release notes using template.md.',
+      },
+      [],
+      { scope: 'developer_agent' }
+    );
+    const first = putSkill.mock.calls[0][1].document;
+    expect(first.Metadata).toEqual({ scope: 'developer_agent' });
+    expect(first.Files).toEqual([
+      { Path: 'template.md', Content: 'IyBSZWxlYXNlIG5vdGVzCg==', Mode: 420 },
+    ]);
+
+    // A later content-only edit keeps the annotation…
+    await store.putAionSkill({
+      name: 'release-notes',
+      description: 'Sharper notes.',
+      body: 'New body.',
+    });
+    const second = putSkill.mock.calls[1][1].document;
+    expect(second.Metadata).toEqual({ scope: 'developer_agent' });
+    expect(second.Files).toHaveLength(1);
+    expect(second.PromptText).toBe('New body.');
+
+    // …and an empty value clears it (scope back to global).
+    await store.putAionSkill(
+      { name: 'release-notes', description: 'Sharper notes.', body: 'New body.' },
+      [],
+      { scope: '' }
+    );
+    const third = putSkill.mock.calls[2][1].document;
+    expect(third).not.toHaveProperty('Metadata');
   });
 
   it('maps enabled to the status row and delete to DELETE', async () => {

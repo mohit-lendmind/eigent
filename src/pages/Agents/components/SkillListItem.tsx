@@ -78,7 +78,7 @@ function selectedAgentsInclude(
 export default function SkillListItem(props: SkillListItemProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { updateSkill, toggleSkill, remoteMode } = useSkillsStore();
+  const { updateSkill, toggleSkill } = useSkillsStore();
   const { projectStore } = useChatStoreAdapter();
   const workerList = useWorkerList();
   const [scopeOpen, setScopeOpen] = useState(false);
@@ -260,9 +260,9 @@ export default function SkillListItem(props: SkillListItemProps) {
         </div>
       </TooltipSimple>
 
-      {/* Row 3: Added time / Skill scope. Remote skills have no per-agent
-          scope until the SK-D worker-scoping train writes metadata tags. */}
-      {remoteMode.kind !== 'remote' && (
+      {/* Row 3: Skill scope. Local mode persists it to the config file;
+          remote mode writes the stored document's Metadata scope tag (SK-D),
+          which the cell enforces on the orchestrator and worker surfaces. */}
       <div className="flex flex-col items-start gap-2">
         <Button
           variant="ghost"
@@ -323,7 +323,6 @@ export default function SkillListItem(props: SkillListItemProps) {
           </div>
         )}
       </div>
-      )}
     </div>
   );
 }

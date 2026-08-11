@@ -24,6 +24,7 @@ import {
 } from '@/api/brain';
 import {
   buildSkillMd,
+  buildSkillScopeTag,
   hasSkillsFsApi,
   parseSkillMd,
   skillNameToDirName,
@@ -137,13 +138,18 @@ export const useSkillsStore = create<SkillsState>()(
           }
           // The SKILL.md frontmatter is authoritative when parseable, exactly
           // like the local write path; problems (skill_invalid, skill_stale,
-          // quota) propagate to the caller for inline rendering.
+          // quota) propagate to the caller for inline rendering. Scope rides
+          // the document's Metadata tag (SK-D).
           const meta = parseSkillMd(skill.fileContent);
-          const result = await putAionSkill({
-            name: meta?.name || skill.name,
-            description: meta?.description || skill.description,
-            body: meta?.body ?? skill.fileContent,
-          });
+          const result = await putAionSkill(
+            {
+              name: meta?.name || skill.name,
+              description: meta?.description || skill.description,
+              body: meta?.body ?? skill.fileContent,
+            },
+            [],
+            { scope: buildSkillScopeTag(skill.scope) }
+          );
           set({ skills: await listAionSkills() });
           return { ignoredFields: result.ignored_fields ?? [] };
         }
@@ -218,17 +224,31 @@ export const useSkillsStore = create<SkillsState>()(
 
         const remote = await getAionSkillsMode();
         if (remote.kind !== 'local') {
-          // Scope stays a UI-only field until SK-D writes metadata tags; only
-          // the enabled flag has a remote representation (status rows).
-          if (remote.kind === 'remote' && updates.enabled !== undefined) {
-            try {
+          if (remote.kind !== 'remote') return;
+          try {
+            if (updates.enabled !== undefined) {
               await setAionSkillEnabled(skill.name, updates.enabled);
-            } catch (error) {
-              console.error('[Skills] remote status update failed:', error);
-              set((state) => ({
-                skills: state.skills.map((s) => (s.id === id ? skill : s)),
-              }));
             }
+            if (updates.scope) {
+              // Scope rides the stored document's Metadata tag (SK-D): re-put
+              // the document with the new tag; the content comes from the row
+              // we already render, so nothing else changes.
+              const meta = parseSkillMd(skill.fileContent);
+              await putAionSkill(
+                {
+                  name: skill.name,
+                  description: meta?.description || skill.description,
+                  body: meta?.body ?? skill.fileContent,
+                },
+                [],
+                { scope: buildSkillScopeTag(updates.scope) }
+              );
+            }
+          } catch (error) {
+            console.error('[Skills] remote skill update failed:', error);
+            set((state) => ({
+              skills: state.skills.map((s) => (s.id === id ? skill : s)),
+            }));
           }
           return;
         }
