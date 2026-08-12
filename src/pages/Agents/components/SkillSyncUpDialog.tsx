@@ -37,7 +37,7 @@ type SyncResult =
   | { kind: 'error'; message: string };
 
 /**
- * One-time sync-up (plan C5): on the first skills-capable remote launch the
+ * One-time sync-up: on the first skills-capable remote launch the
  * user's local skills can be uploaded to the aion SkillStore — per-skill
  * consent, sequential PUTs, per-skill result report. The offer never repeats:
  * the caller records the marker when this dialog closes.

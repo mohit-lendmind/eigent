@@ -123,5 +123,6 @@
   "approval-deny": "拒絕",
   "approval-resolved-allow": "已核准 — 任務繼續。",
   "approval-resolved-deny": "已拒絕 — 任務將繼續。",
-  "approval-respond-failed": "無法送出你的決定,請重試。"
+  "approval-respond-failed": "無法送出你的決定,請重試。",
+  "approval-already-resolved": "此核准已在其他位置處理。"
 }

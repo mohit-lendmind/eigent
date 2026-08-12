@@ -15,7 +15,10 @@
 import SearchInput from '@/components/Dashboard/SearchInput';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getAionSyncUpCandidates } from '@/store/aionSkillsStore';
+import {
+  clearAionSyncUpSnapshot,
+  getAionSyncUpCandidates,
+} from '@/store/aionSkillsStore';
 import { useSkillsStore, type Skill } from '@/store/skillsStore';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { AlertCircle, Plus } from 'lucide-react';
@@ -27,7 +30,7 @@ import SkillListItem from './components/SkillListItem';
 import SkillSyncUpDialog from './components/SkillSyncUpDialog';
 import SkillUploadDialog from './components/SkillUploadDialog';
 
-// One-time sync-up marker (plan C5): once the offer has been shown on a
+// One-time sync-up marker: once the offer has been shown on a
 // skills-capable remote stack it never repeats, accepted or not.
 const SYNC_UP_MARKER = 'aion-skills-sync-up-offered';
 
@@ -63,12 +66,13 @@ export default function Skills() {
     };
   }, [syncFromDisk]);
 
-  // One-time sync-up offer once the first remote list has landed (C5)
+  // One-time sync-up offer once the first remote list has landed
   useEffect(() => {
     if (!hasCompletedInitialSync || remoteMode.kind !== 'remote') return;
     if (localStorage.getItem(SYNC_UP_MARKER)) return;
     if (getAionSyncUpCandidates().length === 0) {
       localStorage.setItem(SYNC_UP_MARKER, '1');
+      clearAionSyncUpSnapshot();
       return;
     }
     setSyncUpOpen(true);
@@ -76,6 +80,7 @@ export default function Skills() {
 
   const handleSyncUpClose = () => {
     localStorage.setItem(SYNC_UP_MARKER, '1');
+    clearAionSyncUpSnapshot();
     setSyncUpOpen(false);
   };
 

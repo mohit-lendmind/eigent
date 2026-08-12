@@ -12,7 +12,7 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-// In-chat card for aion's durable human gate (SK-D): the run is parked
+// In-chat card for aion's durable human gate: the run is parked
 // awaiting_approval server-side, so the card is the reviewer surface. The
 // verdict travels over the edge (respond-once backend); the card never
 // resolves itself — approval_resolved streaming back is what flips it.
@@ -21,6 +21,7 @@ import { Check, ShieldAlert, X } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { EdgeProblemError } from '@/api/aion/v1/problems';
 import {
   PUBLISH_SKILL_TOOL,
   parseSkillPublishProposal,
@@ -44,7 +45,18 @@ export function ApprovalCard({ approval }: { approval: ApprovalInfo }) {
     try {
       await respondToAionApproval(approval.projectId, approval.approvalId, decision);
       // Stay disabled: approval_resolved on the stream replaces the buttons.
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof EdgeProblemError &&
+        error.problem.code === 'failed_precondition'
+      ) {
+        // Already responded (another window, or a retry of a delivered
+        // verdict): terminal — keep the buttons disabled and let the
+        // approval_resolved event flip the card.
+        toast.info(t('chat.approval-already-resolved'));
+        return;
+      }
+      console.error('aion approval respond failed', error);
       toast.error(t('chat.approval-respond-failed'));
       setResponding(false);
     }

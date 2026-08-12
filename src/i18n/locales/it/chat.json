@@ -123,5 +123,6 @@
   "approval-deny": "Nega",
   "approval-resolved-allow": "Approvato: l’attività continua.",
   "approval-resolved-deny": "Negato: l’attività continua senza.",
-  "approval-respond-failed": "Impossibile inviare la decisione. Riprova."
+  "approval-respond-failed": "Impossibile inviare la decisione. Riprova.",
+  "approval-already-resolved": "Questa approvazione è già stata risolta altrove."
 }

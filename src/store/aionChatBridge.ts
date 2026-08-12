@@ -271,13 +271,23 @@ export async function respondToAionApproval(
   approvalId: string,
   decision: 'allow' | 'deny'
 ): Promise<void> {
-  const binding = liveBindings.find((b) => b.aionProjectId === aionProjectId);
-  if (!binding) {
-    throw new Error('No live aion project is bound to this approval.');
+  // A card can outlive its binding (renderer restart renders it from
+  // persisted history), so fall back to a config-built transport — the
+  // approval is parked server-side and needs no live stream to resolve.
+  let transport = liveBindings.find(
+    (b) => b.aionProjectId === aionProjectId
+  )?.transport;
+  if (!transport) {
+    const config = await getAionRemoteConfig();
+    if (!config || 'error' in config) {
+      throw new Error('aion remote mode is not configured.');
+    }
+    transport = new EdgeTransport({
+      baseUrl: config.edgeBaseUrl,
+      apiKey: config.apiKey,
+    });
   }
-  await binding.transport.respondToApproval(aionProjectId, approvalId, {
-    decision,
-  });
+  await transport.respondToApproval(aionProjectId, approvalId, { decision });
 }
 
 /** Epoch-fenced cancel for the unsettled Run bound to this task, if any. */

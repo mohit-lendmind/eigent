@@ -123,5 +123,6 @@
   "approval-deny": "Ablehnen",
   "approval-resolved-allow": "Genehmigt — die Aufgabe wird fortgesetzt.",
   "approval-resolved-deny": "Abgelehnt — die Aufgabe wird ohne fortgesetzt.",
-  "approval-respond-failed": "Entscheidung konnte nicht übermittelt werden. Bitte erneut versuchen."
+  "approval-respond-failed": "Entscheidung konnte nicht übermittelt werden. Bitte erneut versuchen.",
+  "approval-already-resolved": "Diese Genehmigung wurde bereits an anderer Stelle entschieden."
 }

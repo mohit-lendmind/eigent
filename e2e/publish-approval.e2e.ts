@@ -1,4 +1,4 @@
-// SkillStore publish-approval desktop E2E (SK-D D2): the REAL desktop app in
+// SkillStore publish-approval desktop E2E: the REAL desktop app in
 // remote-backend mode driving the in-chat durable human gate for
 // `publish_skill`. The deterministic `aion-publish` fixture proposes saving
 // "zz-chat-published" on any first turn, which parks the run awaiting

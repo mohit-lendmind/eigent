@@ -11,5 +11,5 @@ fixture added upstream fails loudly here until this mirror is refreshed.
 - Contract version: schema_version 1.x (compatibility tuple edge_api `1.4.0`)
 - Source path: `aion-v1/testdata/eigent/v1/`
 - Last synced from: aion-v1 commit
-  `47f34a5` (branch `codex/eigent-aion-m4-edge`; restate the merge SHA in the
+  `85c69fa` (branch `codex/eigent-aion-m4-edge`; restate the merge SHA in the
   SkillStore-train provenance follow-up once that branch lands on main)

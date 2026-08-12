@@ -22,6 +22,7 @@ import {
   skillsScan as brainSkillsScan,
   skillWrite as brainSkillWrite,
 } from '@/api/brain';
+import { EdgeProblemError } from '@/api/aion/v1/problems';
 import {
   buildSkillMd,
   buildSkillScopeTag,
@@ -29,6 +30,7 @@ import {
   parseSkillMd,
   skillNameToDirName,
 } from '@/lib/skillToolkit';
+import { toast } from 'sonner';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
@@ -41,6 +43,14 @@ import {
   type AionSkillsMode,
 } from './aionSkillsStore';
 import { useAuthStore } from './authStore';
+
+/** The edge problem's own words when typed, the message otherwise. */
+function remoteSkillErrorText(error: unknown): string {
+  if (error instanceof EdgeProblemError) {
+    return error.problem.detail ?? error.problem.title;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
 
 function sanitizeSkillConfigId(value: string | number | null): string | null {
   if (value === null || value === undefined) return null;
@@ -139,7 +149,7 @@ export const useSkillsStore = create<SkillsState>()(
           // The SKILL.md frontmatter is authoritative when parseable, exactly
           // like the local write path; problems (skill_invalid, skill_stale,
           // quota) propagate to the caller for inline rendering. Scope rides
-          // the document's Metadata tag (SK-D).
+          // the document's Metadata tag.
           const meta = parseSkillMd(skill.fileContent);
           const result = await putAionSkill(
             {
@@ -230,7 +240,7 @@ export const useSkillsStore = create<SkillsState>()(
               await setAionSkillEnabled(skill.name, updates.enabled);
             }
             if (updates.scope) {
-              // Scope rides the stored document's Metadata tag (SK-D): re-put
+              // Scope rides the stored document's Metadata tag: re-put
               // the document with the new tag; the content comes from the row
               // we already render, so nothing else changes.
               const meta = parseSkillMd(skill.fileContent);
@@ -245,10 +255,18 @@ export const useSkillsStore = create<SkillsState>()(
               );
             }
           } catch (error) {
+            // A partial failure (status landed, scope re-put did not) makes
+            // a blanket revert lie about remote state: re-list to converge,
+            // and only fall back to the revert when the list also fails.
             console.error('[Skills] remote skill update failed:', error);
-            set((state) => ({
-              skills: state.skills.map((s) => (s.id === id ? skill : s)),
-            }));
+            toast.error(`Skill update failed: ${remoteSkillErrorText(error)}`);
+            try {
+              set({ skills: await listAionSkills() });
+            } catch {
+              set((state) => ({
+                skills: state.skills.map((s) => (s.id === id ? skill : s)),
+              }));
+            }
           }
           return;
         }
@@ -307,6 +325,7 @@ export const useSkillsStore = create<SkillsState>()(
             // The row stays visible: a delete that did not land must not
             // vanish from the list only to reappear on the next sync.
             console.error('[Skills] remote delete failed:', error);
+            toast.error(`Skill delete failed: ${remoteSkillErrorText(error)}`);
           }
           return;
         }
@@ -360,6 +379,7 @@ export const useSkillsStore = create<SkillsState>()(
           } catch (error) {
             // Revert on error
             console.error('Failed to toggle skill:', error);
+            toast.error(`Skill toggle failed: ${remoteSkillErrorText(error)}`);
             set((state) => ({
               skills: state.skills.map((s) =>
                 s.id === id ? { ...s, enabled: !newEnabled } : s

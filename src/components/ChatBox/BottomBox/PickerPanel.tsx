@@ -414,7 +414,7 @@ export function SkillPickerPanel({
       skills
         .filter((s) => s.enabled)
         // In remote mode the composer speaks to the orchestrator chat
-        // surface, so a skill scoped away from it (worker-only, SK-D) is not
+        // surface, so a skill scoped away from it (worker-only) is not
         // loadable here and stays out of the picker. Local-mode scope keeps
         // its legacy meaning and never filters.
         .filter(

@@ -123,5 +123,6 @@
   "approval-deny": "Refuser",
   "approval-resolved-allow": "Approuvé — la tâche continue.",
   "approval-resolved-deny": "Refusé — la tâche continue sans cela.",
-  "approval-respond-failed": "Impossible d’envoyer votre décision. Réessayez."
+  "approval-respond-failed": "Impossible d’envoyer votre décision. Réessayez.",
+  "approval-already-resolved": "Cette approbation a déjà été traitée ailleurs."
 }

@@ -111,10 +111,15 @@ export function negotiateCompatibility(
 // contract is additive, so a minor-version floor is the per-feature gate: an
 // older (still compatible) edge simply lacks the surface and the Skills
 // screen renders a visible read-only "backend too old" state — never a
-// guessed 404 loop.
+// guessed 404 loop. The minor floor only means anything inside a compatible
+// pairing: a major-mismatched edge (say 2.1) clears [1,4] numerically while
+// speaking a contract this build cannot, so the full verdict gates first.
 const SKILLS_MINIMUM_EDGE = [1, 4];
 
 export function supportsSkills(status: IntegrationStatus): boolean {
+  if (!negotiateCompatibility(status).compatible) {
+    return false;
+  }
   const serverEdge = versionCore(status.edge_api_version);
   return serverEdge !== null && !lessThan(serverEdge, SKILLS_MINIMUM_EDGE);
 }

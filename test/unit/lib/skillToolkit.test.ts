@@ -1,4 +1,4 @@
-// The workforce scope tag (SK-D): the desktop's serializer/parser pair for
+// The workforce scope tag: the desktop's serializer/parser pair for
 // the stored document's Metadata["scope"]. The cell's skillScopeSurfaces is
 // the authority on these semantics — empty/"global"/names-nothing = every
 // surface — and these tests mirror its table.

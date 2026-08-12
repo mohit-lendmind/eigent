@@ -104,4 +104,12 @@ describe('supportsSkills', () => {
   it('fails closed on an unparseable edge version', () => {
     expect(supportsSkills(status({ edge_api_version: 'new' }))).toBe(false);
   });
+
+  it('never reports skills on an incompatible pairing', () => {
+    // 2.1 clears the [1,4] floor numerically but speaks a different major.
+    expect(supportsSkills(status({ edge_api_version: '2.1.0' }))).toBe(false);
+    expect(
+      supportsSkills(status({ minimum_desktop_version: '999.0.0' }))
+    ).toBe(false);
+  });
 });

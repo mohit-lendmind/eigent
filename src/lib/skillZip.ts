@@ -31,12 +31,41 @@ export interface ZipSkill {
 
 const SKILL_FILE = 'SKILL.md';
 
+// Decompression caps: the file picker bounds the COMPRESSED archive, but a
+// zip bomb inflates far past that. Entries are checked from the central
+// directory before any inflation; blowing a cap refuses the whole import
+// loudly rather than importing a truncated skill set. The per-entry cap
+// mirrors the edge's 8 MiB skill PUT body limit, the total cap the store's
+// 64 MiB per-tenant encoded quota — anything past these could never land.
+const MAX_ZIP_ENTRIES = 512;
+const MAX_ZIP_ENTRY_BYTES = 8 << 20;
+const MAX_ZIP_TOTAL_BYTES = 64 << 20;
+
 export async function extractSkillsFromZip(
   buffer: ArrayBuffer
 ): Promise<ZipSkill[]> {
   // Lazy-loaded: the unzip dependency stays out of the startup bundle.
   const { unzipSync } = await import('fflate');
-  const entries = unzipSync(new Uint8Array(buffer));
+  let entryCount = 0;
+  let totalBytes = 0;
+  const entries = unzipSync(new Uint8Array(buffer), {
+    filter: (file) => {
+      entryCount += 1;
+      totalBytes += file.originalSize;
+      if (
+        entryCount > MAX_ZIP_ENTRIES ||
+        file.originalSize > MAX_ZIP_ENTRY_BYTES ||
+        totalBytes > MAX_ZIP_TOTAL_BYTES
+      ) {
+        throw new Error(
+          'The archive expands past the skill import limits ' +
+            `(${MAX_ZIP_ENTRIES} files, ${MAX_ZIP_ENTRY_BYTES >> 20} MiB per file, ` +
+            `${MAX_ZIP_TOTAL_BYTES >> 20} MiB total).`
+        );
+      }
+      return true;
+    },
+  });
 
   const byFolder = new Map<string, Map<string, Uint8Array>>();
   for (const [rawPath, bytes] of Object.entries(entries)) {

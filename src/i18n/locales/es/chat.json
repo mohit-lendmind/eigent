@@ -123,5 +123,6 @@
   "approval-deny": "Denegar",
   "approval-resolved-allow": "Aprobado: la tarea continúa.",
   "approval-resolved-deny": "Denegado: la tarea continúa sin ello.",
-  "approval-respond-failed": "No se pudo enviar tu decisión. Inténtalo de nuevo."
+  "approval-respond-failed": "No se pudo enviar tu decisión. Inténtalo de nuevo.",
+  "approval-already-resolved": "Esta aprobación ya se resolvió en otro lugar."
 }

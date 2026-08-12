@@ -1,7 +1,7 @@
-// SkillStore desktop E2E (SK-C): the REAL desktop app in remote-backend mode
+// SkillStore desktop E2E: the REAL desktop app in remote-backend mode
 // against the eigent-local Compose edge, driving the product Skills surfaces —
 // not the Integration Lab. Three scenarios:
-//   1. CRUD: compose → row → scope to one worker (SK-D Metadata tag) →
+//   1. CRUD: compose → row → scope to one worker (Metadata scope tag) →
 //      disable (server round-trip) → delete, all persisted across a full
 //      reload, with an edge-only network audit.
 //   2. Save-as-skill: the deterministic `aion-fast` echo model returns the
@@ -224,7 +224,7 @@ test('skills CRUD: compose, disable, delete — all server-persisted', async () 
     summary.created = true;
     await screenshot(page, 'crud-created');
 
-    // Scope (SK-D): scoping the skill to one worker writes the stored
+    // Scope: scoping the skill to one worker writes the stored
     // document's Metadata scope tag. The chips re-project from the remote
     // list after a reload, and the tag itself is asserted over the edge API.
     const row = byId(page, `skill-row-${name}`);

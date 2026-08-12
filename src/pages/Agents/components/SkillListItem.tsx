@@ -261,7 +261,7 @@ export default function SkillListItem(props: SkillListItemProps) {
       </TooltipSimple>
 
       {/* Row 3: Skill scope. Local mode persists it to the config file;
-          remote mode writes the stored document's Metadata scope tag (SK-D),
+          remote mode writes the stored document's Metadata scope tag,
           which the cell enforces on the orchestrator and worker surfaces. */}
       <div className="flex flex-col items-start gap-2">
         <Button

@@ -1,4 +1,4 @@
-// The remote skills provider (SkillStore train C3): mode negotiation gates
+// The remote skills provider: mode negotiation gates
 // on the 1.4 skills floor, store rows project onto the UI Skill type, and
 // every mutation carries the contract's concurrency semantics (If-Match from
 // the last seen version) and invalidates the catalog cache.
@@ -132,7 +132,7 @@ describe('aionSkillsStore catalog', () => {
       'Summarise the change set as customer-facing release notes'
     );
     expect(triage.enabled).toBe(false); // status: disabled
-    // The Metadata scope tag projects onto the UI scope shape (SK-D).
+    // The Metadata scope tag projects onto the UI scope shape.
     expect(triage.scope).toEqual({
       isGlobal: false,
       selectedAgents: ['developer_agent', 'search_agent'],

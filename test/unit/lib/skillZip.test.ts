@@ -60,4 +60,26 @@ describe('extractSkillsFromZip', () => {
     );
     expect(skills).toEqual([]);
   });
+
+  it('refuses an entry that inflates past the per-file cap', async () => {
+    // 9 MiB of zeros compresses to a few KiB — the zip-bomb shape. The cap
+    // check reads the central directory, so no inflation happens.
+    const bomb = zip({
+      'greet/SKILL.md': skillMd('greet'),
+      'greet/bomb.bin': new Uint8Array(9 << 20),
+    });
+    await expect(extractSkillsFromZip(bomb)).rejects.toThrow(
+      /skill import limits/
+    );
+  });
+
+  it('refuses an archive with too many entries', async () => {
+    const entries: Record<string, string> = { 'greet/SKILL.md': skillMd('greet') };
+    for (let i = 0; i < 520; i++) {
+      entries[`greet/f${i}.md`] = 'x';
+    }
+    await expect(extractSkillsFromZip(zip(entries))).rejects.toThrow(
+      /skill import limits/
+    );
+  });
 });

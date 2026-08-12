@@ -123,5 +123,6 @@
   "approval-deny": "거부",
   "approval-resolved-allow": "승인됨 — 작업이 계속됩니다.",
   "approval-resolved-deny": "거부됨 — 작업은 계속됩니다.",
-  "approval-respond-failed": "결정을 전달하지 못했습니다. 다시 시도하세요."
+  "approval-respond-failed": "결정을 전달하지 못했습니다. 다시 시도하세요.",
+  "approval-already-resolved": "이 승인은 이미 다른 곳에서 처리되었습니다."
 }

@@ -183,7 +183,7 @@ export function hasSkillsFsApi(): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Workforce skill scoping (SK-D): a stored skill's visibility rides the
+// Workforce skill scoping: a stored skill's visibility rides the
 // document's Metadata["scope"] tag — empty/absent/"global" means every
 // surface; anything else is a comma-separated list of eigent agent ids where
 // `single_agent` names the orchestrator chat surface and any other id names a

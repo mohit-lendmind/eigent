@@ -1,4 +1,4 @@
-// Remote skills provider (SkillStore train, doc 10 §12 skills row): the
+// Remote skills provider (doc 10 §12 skills row): the
 // second implementation behind the skillsStore surface. In remote mode the
 // edge SkillStore is the single source of truth — the local ~/.eigent/skills
 // scan never runs — and every mutation is a contract call (PUT / DELETE /
@@ -39,7 +39,7 @@ interface RemoteContext {
 }
 
 // Mode is negotiated once per renderer lifetime (matching the chat bridge);
-// a failed status fetch clears the cache so reopening the screen retries.
+// any error-mode resolution clears the cache so reopening the screen retries.
 let contextPromise: Promise<RemoteContext> | null = null;
 
 function getContext(): Promise<RemoteContext> {
@@ -54,6 +54,9 @@ async function resolveContext(): Promise<RemoteContext> {
       return { mode: { kind: 'local' }, transport: null };
     }
     if ('error' in config) {
+      // Error modes never pin: drop the cache so the next open of the
+      // Skills surface renegotiates instead of holding the error forever.
+      contextPromise = null;
       return {
         mode: { kind: 'error', message: config.error },
         transport: null,
@@ -262,27 +265,71 @@ export async function setAionSkillEnabled(
   invalidateAionSkillCatalog();
 }
 
-// The one-time sync-up (plan C5) offers the user's local skills to the remote
+// The one-time sync-up offers the user's local skills to the remote
 // store. The first remote list REPLACES the persisted local rows in the
 // skills store — so the pre-sync snapshot taken here is the only surviving
-// copy of the local skills' content for the consent dialog to offer.
+// copy of the local skills' content for the consent dialog to offer. The
+// snapshot is persisted alongside the capture: a restart between the replace
+// and the user's answer must not destroy that only copy.
 // Names already present remotely are never candidates: after an app restart
 // the persisted rows ARE the previous remote list, and offering those back
 // as "local skills" would re-upload content the store already holds.
+const SYNC_UP_SNAPSHOT_KEY = 'aion-skills-sync-up-snapshot';
+
 let syncUpCandidates: Skill[] | null = null;
+
+function readSyncUpSnapshot(): Skill[] | null {
+  try {
+    const raw = localStorage.getItem(SYNC_UP_SNAPSHOT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? (parsed as Skill[]) : null;
+  } catch {
+    return null;
+  }
+}
 
 export function captureAionSyncUpCandidates(
   skills: Skill[],
   remoteNames: ReadonlySet<string>
 ): void {
-  syncUpCandidates ??= skills.filter(
-    (skill) =>
-      !skill.isExample &&
-      skill.fileContent.trim() !== '' &&
-      !remoteNames.has(skill.name)
+  if (syncUpCandidates) return;
+  // Re-filtering a restored snapshot by the current remote names drops
+  // whatever a partially-completed earlier offer already uploaded.
+  const restored = readSyncUpSnapshot()?.filter(
+    (skill) => !remoteNames.has(skill.name)
   );
+  syncUpCandidates =
+    restored ??
+    skills.filter(
+      (skill) =>
+        !skill.isExample &&
+        skill.fileContent.trim() !== '' &&
+        !remoteNames.has(skill.name)
+    );
+  if (syncUpCandidates.length > 0) {
+    try {
+      localStorage.setItem(
+        SYNC_UP_SNAPSHOT_KEY,
+        JSON.stringify(syncUpCandidates)
+      );
+    } catch {
+      // Quota/serialization failure degrades to the in-memory copy — the
+      // pre-snapshot behavior, no worse.
+    }
+  }
 }
 
 export function getAionSyncUpCandidates(): Skill[] {
   return syncUpCandidates ?? [];
+}
+
+/** The sync-up offer was answered (or dismissed): the snapshot is spent. */
+export function clearAionSyncUpSnapshot(): void {
+  try {
+    localStorage.removeItem(SYNC_UP_SNAPSHOT_KEY);
+  } catch {
+    // Removal is best-effort; a lingering snapshot is filtered by remote
+    // names on the next capture and never re-offered past the marker.
+  }
 }
