@@ -55,5 +55,14 @@
   "create-skill-default-name": "مهارة جديدة",
   "create-skill-default-description": "صفّ ما تفعله هذه المهارة.",
   "save-skill": "حفظ المهارة",
-  "compose-skill-hint": "عدّل SKILL.md (مطلوب ترويسة YAML بالاسم والوصف)، ثم احفظ."
+  "compose-skill-hint": "عدّل SKILL.md (مطلوب ترويسة YAML بالاسم والوصف)، ثم احفظ.",
+  "skills-backend-too-old": "المهارات غير متاحة: الخادم الخلفي المتصل (edge API {{version}}) أقدم من واجهة المهارات. حدِّث الخادم الخلفي لإدارة المهارات.",
+  "skills-remote-error": "المهارات غير متاحة: {{message}}",
+  "skill-fields-ignored": "لم يتم حفظ بعض الحقول: {{fields}}",
+  "skills-sync-up-title": "رفع المهارات المحلية؟",
+  "skills-sync-up-hint": "تخزّن مساحة العمل هذه المهارات على الخادم الخلفي. اختر المهارات المحلية التي تريد رفعها. يظهر هذا العرض مرة واحدة فقط.",
+  "skills-sync-up-upload": "رفع ({{count}})",
+  "skills-sync-up-skip": "ليس الآن",
+  "skills-sync-up-done": "تم",
+  "skills-sync-up-uploaded": "تم الرفع"
 }

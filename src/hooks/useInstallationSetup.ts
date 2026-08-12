@@ -107,13 +107,15 @@ export const useInstallationSetup = () => {
 
     // Electron: use getBackendPort + localhost health
     const checkElectronBackend = async (): Promise<boolean> => {
-      if (!host?.electronAPI?.getBackendPort) return false;
       try {
         // Remote-backend mode: there is no local port to health-poll. The
         // main process validated the edge endpoint at startup; reachability
-        // is the aion session layer's concern, not a readiness gate.
+        // is the aion session layer's concern, not a readiness gate. This
+        // must run BEFORE the getBackendPort guard: the thin preload has no
+        // getBackendPort, and the one-shot backend-ready event can race the
+        // listener mount — this poll is the recovery path.
         const transportConfig =
-          await host.electronAPI.getAionTransportConfig?.();
+          await host?.electronAPI?.getAionTransportConfig?.();
         if (transportConfig?.mode === 'remote') {
           if ('error' in transportConfig) {
             console.error(
@@ -128,6 +130,7 @@ export const useInstallationSetup = () => {
           setNeedsBackendRestart(false);
           return true;
         }
+        if (!host?.electronAPI?.getBackendPort) return false;
         const backendPort = await host.electronAPI.getBackendPort();
         if (backendPort && backendPort > 0) {
           const backendEndpoint = `http://localhost:${backendPort}`;

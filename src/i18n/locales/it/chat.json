@@ -112,5 +112,17 @@
   "expand-plan": "Espandi piano",
   "minimize-plan": "Riduci piano",
   "expand-subtasks": "Espandi sottoattività",
-  "add-subtask-placeholder": "Aggiungi una nuova sottoattività e premi Invio per aggiungerne altre"
+  "add-subtask-placeholder": "Aggiungi una nuova sottoattività e premi Invio per aggiungerne altre",
+  "save-as-skill": "Salva come competenza",
+  "skill-saved": "Competenza \"{{name}}\" salvata.",
+  "skill-saved-ignored-fields": "Campi non salvati: {{fields}}.",
+  "save-as-skill-broad-whitelist": "Questa competenza richiede accesso a tutti gli strumenti. Salvala solo se ti fidi delle sue istruzioni.",
+  "approval-required": "Approvazione richiesta per {{tool}}",
+  "approval-publish-skill-title": "L’agente vuole pubblicare una skill",
+  "approval-allow": "Consenti",
+  "approval-deny": "Nega",
+  "approval-resolved-allow": "Approvato: l’attività continua.",
+  "approval-resolved-deny": "Negato: l’attività continua senza.",
+  "approval-respond-failed": "Impossibile inviare la decisione. Riprova.",
+  "approval-already-resolved": "Questa approvazione è già stata risolta altrove."
 }

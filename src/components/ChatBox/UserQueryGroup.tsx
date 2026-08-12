@@ -26,6 +26,7 @@ import React, {
   useSyncExternalStore,
 } from 'react';
 import { AgentMessageCard } from './MessageItem/AgentMessageCard';
+import { ApprovalCard } from './MessageItem/ApprovalCard';
 import { NoticeCard } from './MessageItem/NoticeCard';
 import { PreparingToExecuteTasks } from './MessageItem/PreparingToExecuteTasks';
 import { TaskWorkLogAccordion } from './MessageItem/TaskWorkLogAccordion';
@@ -412,6 +413,20 @@ export const UserQueryGroup: React.FC<UserQueryGroupProps> = ({
 
       {/* Other Messages */}
       {queryGroup.otherMessages.map((message) => {
+        // aion durable human gate: the approval card owns the whole message.
+        if (message.approval) {
+          return (
+            <motion.div
+              key={`approval-${message.id}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="flex flex-col gap-4"
+            >
+              <ApprovalCard approval={message.approval} />
+            </motion.div>
+          );
+        }
         if (message.content.length > 0) {
           if (message.step === AgentStep.END) {
             return (

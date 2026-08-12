@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Eigent Desktop Edge API
-  version: 1.3.0
+  version: 1.4.0
   description: |
     Public, additive-only API used by the Eigent desktop application. The edge
     authenticates the device/user, enforces tenant policy, and projects private
@@ -24,6 +24,7 @@ tags:
   - name: approvals
   - name: artifacts
   - name: catalog
+  - name: skills
 paths:
   /projects:
     post:
@@ -218,6 +219,138 @@ paths:
               schema: {$ref: '#/components/schemas/ArtifactAccess'}
         '401': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
+  /skills:
+    get:
+      operationId: listSkills
+      tags: [skills]
+      description: |
+        Latest version of every stored skill in the tenant catalog. Skill
+        routes are served only by an edge connected to a cell; elsewhere they
+        answer 501 (`code: not_implemented`) so clients can degrade cleanly.
+      responses:
+        '200':
+          description: The tenant's durable skill catalog
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SkillCatalog'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '501': {$ref: '#/components/responses/Problem'}
+  /skills/{name}:
+    parameters:
+      - $ref: '#/components/parameters/SkillName'
+    get:
+      operationId: getSkill
+      tags: [skills]
+      parameters:
+        - name: version
+          in: query
+          schema: {type: integer, format: int64, minimum: 1}
+          description: Specific version to fetch; omitted = the latest version.
+      responses:
+        '200':
+          description: One stored skill version
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Skill'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '501': {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: putSkill
+      tags: [skills]
+      description: |
+        Author or update a skill. The store is append-only: a content change
+        writes a new version; an unchanged document dedups against the latest
+        active version (`changed: false`, no new row). Writes are conditioned
+        with If-Match (see the parameter), not Idempotency-Key — PUT here is
+        naturally idempotent. A skill saved without activation rules is
+        `manual`: registered and loadable on request, never auto-injected.
+      parameters:
+        - $ref: '#/components/parameters/SkillIfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PutSkillRequest'}
+      responses:
+        '200':
+          description: Skill written (or deduplicated) onto an existing name
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PutSkillResult'}
+        '201':
+          description: Skill created (this write produced version 1)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PutSkillResult'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: |
+            If-Match named a version that is no longer the latest. The problem
+            carries `code: skill_stale`; re-read the skill and retry on the
+            current version.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '413':
+          description: |
+            Request body exceeds the route's byte limit. The problem carries
+            `code: payload_too_large`.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '422':
+          description: |
+            The document failed skill validation. The problem carries
+            `code: skill_invalid` and an itemized detail.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '429':
+          description: |
+            The tenant skill quota (count or encoded size) is full. The
+            problem carries `code: skill_quota_exceeded`; this is a durable
+            quota, not a rate limit — free space by deleting skills.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '501': {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteSkill
+      tags: [skills]
+      description: |
+        Mark the skill deleted (a new version row carrying status `deleted` —
+        the append-only history is retained). Deletion lives on DELETE only;
+        the status route's set is {active, disabled}.
+      responses:
+        '204': {description: Skill marked deleted}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '501': {$ref: '#/components/responses/Problem'}
+  /skills/{name}/status:
+    parameters:
+      - $ref: '#/components/parameters/SkillName'
+    post:
+      operationId: setSkillStatus
+      tags: [skills]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SetSkillStatusRequest'}
+      responses:
+        '200':
+          description: The new latest skill version carrying the status
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Skill'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '501': {$ref: '#/components/responses/Problem'}
 components:
   securitySchemes:
     bearerAuth:
@@ -250,6 +383,21 @@ components:
       in: path
       required: true
       schema: {$ref: '#/components/schemas/Identifier'}
+    SkillName:
+      name: name
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/SkillName'}
+    SkillIfMatch:
+      name: If-Match
+      in: header
+      required: false
+      schema: {type: string, pattern: '^[1-9][0-9]*$'}
+      description: |
+        Optimistic-concurrency fence: the decimal skill version this write is
+        conditioned on. The write succeeds only while that is still the
+        latest version (any status); otherwise 409 `skill_stale`. Omitted =
+        unconditional write.
   headers:
     EdgeApiVersion:
       description: Semantic version of the edge API contract serving this response.
@@ -415,6 +563,11 @@ components:
         display_name: {type: string}
         description: {type: string}
         is_default: {type: boolean}
+        internal:
+          type: boolean
+          description: |
+            Marks a diagnostic/CI fixture alias. Still valid on
+            createProject; user-facing model pickers must not offer it.
       additionalProperties: true
     IntegrationStatus:
       type: object
@@ -474,3 +627,106 @@ components:
             For code cursor_expired — the Project's last allocated sequence at
             refusal; a snapshot rehydrate covers at least up to here.
       additionalProperties: true
+    SkillName:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: |
+        Skill name. Full syntax is validated server-side; the `aion-` prefix
+        is reserved for builtins.
+    Skill:
+      type: object
+      required: [name, version, status, activation, document, content_hash]
+      properties:
+        name: {$ref: '#/components/schemas/SkillName'}
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+          description: |
+            Append-only store version (a content or status change writes the
+            next version; history is never rewritten). Distinct from any
+            `Version` field inside the document, which is the author's own
+            label.
+        # status and activation are OPEN string sets (the store vocabulary is
+        # additive-only); x-aion-known-values documents what this contract
+        # version emits. A consumer must pass unknown values through
+        # (rendering policy: treat an unknown status as disabled).
+        status:
+          type: string
+          x-aion-known-values: [active, disabled, deleted]
+        activation:
+          type: string
+          x-aion-known-values: [manual, always, rules]
+          description: |
+            How the skill enters a session: `manual` = registered and loadable
+            via the skill tool only (the default for documents saved without
+            activation rules), `always` = injected every turn, `rules` =
+            stored predicates evaluated per turn.
+        document:
+          type: object
+          additionalProperties: true
+          description: |
+            The full skill document. Canonical field names are Go PascalCase
+            (the Agent spec_json convention — Name, Description, PromptText,
+            Files[].Path/Content/Mode, ...); snake_case keys are accepted on
+            input. File Content is base64-encoded raw bytes; Mode is unix
+            permission bits as a number.
+        content_hash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          description: Hex sha256 of the canonical document (the dedup key).
+        origin: {type: string}
+        created_by: {type: string}
+        created_at: {type: string, format: date-time}
+      additionalProperties: true
+    SkillCatalog:
+      type: object
+      required: [skills]
+      properties:
+        skills:
+          type: array
+          items: {$ref: '#/components/schemas/Skill'}
+      additionalProperties: true
+    PutSkillRequest:
+      type: object
+      additionalProperties: false
+      required: [document]
+      properties:
+        document:
+          type: object
+          additionalProperties: true
+          description: The skill document to store (see Skill.document).
+        origin:
+          type: string
+          maxLength: 64
+          description: |
+            Provenance label recorded on the version row. Default
+            `desktop_ui`.
+    PutSkillResult:
+      type: object
+      required: [skill, changed, ignored_fields]
+      properties:
+        skill: {$ref: '#/components/schemas/Skill'}
+        changed:
+          type: boolean
+          description: |
+            false = content-hash dedup: the latest active version already
+            carries this document, so no new version was written.
+        ignored_fields:
+          type: array
+          items: {type: string}
+          description: |
+            Document fields that are inert in the stored context (e.g.
+            `model`, `mcp_servers`) — accepted but stripped, named here so
+            authors learn they did not take effect.
+      additionalProperties: true
+    SetSkillStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [active, disabled]
+          description: Deletion lives on the DELETE method, not here.

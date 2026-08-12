@@ -5,13 +5,18 @@
     "create_project_request.json",
     "submit_command_request.json",
     "cancel_run_request.json",
-    "approval_response.json"
+    "approval_response.json",
+    "put_skill_request.json",
+    "set_skill_status_request.json"
   ],
   "responses": [
     "create_project_response.json",
     "submit_command_response.json",
     "models_catalog_response.json",
-    "integration_status_response.json"
+    "integration_status_response.json",
+    "skill_response.json",
+    "skill_catalog_response.json",
+    "put_skill_response.json"
   ],
   "events": [
     "event_run_accepted.json",
@@ -27,6 +32,9 @@
   ],
   "problems": [
     "problem_cursor_expired.json",
-    "problem_model_alias_denied.json"
+    "problem_model_alias_denied.json",
+    "problem_skill_stale.json",
+    "problem_skill_invalid.json",
+    "problem_skill_quota_exceeded.json"
   ]
 }

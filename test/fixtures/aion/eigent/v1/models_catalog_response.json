@@ -10,6 +10,12 @@
       "alias": "aion-fast",
       "display_name": "Aion Fast",
       "description": "Lower latency for short interactive tasks."
+    },
+    {
+      "alias": "aion-fixture",
+      "display_name": "Aion Fixture",
+      "description": "Deterministic CI fixture.",
+      "internal": true
     }
   ]
 }

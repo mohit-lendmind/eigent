@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/skill-invalid",
+  "title": "Skill validation failed",
+  "status": 422,
+  "detail": "skill store: skill \"release-notes\": description is required",
+  "code": "skill_invalid",
+  "trace_id": "trc_01JY0000000000000000000004",
+  "retryable": false
+}

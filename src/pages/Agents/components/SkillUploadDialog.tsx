@@ -12,6 +12,7 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
+import { EdgeProblemError } from '@/api/aion/v1/problems';
 import { skillImportZip } from '@/api/brain';
 import ConfirmModal from '@/components/ui/alertDialog';
 import { Button } from '@/components/ui/button';
@@ -24,12 +25,25 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { recordFeatureUsed } from '@/lib/events/appEvents';
 import { buildSkillMd, parseSkillMd } from '@/lib/skillToolkit';
+import { extractSkillsFromZip, type ZipSkill } from '@/lib/skillZip';
+import { getAionSkillsMode, putAionSkill } from '@/store/aionSkillsStore';
 import { useSkillsStore } from '@/store/skillsStore';
 
 import { AlertCircle, File, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+
+/**
+ * The store's validation verdict (skill_invalid findings, quota, stale
+ * If-Match) rendered inline in the dialog instead of a generic toast.
+ */
+function remoteErrorText(error: unknown): string {
+  if (error instanceof EdgeProblemError) {
+    return error.problem.detail ?? error.problem.title;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
 
 /** Guard renderer memory when sending zip bytes to the main process. */
 const MAX_SKILL_ZIP_IMPORT_BYTES = 50 * 1024 * 1024;
@@ -70,6 +84,12 @@ export default function SkillUploadDialog({
     useState<ArrayBuffer | null>(null);
   const [composeContent, setComposeContent] = useState('');
   const [savingCompose, setSavingCompose] = useState(false);
+  // Remote (aion SkillStore) path: the unpacked archive awaiting conflict
+  // consent, and the store's inline validation verdict.
+  const [pendingRemoteZip, setPendingRemoteZip] = useState<ZipSkill[] | null>(
+    null
+  );
+  const [remoteNotice, setRemoteNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || mode !== 'create') return;
@@ -92,6 +112,8 @@ export default function SkillUploadDialog({
     setPendingConflicts([]);
     setConfirmedReplacements(new Set());
     setPendingFileBuffer(null);
+    setPendingRemoteZip(null);
+    setRemoteNotice(null);
     setComposeContent('');
     setSavingCompose(false);
     onClose();
@@ -104,8 +126,9 @@ export default function SkillUploadDialog({
       return;
     }
     setSavingCompose(true);
+    setRemoteNotice(null);
     try {
-      await addSkill({
+      const outcome = await addSkill({
         name: meta.name,
         description: meta.description,
         filePath: 'SKILL.md',
@@ -114,20 +137,84 @@ export default function SkillUploadDialog({
         enabled: true,
       });
       toast.success(t('agents.skill-added-success'));
+      if (outcome && outcome.ignoredFields.length > 0) {
+        toast.info(
+          t('agents.skill-fields-ignored', {
+            fields: outcome.ignoredFields.join(', '),
+          })
+        );
+      }
       recordFeatureUsed('skills', { action: 'create' });
       handleClose();
-    } catch {
-      toast.error(t('agents.skill-add-error'));
+    } catch (error) {
+      // Remote validation findings stay inline so the author can fix the
+      // document in place; the local path keeps its generic toast.
+      const remote = await getAionSkillsMode();
+      if (remote.kind !== 'local') {
+        setRemoteNotice(remoteErrorText(error));
+      } else {
+        toast.error(t('agents.skill-add-error'));
+      }
     } finally {
       setSavingCompose(false);
     }
   }, [addSkill, composeContent, handleClose, t]);
+
+  /**
+   * Remote zip import: sequential PUTs for the archive's skills, skipping
+   * name conflicts the user did not confirm. Reports per-skill failures and
+   * any store-stripped fields, then refreshes the list.
+   */
+  const importRemoteZip = useCallback(
+    async (zipSkills: ZipSkill[], confirmed: Set<string>) => {
+      const existing = new Set(
+        useSkillsStore.getState().skills.map((s) => s.name)
+      );
+      const failures: string[] = [];
+      const ignoredNotes: string[] = [];
+      let imported = 0;
+      for (const zipSkill of zipSkills) {
+        const key = zipSkill.folderName || zipSkill.meta.name;
+        if (existing.has(zipSkill.meta.name) && !confirmed.has(key)) {
+          continue;
+        }
+        try {
+          const result = await putAionSkill(zipSkill.meta, zipSkill.files);
+          imported += 1;
+          if (result.ignored_fields?.length) {
+            ignoredNotes.push(
+              `${zipSkill.meta.name}: ${result.ignored_fields.join(', ')}`
+            );
+          }
+        } catch (error) {
+          failures.push(`${zipSkill.meta.name}: ${remoteErrorText(error)}`);
+        }
+      }
+      await syncFromDisk();
+      if (imported > 0) {
+        toast.success(t('agents.skill-added-success'));
+        recordFeatureUsed('skills', { action: 'upload', format: 'zip' });
+      }
+      if (ignoredNotes.length > 0) {
+        toast.info(
+          t('agents.skill-fields-ignored', {
+            fields: ignoredNotes.join('; '),
+          })
+        );
+      }
+      if (failures.length > 0) {
+        toast.error(failures.join('\n'));
+      }
+    },
+    [syncFromDisk, t]
+  );
 
   const resetConflictState = useCallback(() => {
     setConflictDialog(null);
     setPendingConflicts([]);
     setConfirmedReplacements(new Set());
     setPendingFileBuffer(null);
+    setPendingRemoteZip(null);
   }, []);
 
   const handleConflictConfirm = useCallback(async () => {
@@ -154,6 +241,11 @@ export default function SkillUploadDialog({
     } else {
       // All conflicts handled, proceed with import
       setConflictDialog(null);
+      if (pendingRemoteZip) {
+        await importRemoteZip(pendingRemoteZip, newConfirmed);
+        resetConflictState();
+        return;
+      }
       if (!pendingFileBuffer) {
         resetConflictState();
         return;
@@ -187,8 +279,10 @@ export default function SkillUploadDialog({
   }, [
     conflictDialog,
     confirmedReplacements,
+    importRemoteZip,
     pendingConflicts,
     pendingFileBuffer,
+    pendingRemoteZip,
     resetConflictState,
     syncFromDisk,
     t,
@@ -213,6 +307,13 @@ export default function SkillUploadDialog({
     } else {
       // All conflicts handled, proceed with import
       setConflictDialog(null);
+      if (pendingRemoteZip) {
+        // Unconfirmed conflicts are skipped inside the import; fresh names
+        // in the archive still land.
+        await importRemoteZip(pendingRemoteZip, confirmedReplacements);
+        resetConflictState();
+        return;
+      }
       if (!pendingFileBuffer || confirmedReplacements.size === 0) {
         resetConflictState();
         return;
@@ -246,8 +347,10 @@ export default function SkillUploadDialog({
   }, [
     conflictDialog,
     confirmedReplacements,
+    importRemoteZip,
     pendingConflicts,
     pendingFileBuffer,
+    pendingRemoteZip,
     resetConflictState,
     syncFromDisk,
     t,
@@ -278,6 +381,54 @@ export default function SkillUploadDialog({
 
           if (buffer.byteLength > MAX_SKILL_ZIP_IMPORT_BYTES) {
             toast.error(t('agents.zip-import-too-large'));
+            return;
+          }
+
+          // Remote mode: the archive is unpacked client-side and fed to the
+          // aion SkillStore as one PUT per skill — it never reaches the
+          // local brain. Conflicts reuse the same confirmation flow.
+          const remote = await getAionSkillsMode();
+          if (remote.kind !== 'local') {
+            if (remote.kind !== 'remote') {
+              setRemoteNotice(
+                remote.kind === 'error'
+                  ? remote.message
+                  : t('agents.skills-backend-too-old', {
+                      version: remote.edgeApiVersion,
+                    })
+              );
+              return;
+            }
+            const zipSkills = await extractSkillsFromZip(buffer);
+            if (zipSkills.length === 0) {
+              setUploadError('invalid_format');
+              return;
+            }
+            const existing = new Set(
+              useSkillsStore.getState().skills.map((s) => s.name)
+            );
+            const conflicts = zipSkills
+              .filter((z) => existing.has(z.meta.name))
+              .map((z) => ({
+                folderName: z.folderName || z.meta.name,
+                skillName: z.meta.name,
+              }));
+            if (conflicts.length > 0) {
+              setPendingConflicts(conflicts);
+              setPendingRemoteZip(zipSkills);
+              setConflictDialog({
+                open: true,
+                folderName: conflicts[0].folderName,
+                skillName: conflicts[0].skillName,
+              });
+              setSelectedFile(null);
+              setFileContent('');
+              if (fileInputRef.current) fileInputRef.current.value = '';
+              onClose();
+              return;
+            }
+            await importRemoteZip(zipSkills, new Set());
+            handleClose();
             return;
           }
 
@@ -336,7 +487,7 @@ export default function SkillUploadDialog({
           }
         }
 
-        addSkill({
+        const outcome = await addSkill({
           name,
           description: description || t('agents.custom-skill'),
           filePath: fileToUse.name,
@@ -346,10 +497,22 @@ export default function SkillUploadDialog({
         });
 
         toast.success(t('agents.skill-added-success'));
+        if (outcome && outcome.ignoredFields.length > 0) {
+          toast.info(
+            t('agents.skill-fields-ignored', {
+              fields: outcome.ignoredFields.join(', '),
+            })
+          );
+        }
         recordFeatureUsed('skills', { action: 'upload', format: 'md' });
         handleClose();
-      } catch (_error) {
-        toast.error(t('agents.skill-add-error'));
+      } catch (error) {
+        const remote = await getAionSkillsMode();
+        if (remote.kind !== 'local') {
+          setRemoteNotice(remoteErrorText(error));
+        } else {
+          toast.error(t('agents.skill-add-error'));
+        }
       } finally {
         setIsUploading(false);
       }
@@ -358,6 +521,7 @@ export default function SkillUploadDialog({
       addSkill,
       fileContent,
       handleClose,
+      importRemoteZip,
       isZip,
       onClose,
       selectedFile,
@@ -502,6 +666,7 @@ export default function SkillUploadDialog({
                     onChange={(e) => setComposeContent(e.target.value)}
                     className="min-h-[220px] resize-y font-mono text-body-sm"
                     spellCheck={false}
+                    data-testid="skill-compose-input"
                   />
                   <div className="flex justify-end gap-2">
                     <Button
@@ -518,6 +683,7 @@ export default function SkillUploadDialog({
                       type="button"
                       disabled={savingCompose || !composeContent.trim()}
                       onClick={() => void handleSaveCompose()}
+                      data-testid="skill-compose-save"
                     >
                       {t('agents.save-skill')}
                     </Button>
@@ -616,6 +782,21 @@ export default function SkillUploadDialog({
                   )}
                 </div>
               ) : null}
+
+              {/* Remote store verdict (validation findings, quota, staleness)
+                  rendered inline so the author can fix the document in place */}
+              {remoteNotice && (
+                <div
+                  className="flex items-center gap-4 rounded-xl border border-ds-border-status-error-default-default bg-ds-bg-status-error-subtle-default px-4 py-3"
+                  role="alert"
+                  data-testid="skill-remote-notice"
+                >
+                  <AlertCircle className="h-4 w-4 shrink-0 text-ds-icon-status-error-default-default" />
+                  <span className="whitespace-pre-wrap break-words text-label-sm text-ds-text-status-error-strong-default">
+                    {remoteNotice}
+                  </span>
+                </div>
+              )}
 
               {/* Error notice */}
               {mode === 'upload' && uploadError && errorMessage && (

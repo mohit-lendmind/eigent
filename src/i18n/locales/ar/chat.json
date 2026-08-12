@@ -112,5 +112,17 @@
   "expand-plan": "توسيع الخطة",
   "minimize-plan": "تصغير الخطة",
   "expand-subtasks": "توسيع المهام الفرعية",
-  "add-subtask-placeholder": "أضف مهمة فرعية جديدة واضغط Enter لإضافة المزيد"
+  "add-subtask-placeholder": "أضف مهمة فرعية جديدة واضغط Enter لإضافة المزيد",
+  "save-as-skill": "حفظ كمهارة",
+  "skill-saved": "تم حفظ المهارة \"{{name}}\".",
+  "skill-saved-ignored-fields": "حقول لم تُحفظ: {{fields}}.",
+  "save-as-skill-broad-whitelist": "تطلب هذه المهارة الوصول إلى جميع الأدوات. احفظها فقط إذا كنت تثق في تعليماتها.",
+  "approval-required": "مطلوب موافقة لـ {{tool}}",
+  "approval-publish-skill-title": "يريد الوكيل نشر مهارة",
+  "approval-allow": "سماح",
+  "approval-deny": "رفض",
+  "approval-resolved-allow": "تمت الموافقة — تستمر المهمة.",
+  "approval-resolved-deny": "تم الرفض — تستمر المهمة بدونها.",
+  "approval-respond-failed": "تعذر إرسال قرارك. حاول مرة أخرى.",
+  "approval-already-resolved": "تمت معالجة هذه الموافقة بالفعل في مكان آخر."
 }

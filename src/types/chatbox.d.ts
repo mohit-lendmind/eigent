@@ -118,6 +118,17 @@ declare global {
     summary?: string;
     agent_name?: string;
     attaches?: File[];
+    /** aion remote mode: a durable human-gate approval rendered in-chat. */
+    approval?: {
+      /** aion Project id — routes the verdict back over the edge. */
+      projectId: string;
+      approvalId: string;
+      toolName?: string;
+      reason?: string;
+      argumentsJson?: string;
+      /** Set once approval_resolved streams back ('allow' | 'deny'). */
+      decision?: string;
+    };
   }
 
   interface AgentMessage {

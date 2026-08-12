@@ -55,5 +55,14 @@
   "create-skill-default-name": "新しいスキル",
   "create-skill-default-description": "このスキルの役割を説明してください。",
   "save-skill": "スキルを保存",
-  "compose-skill-hint": "SKILL.md を編集（名前と説明の YAML フロントマターが必須）してから保存してください。"
+  "compose-skill-hint": "SKILL.md を編集（名前と説明の YAML フロントマターが必須）してから保存してください。",
+  "skills-backend-too-old": "スキルは利用できません: 接続中のバックエンド (edge API {{version}}) はスキル機能に対応していません。スキルを管理するにはバックエンドを更新してください。",
+  "skills-remote-error": "スキルは利用できません: {{message}}",
+  "skill-fields-ignored": "一部のフィールドは保存されませんでした: {{fields}}",
+  "skills-sync-up-title": "ローカルのスキルをアップロードしますか？",
+  "skills-sync-up-hint": "このワークスペースはスキルをバックエンドに保存します。アップロードするローカルのスキルを選択してください。この案内は一度だけ表示されます。",
+  "skills-sync-up-upload": "アップロード ({{count}})",
+  "skills-sync-up-skip": "今はしない",
+  "skills-sync-up-done": "完了",
+  "skills-sync-up-uploaded": "アップロード済み"
 }

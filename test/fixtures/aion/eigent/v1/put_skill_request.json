@@ -1,0 +1,15 @@
+{
+  "document": {
+    "Name": "release-notes",
+    "Description": "Draft customer-facing release notes from a change summary.",
+    "PromptText": "Summarise the change set as customer-facing release notes using template.md.",
+    "Files": [
+      {
+        "Path": "template.md",
+        "Content": "IyBSZWxlYXNlIG5vdGVzCg==",
+        "Mode": 420
+      }
+    ]
+  },
+  "origin": "desktop_ui"
+}

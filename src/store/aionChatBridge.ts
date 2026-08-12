@@ -15,7 +15,8 @@ import {
   negotiateCompatibility,
 } from '@/api/aion/v1/compat';
 import { ProjectSession, newCommandId } from '@/api/aion/v1/session';
-import { EdgeTransport } from '@/api/aion/v1/transport';
+import { EdgeTransport, type ModelAliasCatalog } from '@/api/aion/v1/transport';
+import { useAionModelStore } from './aionModelStore';
 import {
   AgentMessageStatus,
   AgentStatusValue,
@@ -76,6 +77,56 @@ export function getAionRemoteConfig(): Promise<AionRemoteConfig | null> {
   return configPromise;
 }
 
+// Alias catalog for the product model picker; promise-cached like the config
+// (the catalog is static per stack profile). Resolves null in local mode; a
+// fetch failure clears the cache so the next open retries.
+let catalogPromise: Promise<ModelAliasCatalog | null> | null = null;
+
+export function getAionModelCatalog(): Promise<ModelAliasCatalog | null> {
+  catalogPromise ??= (async () => {
+    const config = await getAionRemoteConfig();
+    if (!config || 'error' in config) {
+      return null;
+    }
+    const transport = new EdgeTransport({
+      baseUrl: config.edgeBaseUrl,
+      apiKey: config.apiKey,
+    });
+    return transport.listModelAliases();
+  })().catch((error) => {
+    catalogPromise = null;
+    throw error;
+  });
+  return catalogPromise;
+}
+
+/**
+ * The alias a new conversation would bind, given the catalog: project pin →
+ * global selection → the experience-track fallback chain. Selections that
+ * fell out of the catalog — or point at an internal fixture alias the picker
+ * no longer offers — are ignored rather than failing the turn. The fallback
+ * chain may still land on an internal alias (fixture-only CI stacks have no
+ * user-facing rows), which keeps automated flows working keyless.
+ */
+export function resolveModelAlias(
+  catalog: ModelAliasCatalog,
+  eigentProjectId?: string
+): string | null {
+  const aliases = catalog.aliases ?? [];
+  const selectable = new Set(
+    aliases.filter((a) => !a.internal).map((a) => a.alias)
+  );
+  const { projectAlias, selectedAlias } = useAionModelStore.getState();
+  const pinned = eigentProjectId ? projectAlias[eigentProjectId] : undefined;
+  if (pinned && selectable.has(pinned)) return pinned;
+  if (selectedAlias && selectable.has(selectedAlias)) return selectedAlias;
+  const fallback =
+    aliases.find((a) => a.alias === 'kimi-k3') ??
+    aliases.find((a) => a.is_default) ??
+    aliases[0];
+  return fallback?.alias ?? null;
+}
+
 // One aion Project per Eigent project; promise-cached so concurrent turns
 // share a single createProject.
 const bindings = new Map<string, Promise<ProjectBinding>>();
@@ -88,7 +139,7 @@ function ensureBinding(
 ): Promise<ProjectBinding> {
   let pending = bindings.get(eigentProjectId);
   if (!pending) {
-    pending = createBinding(config, firstQuestion).catch((error) => {
+    pending = createBinding(config, eigentProjectId, firstQuestion).catch((error) => {
       // A failed create must not poison the project forever — the next turn
       // retries with a fresh createProject (its own idempotency key).
       bindings.delete(eigentProjectId);
@@ -101,6 +152,7 @@ function ensureBinding(
 
 async function createBinding(
   config: { edgeBaseUrl: string; apiKey: string },
+  eigentProjectId: string,
   firstQuestion: string
 ): Promise<ProjectBinding> {
   const transport = new EdgeTransport({
@@ -115,7 +167,7 @@ async function createBinding(
   if (!verdict.compatible) {
     throw new IncompatibleBackendError(verdict.reason);
   }
-  const alias = await pickModelAlias(transport);
+  const alias = await pickModelAlias(transport, eigentProjectId);
   const title = firstQuestion.trim().slice(0, 120) || 'Eigent conversation';
   const project = await transport.createProject({
     title,
@@ -151,19 +203,16 @@ async function createBinding(
   return binding;
 }
 
-async function pickModelAlias(transport: EdgeTransport): Promise<string> {
+async function pickModelAlias(
+  transport: EdgeTransport,
+  eigentProjectId: string
+): Promise<string> {
   const catalog = await transport.listModelAliases();
-  const aliases = catalog.aliases ?? [];
-  // Real-model preference for the experience track; the M6 model-settings
-  // train replaces this with the product model picker.
-  const preferred =
-    aliases.find((a) => a.alias === 'kimi-k3') ??
-    aliases.find((a) => a.is_default) ??
-    aliases[0];
-  if (!preferred) {
+  const alias = resolveModelAlias(catalog, eigentProjectId);
+  if (!alias) {
     throw new Error('The aion edge reports no model aliases.');
   }
-  return preferred.alias;
+  return alias;
 }
 
 export interface StartAionTaskArgs {
@@ -210,6 +259,35 @@ export async function startAionTask(args: StartAionTaskArgs): Promise<void> {
   if (binding.latest) {
     projectTurn(binding, turn, binding.latest);
   }
+}
+
+/**
+ * Delivers a human verdict for a parked approval over the edge. The backend
+ * records it exactly once; the UI never resolves optimistically — the
+ * approval_resolved event streaming back is what flips the card.
+ */
+export async function respondToAionApproval(
+  aionProjectId: string,
+  approvalId: string,
+  decision: 'allow' | 'deny'
+): Promise<void> {
+  // A card can outlive its binding (renderer restart renders it from
+  // persisted history), so fall back to a config-built transport — the
+  // approval is parked server-side and needs no live stream to resolve.
+  let transport = liveBindings.find(
+    (b) => b.aionProjectId === aionProjectId
+  )?.transport;
+  if (!transport) {
+    const config = await getAionRemoteConfig();
+    if (!config || 'error' in config) {
+      throw new Error('aion remote mode is not configured.');
+    }
+    transport = new EdgeTransport({
+      baseUrl: config.edgeBaseUrl,
+      apiKey: config.apiKey,
+    });
+  }
+  await transport.respondToApproval(aionProjectId, approvalId, { decision });
 }
 
 /** Epoch-fenced cancel for the unsettled Run bound to this task, if any. */
@@ -317,13 +395,25 @@ function projectTurn(
         role: 'agent',
         content: entry.text,
       });
-    } else if (entry.type === 'approval' && entry.decision === undefined) {
+    } else if (entry.type === 'approval') {
+      // Pending renders the interactive card; a resolved entry keeps the
+      // same message id with the verdict, so the card flips in place when
+      // approval_resolved streams back (the content change triggers the
+      // update below).
       wanted.push({
         id: `aion:${turn.runId}:approval:${entry.approvalId}`,
         role: 'agent',
-        content: `⏸️ Approval required for \`${entry.toolName ?? 'a tool'}\`${
-          entry.reason ? ` — ${entry.reason}` : ''
-        }. Respond from the Integration Lab; in-chat approvals arrive with the M6 approvals train.`,
+        content: entry.decision
+          ? `Approval ${entry.decision} for ${entry.toolName ?? 'a tool'}.`
+          : `Approval required for ${entry.toolName ?? 'a tool'}.`,
+        approval: {
+          projectId: binding.aionProjectId,
+          approvalId: entry.approvalId,
+          toolName: entry.toolName,
+          reason: entry.reason,
+          argumentsJson: entry.argumentsJson,
+          decision: entry.decision,
+        },
       });
     }
   }

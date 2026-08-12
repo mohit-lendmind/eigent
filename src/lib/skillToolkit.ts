@@ -100,6 +100,47 @@ export function parseSkillMd(contents: string): SkillMeta | null {
   };
 }
 
+/** A SKILL.md document found inside an assistant reply. */
+export interface ReplySkill {
+  meta: SkillMeta;
+  /**
+   * Frontmatter keys beyond name/description (e.g. entrypoint,
+   * allowed_tools), verbatim as authored — surfaced in the save-as-skill
+   * dialog and forwarded to the store, which reports inert ones back.
+   */
+  extras: Record<string, string>;
+}
+
+/**
+ * Finds a SKILL.md document in an assistant reply: the whole message, or the
+ * first fenced code block that parses. Returns null when the reply carries no
+ * saveable skill.
+ */
+export function extractSkillFromReply(content: string): ReplySkill | null {
+  const candidates: string[] = [content];
+  const fence = /```[^\n]*\n([\s\S]*?)```/g;
+  for (let match = fence.exec(content); match; match = fence.exec(content)) {
+    candidates.push(match[1]);
+  }
+  for (const candidate of candidates) {
+    const meta = parseSkillMd(candidate);
+    if (!meta) continue;
+    const { frontmatter } = splitFrontmatter(candidate.trimStart());
+    const extras: Record<string, string> = {};
+    if (frontmatter) {
+      for (const [key, value] of Object.entries(
+        parseSimpleYaml(frontmatter)
+      )) {
+        if (key !== 'name' && key !== 'description') {
+          extras[key] = value;
+        }
+      }
+    }
+    return { meta, extras };
+  }
+  return null;
+}
+
 /**
  * Build SKILL.md content from name, description, and body (CAMEL-compatible).
  */
@@ -139,4 +180,64 @@ export function skillNameToDirName(name: string): string {
 export function hasSkillsFsApi(): boolean {
   if (typeof window === 'undefined') return false;
   return !!getConnectionConfig?.()?.brainEndpoint;
+}
+
+// ---------------------------------------------------------------------------
+// Workforce skill scoping: a stored skill's visibility rides the
+// document's Metadata["scope"] tag — empty/absent/"global" means every
+// surface; anything else is a comma-separated list of eigent agent ids where
+// `single_agent` names the orchestrator chat surface and any other id names a
+// workforce agent. A tag that names nothing (stray commas) reads as
+// authored-but-empty and stays global — mirroring the cell's parser, which is
+// the authority on these semantics.
+
+const SINGLE_AGENT_SCOPE_ID = 'single_agent';
+
+function normalizeScopeAgentId(tag: string): string {
+  const trimmed = tag.trim();
+  if (!trimmed) return '';
+  const lowered = trimmed.toLowerCase();
+  // Legacy configs carried the enum-stringified `Agents.single_agent`.
+  if (lowered === SINGLE_AGENT_SCOPE_ID || lowered === 'agents.single_agent') {
+    return SINGLE_AGENT_SCOPE_ID;
+  }
+  return trimmed;
+}
+
+/** Parse a stored scope tag onto the UI scope shape. */
+export function parseSkillScopeTag(raw: string | undefined): {
+  isGlobal: boolean;
+  selectedAgents: string[];
+} {
+  const trimmed = (raw ?? '').trim();
+  if (trimmed === '' || trimmed.toLowerCase() === 'global') {
+    return { isGlobal: true, selectedAgents: [] };
+  }
+  const agents: string[] = [];
+  for (const tag of trimmed.split(',')) {
+    const id = normalizeScopeAgentId(tag);
+    if (id && !agents.includes(id)) agents.push(id);
+  }
+  if (agents.length === 0) {
+    return { isGlobal: true, selectedAgents: [] };
+  }
+  return { isGlobal: false, selectedAgents: agents };
+}
+
+/**
+ * Serialize a UI scope onto the stored tag. Global (and the vocabulary's one
+ * unrepresentable state, "no agents at all") serialize to the empty string,
+ * which clears the annotation.
+ */
+export function buildSkillScopeTag(scope: {
+  isGlobal: boolean;
+  selectedAgents: string[];
+}): string {
+  if (scope.isGlobal) return '';
+  const agents: string[] = [];
+  for (const tag of scope.selectedAgents) {
+    const id = normalizeScopeAgentId(tag);
+    if (id && !agents.includes(id)) agents.push(id);
+  }
+  return agents.join(',');
 }

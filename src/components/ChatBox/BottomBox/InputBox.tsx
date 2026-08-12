@@ -555,6 +555,7 @@ export const Inputbox = ({
               <Button
                 type="button"
                 data-picker-trigger
+                data-testid="skill-picker-toggle"
                 variant="ghost"
                 size="xs"
                 buttonContent="icon-only"

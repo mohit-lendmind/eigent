@@ -194,6 +194,7 @@ export default function SkillListItem(props: SkillListItemProps) {
   return (
     <div
       className={`w-full flex-1 flex-col justify-between rounded-2xl bg-ds-bg-neutral-subtle-default p-4 transition-colors ${skill.isExample && !skill.enabled ? 'opacity-50' : ''}`}
+      data-testid={`skill-row-${skill.name}`}
     >
       {/* Row 1: Name / Actions */}
       <div className="flex items-center justify-between">
@@ -207,6 +208,7 @@ export default function SkillListItem(props: SkillListItemProps) {
           <Switch
             checked={skill.enabled}
             onCheckedChange={() => toggleSkill(skill.id)}
+            data-testid={`skill-toggle-${skill.name}`}
           />
           <TooltipSimple content={t('agents.try-in-chat')}>
             <Button
@@ -222,13 +224,19 @@ export default function SkillListItem(props: SkillListItemProps) {
           {!skill.isExample && onDelete && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="xs" buttonContent="icon-only">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  buttonContent="icon-only"
+                  data-testid={`skill-menu-${skill.name}`}
+                >
                   <Ellipsis className="h-4 w-4 text-ds-icon-neutral-default-default" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
                 <DropdownMenuItem
                   onClick={onDelete}
+                  data-testid={`skill-delete-${skill.name}`}
                   className="text-ds-text-status-error-strong-default focus:text-ds-text-status-error-strong-default"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -252,7 +260,9 @@ export default function SkillListItem(props: SkillListItemProps) {
         </div>
       </TooltipSimple>
 
-      {/* Row 3: Added time / Skill scope */}
+      {/* Row 3: Skill scope. Local mode persists it to the config file;
+          remote mode writes the stored document's Metadata scope tag,
+          which the cell enforces on the orchestrator and worker surfaces. */}
       <div className="flex flex-col items-start gap-2">
         <Button
           variant="ghost"

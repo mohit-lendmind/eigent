@@ -20,6 +20,10 @@ import {
   useIntegrationManagement,
   type IntegrationItem,
 } from '@/hooks/useIntegrationManagement';
+import {
+  normalizeSkillScopeAgentId,
+  SINGLE_AGENT_ID,
+} from '@/components/WorkFlow/agents';
 import { integrationLeadingIconUrl } from '@/lib/connectorIcons';
 import {
   RICH_CONNECTOR_STYLE_CLASSES,
@@ -46,6 +50,8 @@ export interface PickerItem {
   token: string;
   /** Provider icon URL for hosted connector items. */
   iconUrl?: string;
+  /** One-line description shown under the name (e.g. remote skills). */
+  description?: string;
 }
 
 /** A labelled section within a picker (e.g. built-in vs. your own connectors). */
@@ -178,14 +184,22 @@ function PickerPanelItem({
       aria-pressed={added}
       className="group flex w-full items-center gap-2 rounded-xl border-0 bg-ds-bg-neutral-subtle-default px-2 py-1.5 text-left transition-colors hover:bg-ds-bg-neutral-default-default"
       onClick={onToggle}
+      data-testid={`picker-item-${item.id}`}
     >
       {logo && (
         <span className="flex h-5 w-5 shrink-0 items-center justify-center">
           {logo}
         </span>
       )}
-      <span className="min-w-0 flex-1 overflow-hidden overflow-ellipsis whitespace-nowrap text-sm font-medium text-ds-text-neutral-default-default">
-        {item.name}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="overflow-hidden overflow-ellipsis whitespace-nowrap text-sm font-medium text-ds-text-neutral-default-default">
+          {item.name}
+        </span>
+        {item.description && (
+          <span className="overflow-hidden overflow-ellipsis whitespace-nowrap text-xs font-normal text-ds-text-neutral-muted-default">
+            {item.description}
+          </span>
+        )}
       </span>
       <span className="max-w-[45%] shrink-0 overflow-hidden whitespace-nowrap">
         {tag}
@@ -393,17 +407,31 @@ export function SkillPickerPanel({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const skills = useSkillsStore((s) => s.skills);
+  const remoteMode = useSkillsStore((s) => s.remoteMode);
 
   const items = useMemo(
     () =>
       skills
         .filter((s) => s.enabled)
+        // In remote mode the composer speaks to the orchestrator chat
+        // surface, so a skill scoped away from it (worker-only) is not
+        // loadable here and stays out of the picker. Local-mode scope keeps
+        // its legacy meaning and never filters.
+        .filter(
+          (s) =>
+            remoteMode.kind !== 'remote' ||
+            s.scope.isGlobal ||
+            s.scope.selectedAgents.some(
+              (agent) => normalizeSkillScopeAgentId(agent) === SINGLE_AGENT_ID
+            )
+        )
         .map((s) => ({
           id: s.id,
           name: s.name,
           token: `#${s.skillDirName || skillNameToDirName(s.name)}`,
+          description: s.description || undefined,
         })),
-    [skills]
+    [skills, remoteMode]
   );
 
   return (

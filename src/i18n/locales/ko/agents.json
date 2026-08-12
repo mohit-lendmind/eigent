@@ -55,5 +55,14 @@
   "create-skill-default-name": "새 스킬",
   "create-skill-default-description": "이 스킬이 하는 일을 설명하세요.",
   "save-skill": "스킬 저장",
-  "compose-skill-hint": "SKILL.md를 편집(YAML 프론트매터에 이름과 설명 필요)한 뒤 저장하세요."
+  "compose-skill-hint": "SKILL.md를 편집(YAML 프론트매터에 이름과 설명 필요)한 뒤 저장하세요.",
+  "skills-backend-too-old": "스킬을 사용할 수 없습니다: 연결된 백엔드(edge API {{version}})가 스킬 기능을 지원하지 않습니다. 스킬을 관리하려면 백엔드를 업데이트하세요.",
+  "skills-remote-error": "스킬을 사용할 수 없습니다: {{message}}",
+  "skill-fields-ignored": "일부 필드가 저장되지 않았습니다: {{fields}}",
+  "skills-sync-up-title": "로컬 스킬을 업로드할까요?",
+  "skills-sync-up-hint": "이 워크스페이스는 스킬을 백엔드에 저장합니다. 업로드할 로컬 스킬을 선택하세요. 이 안내는 한 번만 표시됩니다.",
+  "skills-sync-up-upload": "업로드 ({{count}})",
+  "skills-sync-up-skip": "나중에",
+  "skills-sync-up-done": "완료",
+  "skills-sync-up-uploaded": "업로드됨"
 }
