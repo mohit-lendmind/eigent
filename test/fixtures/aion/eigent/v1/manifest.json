@@ -16,6 +16,7 @@
     "integration_status_response.json",
     "skill_response.json",
     "skill_catalog_response.json",
+    "skill_catalog_usage_response.json",
     "put_skill_response.json"
   ],
   "events": [

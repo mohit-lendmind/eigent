@@ -146,13 +146,29 @@ export class EdgeTransport {
     );
   }
 
-  listSkills(): Promise<SkillCatalog> {
-    return this.json('GET', '/skills');
+  /**
+   * The catalog. `includeUsage` opts into per-name usage counters (one extra
+   * read for the whole catalog, not one per skill); rows with no recorded use
+   * come back without a `usage` object either way.
+   */
+  listSkills(options: { includeUsage?: boolean } = {}): Promise<SkillCatalog> {
+    return this.json(
+      'GET',
+      options.includeUsage ? '/skills?usage=true' : '/skills'
+    );
   }
 
-  getSkill(name: string, version?: number): Promise<Skill> {
-    const query = version !== undefined ? `?version=${version}` : '';
-    return this.json('GET', `/skills/${encodeURIComponent(name)}${query}`);
+  getSkill(
+    name: string,
+    options: { version?: number; includeUsage?: boolean } = {}
+  ): Promise<Skill> {
+    const query = new URLSearchParams();
+    if (options.version !== undefined) {
+      query.set('version', String(options.version));
+    }
+    if (options.includeUsage) query.set('usage', 'true');
+    const suffix = query.size > 0 ? `?${query}` : '';
+    return this.json('GET', `/skills/${encodeURIComponent(name)}${suffix}`);
   }
 
   /**

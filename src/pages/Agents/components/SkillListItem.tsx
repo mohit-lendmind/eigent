@@ -27,8 +27,14 @@ import {
   normalizeSkillScopeAgentId,
 } from '@/components/WorkFlow/agents';
 import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
+import { formatRelativeTime } from '@/lib/utils';
+import { usageTracked } from '@/store/aionSkillsStore';
 import { useWorkerList } from '@/store/authStore';
-import { useSkillsStore, type Skill } from '@/store/skillsStore';
+import {
+  useSkillsStore,
+  type Skill,
+  type SkillUsage,
+} from '@/store/skillsStore';
 import {
   Bot,
   Check,
@@ -65,6 +71,59 @@ type SkillListItemProps =
   | SkillListItemDefaultProps
   | SkillListItemPlaceholderProps;
 
+/**
+ * The usage counters for one skill, or the never-used state. Rendered only
+ * where the provider actually counts (remote, edge ≥ 1.5.0): a missing counter
+ * set means "nobody has used this", which is a different claim from "we do not
+ * know", and only the caller's `usageTracked` check can tell them apart.
+ */
+function SkillUsageLine({
+  usage,
+  name,
+}: {
+  usage?: SkillUsage;
+  name: string;
+}): JSX.Element {
+  const { t } = useTranslation();
+
+  if (!usage) {
+    return (
+      <p
+        className="text-label-xs text-ds-text-neutral-muted-default"
+        data-testid={`skill-usage-${name}`}
+      >
+        {t('agents.skill-never-used')}
+      </p>
+    );
+  }
+
+  const counters = [
+    { key: 'activations', value: usage.activations },
+    { key: 'loads', value: usage.loads },
+    { key: 'executions', value: usage.executions },
+  ];
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-x-3 gap-y-1"
+      data-testid={`skill-usage-${name}`}
+    >
+      {counters.map(({ key, value }) => (
+        <TooltipSimple key={key} content={t(`agents.skill-usage-${key}-hint`)}>
+          <span className="text-label-xs cursor-default text-ds-text-neutral-muted-default">
+            {t(`agents.skill-usage-${key}`, { count: value })}
+          </span>
+        </TooltipSimple>
+      ))}
+      <span className="text-label-xs text-ds-text-neutral-muted-default">
+        {t('agents.skill-usage-last-used', {
+          when: formatRelativeTime(usage.lastUsedAt),
+        })}
+      </span>
+    </div>
+  );
+}
+
 function selectedAgentsInclude(
   selectedAgents: string[],
   agentValue: string
@@ -78,7 +137,7 @@ function selectedAgentsInclude(
 export default function SkillListItem(props: SkillListItemProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { updateSkill, toggleSkill } = useSkillsStore();
+  const { updateSkill, toggleSkill, remoteMode } = useSkillsStore();
   const { projectStore } = useChatStoreAdapter();
   const workerList = useWorkerList();
   const [scopeOpen, setScopeOpen] = useState(false);
@@ -248,7 +307,12 @@ export default function SkillListItem(props: SkillListItemProps) {
         </div>
       </div>
 
-      {/* Row 2: Description - 5 lines max, hover shows full */}
+      {/* Row 2: Usage. Only where the provider counts it — see usageTracked. */}
+      {usageTracked(remoteMode) && (
+        <SkillUsageLine usage={skill.usage} name={skill.name} />
+      )}
+
+      {/* Row 3: Description - 5 lines max, hover shows full */}
       <TooltipSimple
         content={skill.description}
         className="max-w-sm whitespace-pre-wrap break-words"
@@ -260,7 +324,7 @@ export default function SkillListItem(props: SkillListItemProps) {
         </div>
       </TooltipSimple>
 
-      {/* Row 3: Skill scope. Local mode persists it to the config file;
+      {/* Row 4: Skill scope. Local mode persists it to the config file;
           remote mode writes the stored document's Metadata scope tag,
           which the cell enforces on the orchestrator and worker surfaces. */}
       <div className="flex flex-col items-start gap-2">

@@ -237,7 +237,11 @@ describe('EdgeTransport skills (golden fixtures)', () => {
     // The wire version is a JSON number, not a string.
     expect(head.version).toBe(3);
     expect(head.document.Name).toBe('release-notes');
-    await transport.getSkill('release-notes', 2);
+    await transport.getSkill('release-notes', { version: 2 });
+    await transport.getSkill('release-notes', {
+      version: 2,
+      includeUsage: true,
+    });
 
     expect(requestOf(fetchImpl, 0).url).toBe(
       'https://edge.local/eigent/v1/skills/release-notes'
@@ -245,6 +249,30 @@ describe('EdgeTransport skills (golden fixtures)', () => {
     expect(requestOf(fetchImpl, 1).url).toBe(
       'https://edge.local/eigent/v1/skills/release-notes?version=2'
     );
+    expect(requestOf(fetchImpl, 2).url).toBe(
+      'https://edge.local/eigent/v1/skills/release-notes?version=2&usage=true'
+    );
+  });
+
+  it('opts into usage counters on the catalog route', async () => {
+    const { transport, fetchImpl } = transportWith(() =>
+      jsonResponse(fixture('skill_catalog_usage_response.json'))
+    );
+    await transport.listSkills();
+    const catalog = await transport.listSkills({ includeUsage: true });
+
+    // Absent by default: the counters cost the edge an extra read, so nothing
+    // asks for them unless the caller renders them.
+    expect(requestOf(fetchImpl, 0).url).toBe(
+      'https://edge.local/eigent/v1/skills'
+    );
+    expect(requestOf(fetchImpl, 1).url).toBe(
+      'https://edge.local/eigent/v1/skills?usage=true'
+    );
+    const [used, neverUsed] = catalog.skills;
+    expect(used.usage).toMatchObject({ loads: 7, executions: 2 });
+    // A never-used name carries no usage object — never a row of zeros.
+    expect(neverUsed.usage).toBeUndefined();
   });
 
   it('puts a skill with If-Match and no Idempotency-Key', async () => {

@@ -6,7 +6,7 @@
 // once on the mode resolved here; this module owns the transport, the
 // catalog cache, and the row ⇄ UI-type mapping.
 
-import { supportsSkills } from '@/api/aion/v1/compat';
+import { supportsSkills, supportsSkillUsage } from '@/api/aion/v1/compat';
 import {
   EdgeTransport,
   type PutSkillResult,
@@ -18,7 +18,7 @@ import {
   type SkillMeta,
 } from '@/lib/skillToolkit';
 import { getAionRemoteConfig } from './aionChatBridge';
-import type { Skill } from './skillsStore';
+import type { Skill, SkillUsage } from './skillsStore';
 
 /**
  * How the Skills surface should behave this renderer lifetime. `local` keeps
@@ -29,7 +29,13 @@ import type { Skill } from './skillsStore';
  */
 export type AionSkillsMode =
   | { kind: 'local' }
-  | { kind: 'remote' }
+  /**
+   * `usage` is whether this edge reports usage counters (1.5.0+). It gates
+   * the request AND the reading of an absent counter set: below the floor a
+   * bare row means "this backend does not count", above it the same bare row
+   * means "never used", and the screen must not show the second for the first.
+   */
+  | { kind: 'remote'; usage: boolean }
   | { kind: 'unsupported'; edgeApiVersion: string }
   | { kind: 'error'; message: string };
 
@@ -73,7 +79,10 @@ async function resolveContext(): Promise<RemoteContext> {
         transport: null,
       };
     }
-    return { mode: { kind: 'remote' }, transport };
+    return {
+      mode: { kind: 'remote', usage: supportsSkillUsage(status) },
+      transport,
+    };
   } catch (error) {
     // A failed handshake is retryable: drop the cache so the next open of
     // the Skills surface renegotiates instead of pinning the error forever.
@@ -85,6 +94,16 @@ async function resolveContext(): Promise<RemoteContext> {
 
 export async function getAionSkillsMode(): Promise<AionSkillsMode> {
   return (await getContext()).mode;
+}
+
+/**
+ * Whether this provider reports usage counters at all. False for the local
+ * filesystem path (nothing counts loads there) and for a remote edge below the
+ * usage floor — in both cases a row without counters says nothing about whether
+ * the skill was used, so the surface shows no usage at all rather than "never".
+ */
+export function usageTracked(mode: AionSkillsMode): boolean {
+  return mode.kind === 'remote' && mode.usage;
 }
 
 async function remoteTransport(): Promise<EdgeTransport> {
@@ -122,7 +141,10 @@ export function invalidateAionSkillCatalog(): void {
 export function listAionSkills(): Promise<Skill[]> {
   catalogPromise ??= (async () => {
     const transport = await remoteTransport();
-    const catalog = await transport.listSkills();
+    const { mode } = await getContext();
+    const catalog = await transport.listSkills({
+      includeUsage: usageTracked(mode),
+    });
     const rows = catalog.skills ?? [];
     knownVersions.clear();
     knownDocuments.clear();
@@ -157,6 +179,19 @@ function toUiSkill(row: AionSkillRow): Skill {
     scope: parseSkillScopeTag(metadataField(row.document, 'scope')),
     enabled: row.status === 'active',
     isExample: false,
+    // Absent stays absent: the row carries no usage object until the name has
+    // actually been used, and that is what the surface renders as "never used".
+    ...(row.usage ? { usage: toUiUsage(row.usage) } : {}),
+  };
+}
+
+/** Counters as the surface reads them; the timestamp stays as sent. */
+function toUiUsage(usage: NonNullable<AionSkillRow['usage']>): SkillUsage {
+  return {
+    activations: usage.activations,
+    loads: usage.loads,
+    executions: usage.executions,
+    lastUsedAt: usage.last_used_at ?? '',
   };
 }
 

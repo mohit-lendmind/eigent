@@ -3,7 +3,11 @@
 // additive evolution the N/N-1 matrix guarantees.
 import { describe, expect, it } from 'vitest';
 
-import { negotiateCompatibility, supportsSkills } from '@/api/aion/v1/compat';
+import {
+  negotiateCompatibility,
+  supportsSkillUsage,
+  supportsSkills,
+} from '@/api/aion/v1/compat';
 import {
   DESKTOP_CLIENT_VERSION,
   EDGE_API_VERSION,
@@ -111,5 +115,25 @@ describe('supportsSkills', () => {
     expect(
       supportsSkills(status({ minimum_desktop_version: '999.0.0' }))
     ).toBe(false);
+  });
+});
+
+describe('supportsSkillUsage', () => {
+  it('gates one minor above the skills floor', () => {
+    // The floors are separate because a 1.4 edge serves skills but reports no
+    // counters: a caller that conflated them would read every row's missing
+    // counters as "never used".
+    expect(supportsSkillUsage(status({ edge_api_version: '1.4.9' }))).toBe(
+      false
+    );
+    expect(supportsSkillUsage(status({ edge_api_version: '1.5.0' }))).toBe(true);
+    expect(supportsSkillUsage(status({ edge_api_version: '1.6.0' }))).toBe(true);
+  });
+
+  it('fails closed on garbage and on a foreign major', () => {
+    expect(supportsSkillUsage(status({ edge_api_version: 'new' }))).toBe(false);
+    expect(supportsSkillUsage(status({ edge_api_version: '2.5.0' }))).toBe(
+      false
+    );
   });
 });

@@ -116,10 +116,24 @@ export function negotiateCompatibility(
 // speaking a contract this build cannot, so the full verdict gates first.
 const SKILLS_MINIMUM_EDGE = [1, 4];
 
-export function supportsSkills(status: IntegrationStatus): boolean {
+// Readable usage counters shipped in 1.5.0. This floor is what stops the Skills
+// screen from reading "no counters came back" as "never used": a 1.4 edge
+// ignores the unknown `usage` query param and answers rows without counters
+// either way, so absence only carries meaning above the floor.
+const SKILL_USAGE_MINIMUM_EDGE = [1, 5];
+
+function meetsEdgeFloor(status: IntegrationStatus, floor: number[]): boolean {
   if (!negotiateCompatibility(status).compatible) {
     return false;
   }
   const serverEdge = versionCore(status.edge_api_version);
-  return serverEdge !== null && !lessThan(serverEdge, SKILLS_MINIMUM_EDGE);
+  return serverEdge !== null && !lessThan(serverEdge, floor);
+}
+
+export function supportsSkills(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, SKILLS_MINIMUM_EDGE);
+}
+
+export function supportsSkillUsage(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, SKILL_USAGE_MINIMUM_EDGE);
 }
