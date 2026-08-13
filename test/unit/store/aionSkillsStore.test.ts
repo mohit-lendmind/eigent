@@ -101,7 +101,28 @@ describe('aionSkillsStore mode negotiation', () => {
       kind: 'error',
       message: 'edge unreachable',
     });
-    expect(await store.getAionSkillsMode()).toEqual({ kind: 'remote' });
+    expect(await store.getAionSkillsMode()).toEqual({
+      kind: 'remote',
+      usage: false,
+    });
+  });
+
+  it('tracks usage only above the counter floor', async () => {
+    setRemoteConfig();
+    // A 1.4 edge serves skills but ignores the ?usage= flag, so the desktop
+    // must not ask — nor read the resulting bare rows as "never used".
+    getIntegrationStatus.mockResolvedValue(remoteStatus('1.4.0'));
+    const oldEdge = await freshModule();
+    expect(oldEdge.usageTracked(await oldEdge.getAionSkillsMode())).toBe(false);
+    expect(oldEdge.usageTracked({ kind: 'local' })).toBe(false);
+
+    getIntegrationStatus.mockResolvedValue(remoteStatus('1.5.0'));
+    const newEdge = await freshModule();
+    expect(await newEdge.getAionSkillsMode()).toEqual({
+      kind: 'remote',
+      usage: true,
+    });
+    expect(newEdge.usageTracked(await newEdge.getAionSkillsMode())).toBe(true);
   });
 });
 
@@ -137,6 +158,36 @@ describe('aionSkillsStore catalog', () => {
       isGlobal: false,
       selectedAgents: ['developer_agent', 'search_agent'],
     });
+  });
+
+  it('projects usage counters and leaves an unused row bare', async () => {
+    setRemoteConfig();
+    getIntegrationStatus.mockResolvedValue(remoteStatus('1.5.0'));
+    listSkills.mockResolvedValue(fixture('skill_catalog_usage_response.json'));
+    const store = await freshModule();
+
+    const [releaseNotes, triage] = await store.listAionSkills();
+    expect(listSkills).toHaveBeenCalledWith({ includeUsage: true });
+    expect(releaseNotes.usage).toEqual({
+      activations: 0,
+      loads: 7,
+      executions: 2,
+      lastUsedAt: '2026-08-12T09:30:00Z',
+    });
+    // An activations count of 0 is real data, not the absent case — the row is
+    // annotated because someone loaded and ran it, just never auto-activated.
+    expect(triage.usage).toBeUndefined();
+  });
+
+  it('does not ask a below-floor edge for counters', async () => {
+    setRemoteConfig();
+    getIntegrationStatus.mockResolvedValue(remoteStatus('1.4.0'));
+    listSkills.mockResolvedValue(fixture('skill_catalog_response.json'));
+    const store = await freshModule();
+
+    const skills = await store.listAionSkills();
+    expect(listSkills).toHaveBeenCalledWith({ includeUsage: false });
+    expect(skills.every((skill) => skill.usage === undefined)).toBe(true);
   });
 
   it('shares one fetch across concurrent opens and refetches after invalidation', async () => {

@@ -83,6 +83,23 @@ export interface SkillScope {
   selectedAgents: string[];
 }
 
+/**
+ * How a skill has actually been used, counted per name across its versions.
+ * `activations` are automatic injections, `loads` are the agent asking for the
+ * prompt, `executions` are runs that REACHED the sandbox at any exit code —
+ * reach, not success.
+ */
+export interface SkillUsage {
+  activations: number;
+  loads: number;
+  executions: number;
+  /**
+   * RFC 3339, kept verbatim from the wire. The contract omits it only for a
+   * row that has no usage object at all, so a present usage always has one.
+   */
+  lastUsedAt: string;
+}
+
 // Skill interface
 export interface Skill {
   id: string;
@@ -96,6 +113,12 @@ export interface Skill {
   scope: SkillScope;
   enabled: boolean;
   isExample: boolean;
+  /**
+   * Absent for a provider that does not count usage AND for a counted skill
+   * nobody has used. The two are told apart by the provider, not the row:
+   * `usageTracked(remoteMode)` says whether absence means "never used".
+   */
+  usage?: SkillUsage;
 }
 
 // isExample is now determined dynamically by skills-scan based on whether
