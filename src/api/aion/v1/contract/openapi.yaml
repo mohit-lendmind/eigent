@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Eigent Desktop Edge API
-  version: 1.4.0
+  version: 1.5.0
   description: |
     Public, additive-only API used by the Eigent desktop application. The edge
     authenticates the device/user, enforces tenant policy, and projects private
@@ -227,6 +227,8 @@ paths:
         Latest version of every stored skill in the tenant catalog. Skill
         routes are served only by an edge connected to a cell; elsewhere they
         answer 501 (`code: not_implemented`) so clients can degrade cleanly.
+      parameters:
+        - $ref: '#/components/parameters/SkillUsageFlag'
       responses:
         '200':
           description: The tenant's durable skill catalog
@@ -246,6 +248,7 @@ paths:
           in: query
           schema: {type: integer, format: int64, minimum: 1}
           description: Specific version to fetch; omitted = the latest version.
+        - $ref: '#/components/parameters/SkillUsageFlag'
       responses:
         '200':
           description: One stored skill version
@@ -288,9 +291,11 @@ paths:
         '401': {$ref: '#/components/responses/Problem'}
         '409':
           description: |
-            If-Match named a version that is no longer the latest. The problem
-            carries `code: skill_stale`; re-read the skill and retry on the
-            current version.
+            Two conflict shapes share this status, told apart by the problem
+            `code`: `skill_stale` — If-Match named a version that is no longer
+            the latest; re-read the skill and retry on the current version.
+            `skill_write_conflict` (retryable) — concurrent writes raced on
+            this skill; resend the same request.
           content:
             application/problem+json:
               schema: {$ref: '#/components/schemas/Problem'}
@@ -388,6 +393,16 @@ components:
       in: path
       required: true
       schema: {$ref: '#/components/schemas/SkillName'}
+    SkillUsageFlag:
+      name: usage
+      in: query
+      required: false
+      schema: {type: boolean}
+      description: |
+        Include the `usage` counters on each returned skill. Opt-in: the
+        counters are a second read the catalog itself never needs. A skill
+        with no recorded use omits the field entirely rather than reporting
+        zeros, so "never used" stays distinguishable.
     SkillIfMatch:
       name: If-Match
       in: header
@@ -679,6 +694,32 @@ components:
         origin: {type: string}
         created_by: {type: string}
         created_at: {type: string, format: date-time}
+        usage: {$ref: '#/components/schemas/SkillUsage'}
+      additionalProperties: true
+    SkillUsage:
+      type: object
+      required: [activations, loads, executions]
+      description: |
+        How the skill was actually used, counted per NAME across all its
+        versions. Present only when the request set `usage=true` AND the skill
+        has recorded use. Counters are maintained outside the catalog's audit
+        ledger, so use never invalidates a client's cached catalog.
+      properties:
+        activations:
+          type: integer
+          format: int64
+          description: Automatic injections (an `always` or matched-rule turn).
+        loads:
+          type: integer
+          format: int64
+          description: Deliberate loads by the agent through the skill tool.
+        executions:
+          type: integer
+          format: int64
+          description: |
+            Runs that reached the sandbox via run_skill, counted at any exit
+            code — this is reach, not success.
+        last_used_at: {type: string, format: date-time}
       additionalProperties: true
     SkillCatalog:
       type: object
