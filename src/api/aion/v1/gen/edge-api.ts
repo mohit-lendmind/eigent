@@ -475,6 +475,35 @@ export type components = {
             created_by?: string;
             /** Format: date-time */
             created_at?: string;
+            usage?: components["schemas"]["SkillUsage"];
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * @description How the skill was actually used, counted per NAME across all its
+         *     versions. Present only when the request set `usage=true` AND the skill
+         *     has recorded use. Counters are maintained outside the catalog's audit
+         *     ledger, so use never invalidates a client's cached catalog.
+         */
+        SkillUsage: {
+            /**
+             * Format: int64
+             * @description Automatic injections (an `always` or matched-rule turn).
+             */
+            activations: number;
+            /**
+             * Format: int64
+             * @description Deliberate loads by the agent through the skill tool.
+             */
+            loads: number;
+            /**
+             * Format: int64
+             * @description Runs that reached the sandbox via run_skill, counted at any exit
+             *     code — this is reach, not success.
+             */
+            executions: number;
+            /** Format: date-time */
+            last_used_at?: string;
         } & {
             [key: string]: unknown;
         };
@@ -536,6 +565,13 @@ export type components = {
         ApprovalId: components["schemas"]["Identifier"];
         ArtifactId: components["schemas"]["Identifier"];
         SkillName: components["schemas"]["SkillName"];
+        /**
+         * @description Include the `usage` counters on each returned skill. Opt-in: the
+         *     counters are a second read the catalog itself never needs. A skill
+         *     with no recorded use omits the field entirely rather than reporting
+         *     zeros, so "never used" stays distinguishable.
+         */
+        SkillUsageFlag: boolean;
         /**
          * @description Optimistic-concurrency fence: the decimal skill version this write is
          *     conditioned on. The write succeeds only while that is still the
@@ -817,7 +853,15 @@ export interface operations {
     };
     listSkills: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description Include the `usage` counters on each returned skill. Opt-in: the
+                 *     counters are a second read the catalog itself never needs. A skill
+                 *     with no recorded use omits the field entirely rather than reporting
+                 *     zeros, so "never used" stays distinguishable.
+                 */
+                usage?: components["parameters"]["SkillUsageFlag"];
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -842,6 +886,13 @@ export interface operations {
             query?: {
                 /** @description Specific version to fetch; omitted = the latest version. */
                 version?: number;
+                /**
+                 * @description Include the `usage` counters on each returned skill. Opt-in: the
+                 *     counters are a second read the catalog itself never needs. A skill
+                 *     with no recorded use omits the field entirely rather than reporting
+                 *     zeros, so "never used" stays distinguishable.
+                 */
+                usage?: components["parameters"]["SkillUsageFlag"];
             };
             header?: never;
             path: {
@@ -910,9 +961,11 @@ export interface operations {
             400: components["responses"]["Problem"];
             401: components["responses"]["Problem"];
             /**
-             * @description If-Match named a version that is no longer the latest. The problem
-             *     carries `code: skill_stale`; re-read the skill and retry on the
-             *     current version.
+             * @description Two conflict shapes share this status, told apart by the problem
+             *     `code`: `skill_stale` — If-Match named a version that is no longer
+             *     the latest; re-read the skill and retry on the current version.
+             *     `skill_write_conflict` (retryable) — concurrent writes raced on
+             *     this skill; resend the same request.
              */
             409: {
                 headers: {

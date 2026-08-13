@@ -2,6 +2,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+  EDGE_API_VERSION,
+  EVENT_SCHEMA_VERSION,
+  MINIMUM_DESKTOP_VERSION,
+} from '@/api/aion/v1/gen/meta';
 import { EdgeProblemError, isCursorExpiredProblem } from '@/api/aion/v1/problems';
 import {
   EdgeTransport,
@@ -150,9 +155,12 @@ describe('EdgeTransport REST (golden fixtures)', () => {
       jsonResponse(fixture('integration_status_response.json'))
     );
     const status = await transport.getIntegrationStatus();
-    expect(status.edge_api_version).toBe('1.4.0');
-    expect(status.event_schema_version).toBe('1.0');
-    expect(status.minimum_desktop_version).toBe('1.0.2');
+    // Against the generated constants rather than literals: the fixture and the
+    // contract mirror are synced as one unit, so a fixture that drifts from the
+    // contract it was copied beside is the failure worth catching here.
+    expect(status.edge_api_version).toBe(EDGE_API_VERSION);
+    expect(status.event_schema_version).toBe(EVENT_SCHEMA_VERSION);
+    expect(status.minimum_desktop_version).toBe(MINIMUM_DESKTOP_VERSION);
     expect(status.harness_generation).toBe('aion-go/1');
     expect(status.execution_mode).toBe('remote');
     expect(status.inference_status).toBe('managed');
