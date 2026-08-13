@@ -12,6 +12,6 @@ fails until mirror and generated output agree.
 
 - Contract version: edge_api `1.5.0`
 - Source path: `aion-v1/api/eigent/v1/`
-- Last synced from: aion-v1 commit
-  `d385916` (branch `codex/eigent-aion-m4-edge`; restate the merge SHA once
-  that branch lands on main)
+- Last synced from: aion-v1 commit `50f74d6` on main
+  (`skills: readable usage counters + operator runbook and authoring
+  reference`, PR #157)
