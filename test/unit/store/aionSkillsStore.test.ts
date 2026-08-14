@@ -52,9 +52,16 @@ async function freshModule() {
   return import('@/store/aionSkillsStore');
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
   delete (globalThis as Record<string, any>).electronAPI;
+  // The sync-up snapshot is deliberately persisted, so resetting modules does
+  // not isolate these tests from one another: a snapshot one test writes is
+  // restored by the next capture in the next test. Clearing it through the
+  // store's own accessor rather than touching localStorage directly, because
+  // Web Storage is not guaranteed here — Node's built-in localStorage shadows
+  // jsdom's on newer majors, and lacks the same methods.
+  (await freshModule()).clearAionSyncUpSnapshot();
 });
 
 describe('aionSkillsStore mode negotiation', () => {
