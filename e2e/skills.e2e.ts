@@ -20,6 +20,7 @@ import {
   expect,
   test,
   type ElectronApplication,
+  type Locator,
   type Page,
 } from '@playwright/test';
 import fs from 'node:fs';
@@ -190,6 +191,24 @@ async function typeMultiline(page: Page, text: string): Promise<void> {
   }
 }
 
+// The scope popover is row-local state, so it survives only as long as the row
+// does. Assert on the panel itself rather than on the click: the click is the
+// means, the open panel is the precondition the chip assertions need, and a
+// row that re-mounted between the two would otherwise fail as a missing chip.
+async function openScopePopover(
+  page: Page,
+  row: Locator,
+  name: string
+): Promise<void> {
+  const panel = byId(page, `skill-scope-${name}`);
+  await expect(async () => {
+    if (!(await panel.isVisible())) {
+      await row.getByRole('button', { name: 'Select agent access' }).click();
+    }
+    await expect(panel).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+}
+
 test('skills CRUD: compose, disable, delete — all server-persisted', async () => {
   test.skip(
     !bootstrap || !edgeReady || !APP_BUILT,
@@ -235,7 +254,7 @@ test('skills CRUD: compose, disable, delete — all server-persisted', async () 
       page.waitForResponse(
         (r) => r.url().includes('/skills/') && r.request().method() === 'PUT'
       );
-    await row.getByRole('button', { name: 'Select agent access' }).click();
+    await openScopePopover(page, row, name);
     await expect(check('All Agents')).toBeVisible(); // new skills are global
     // Unselect All Agents (names-nothing still reads as global), then pick
     // one worker; await each PUT so the If-Match version chain stays ordered.
@@ -248,7 +267,7 @@ test('skills CRUD: compose, disable, delete — all server-persisted', async () 
     await expect(check('Developer Agent')).toBeVisible();
     await page.reload();
     await expect(row).toBeVisible({ timeout: 60_000 });
-    await row.getByRole('button', { name: 'Select agent access' }).click();
+    await openScopePopover(page, row, name);
     await expect(check('Developer Agent')).toBeVisible();
     await expect(check('All Agents')).toHaveCount(0);
     await expect(check('Single Agent')).toHaveCount(0);

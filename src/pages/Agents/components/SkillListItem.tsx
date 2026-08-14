@@ -341,7 +341,10 @@ export default function SkillListItem(props: SkillListItemProps) {
         </Button>
 
         {scopeOpen && (
-          <div className="flex w-full flex-wrap items-center gap-2 border-x-0 border-b-0 border-t-[0.5px] border-solid border-ds-border-neutral-default-default pt-4">
+          <div
+            data-testid={`skill-scope-${skill.name}`}
+            className="flex w-full flex-wrap items-center gap-2 border-x-0 border-b-0 border-t-[0.5px] border-solid border-ds-border-neutral-default-default pt-4"
+          >
             {/* All agents as first tab; then each agent toggle */}
             <button
               type="button"
