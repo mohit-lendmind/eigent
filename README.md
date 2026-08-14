@@ -87,8 +87,13 @@ clients with no local runtime behind them and cutting them is a separate
 migration:
 
 - `src/api/http.ts` still carries clients for Eigent's **hosted** cloud API and
-  for a Brain-shaped endpoint. Both are dormant when the desktop runs against
-  an aion edge.
+  for a Brain-shaped endpoint. Neither serves an aion tenant: the hosted client
+  reaches a real service that holds none of your data, and the Brain-shaped one
+  resolves the removed local backend, so its calls fail without surfacing an
+  error. Call sites are frozen at their current counts by
+  `scripts/check-no-dead-brain-calls.mjs` and come down milestone by milestone;
+  the nav entries that lead only to such a screen are hidden in aion mode rather
+  than left clickable.
 - `camel_task_id` appears in `src/pages/Workspace.tsx` and
   `src/store/chatStore.ts`. It is a wire-format field of that hosted API, so it
   cannot be renamed unilaterally.
@@ -200,7 +205,7 @@ material, a Docker socket client, or an internal (non-edge) service endpoint.
 
 ```bash
 pnpm type-check              # tsc -p tsconfig.build.json --noEmit
-pnpm lint                    # eslint + design tokens + the legacy-backend source gate
+pnpm lint                    # eslint + design tokens + the two source-scanning gates
 pnpm check:i18n              # key parity across the 11 locales
 pnpm check:vitest-baseline   # vitest, compared against its known-failing baseline
 bash scripts/check-electron-access.sh
@@ -217,9 +222,10 @@ bazel test //:type_check //:lint //:vitest //:aion_edge_client_gen
 ```
 
 One deliberate difference: `//:lint` is eslint + design tokens only. The
-legacy-backend source gate scans **git-tracked** files — docs, CI workflows,
-dotfiles — which no Bazel filegroup here declares, so it is reachable only as
-`pnpm lint` / `pnpm check:no-legacy-backend`. Run both.
+legacy-backend source gate and the non-aion HTTP client ratchet scan
+**git-tracked** files — docs, CI workflows, dotfiles — which no Bazel filegroup
+here declares, so they are reachable only as `pnpm lint` /
+`pnpm check:no-legacy-backend` / `pnpm check:no-dead-brain-calls`. Run both.
 
 `//:aion_edge_client_gen` has no npm equivalent; it is the freshness gate for
 the generated edge client.
@@ -283,6 +289,7 @@ src/i18n/locales/       11 locales, parity-checked
 
 scripts/                gates and generators
   check-no-legacy-backend.mjs   no CAMEL / Python service may re-enter
+  check-no-dead-brain-calls.mjs ratchet on the two non-aion HTTP clients
   inspect-package.mjs           the packaged app carries no runtime
   gen-aion-edge-client.mjs      regenerate the edge client
   package-pipeline.mjs          package + report

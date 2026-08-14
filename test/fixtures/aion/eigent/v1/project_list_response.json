@@ -1,0 +1,34 @@
+{
+  "projects": [
+    {
+      "project": {
+        "project_id": "prj_01JY0000000000000000000001",
+        "title": "Investigate the build failure",
+        "model_alias": "coding_balanced",
+        "status": "active",
+        "created_at": "2026-08-08T09:00:00Z",
+        "updated_at": "2026-08-08T09:12:31Z"
+      },
+      "active_run": {
+        "run_id": "run_01JY0000000000000000000003",
+        "run_epoch": "3",
+        "status": "running"
+      },
+      "last_sequence": "42",
+      "events_pruned_below": "0"
+    },
+    {
+      "project": {
+        "project_id": "prj_01JY0000000000000000000002",
+        "title": "Summarize the incident review",
+        "model_alias": "reasoning_deep",
+        "status": "closed",
+        "created_at": "2026-08-08T08:30:00Z",
+        "updated_at": "2026-08-08T08:58:04Z"
+      },
+      "last_sequence": "17",
+      "events_pruned_below": "12"
+    }
+  ],
+  "next_page_token": "MTc4NjE3NzgwMDAwMDAwMDAwMCBwcmpfMDFKWTAwMDAwMDAwMDAwMDAwMDAwMDAwMDI"
+}

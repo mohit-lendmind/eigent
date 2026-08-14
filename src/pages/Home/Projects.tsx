@@ -16,6 +16,7 @@ import type { ProjectGroup } from '@/types/history';
 import { FolderOpen } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import AionProjects from './AionProjects';
 import HomeHubBoard from './components/HomeHubBoard';
 import HomeHubBoardCard from './components/HomeHubBoardCard';
 import HomeHubCard from './components/HomeHubCard';
@@ -71,7 +72,34 @@ function ProjectRow({
   );
 }
 
+/**
+ * In aion mode the tenant's Projects come from the edge; the legacy body below
+ * reads Eigent's hosted cloud and cannot see them. The switch is on the mode,
+ * not on a merge of the two, because a Project exists in exactly one of the two
+ * planes and showing both lists would double-count nothing that overlaps.
+ */
 export default function Projects() {
+  const { aionProjects } = useHomeHub();
+  const mode = aionProjects.mode;
+  const { t } = useTranslation();
+
+  if (mode === null) {
+    return (
+      <div className="flex w-full min-w-0 flex-col">
+        <div className="pb-12 text-body-sm text-ds-text-neutral-muted-default">
+          {t('layout.loading')}
+        </div>
+      </div>
+    );
+  }
+  return mode.kind === 'local' ? (
+    <LegacyProjects />
+  ) : (
+    <AionProjects mode={mode} />
+  );
+}
+
+function LegacyProjects() {
   const { t } = useTranslation();
   const {
     viewMode,

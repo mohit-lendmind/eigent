@@ -16,6 +16,7 @@ import type { ChatStore } from '@/store/chatStore';
 import type { Trigger } from '@/types';
 import { ProjectGroup as ProjectGroupType } from '@/types/history';
 import { createContext, useContext } from 'react';
+import type { AionProjectsView } from './hooks/useAionProjects';
 import type { HomeSortBy, HomeSortDirection, HomeViewMode } from './utils';
 
 export type { HomeSortBy, HomeSortDirection, HomeViewMode } from './utils';
@@ -31,6 +32,9 @@ export type HomeHubContextValue = {
   setSortDirection: (direction: HomeSortDirection) => void;
   projects: ProjectGroupType[];
   projectsLoading: boolean;
+  /** The aion-served list. Read once per hub mount so the Projects tab count
+   *  and the Projects list can never disagree about how many there are. */
+  aionProjects: AionProjectsView;
   triggers: Trigger[];
   triggersLoading: boolean;
   reloadTriggers: () => Promise<void>;
@@ -40,8 +44,6 @@ export type HomeHubContextValue = {
   onProjectDelete: (projectId: string) => void;
   onProjectRename: (projectId: string, newName: string) => void;
   activeTaskId?: string;
-  onOngoingTaskPause?: (taskId: string) => void;
-  onOngoingTaskResume?: (taskId: string) => void;
 };
 
 const HomeHubContext = createContext<HomeHubContextValue | null>(null);

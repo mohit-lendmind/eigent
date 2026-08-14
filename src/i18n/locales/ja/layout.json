@@ -525,5 +525,12 @@
   "support-download": "Download",
   "support-log-saved": "Log saved to {{path}}",
   "support-log-empty": "No log files found yet.",
-  "support-log-export-failed": "Could not export the log."
+  "support-log-export-failed": "Could not export the log.",
+  "home-list-model": "モデル",
+  "projects-status-idle": "待機中",
+  "projects-status-closed": "終了",
+  "projects-status-cancelled": "キャンセル",
+  "projects-backend-too-old": "プロジェクトを表示できません: 接続中のバックエンド (edge API {{version}}) はプロジェクト一覧に対応していません。ここに表示するにはバックエンドを更新してください。",
+  "projects-remote-error": "プロジェクトを読み込めませんでした: {{message}}",
+  "projects-load-more": "さらに読み込む"
 }

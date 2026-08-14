@@ -122,6 +122,12 @@ const SKILLS_MINIMUM_EDGE = [1, 4];
 // either way, so absence only carries meaning above the floor.
 const SKILL_USAGE_MINIMUM_EDGE = [1, 5];
 
+// The project list shipped in edge API 1.6.0. Below the floor the desktop has
+// no way to enumerate a tenant's Projects, so the Home list must say so rather
+// than render an empty list — "you have no projects" and "this backend cannot
+// tell me your projects" are opposite facts.
+const PROJECT_LIST_MINIMUM_EDGE = [1, 6];
+
 function meetsEdgeFloor(status: IntegrationStatus, floor: number[]): boolean {
   if (!negotiateCompatibility(status).compatible) {
     return false;
@@ -136,4 +142,8 @@ export function supportsSkills(status: IntegrationStatus): boolean {
 
 export function supportsSkillUsage(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, SKILL_USAGE_MINIMUM_EDGE);
+}
+
+export function supportsProjectList(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, PROJECT_LIST_MINIMUM_EDGE);
 }

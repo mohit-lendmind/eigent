@@ -11,6 +11,7 @@
   ],
   "responses": [
     "create_project_response.json",
+    "project_list_response.json",
     "submit_command_response.json",
     "models_catalog_response.json",
     "integration_status_response.json",

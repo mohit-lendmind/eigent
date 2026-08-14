@@ -10,8 +10,9 @@ sync), record the aion-v1 commit below, then run `pnpm gen:aion-edge` so the
 generated client under `../gen/` matches. `bazel test //:aion_edge_client_gen`
 fails until mirror and generated output agree.
 
-- Contract version: edge_api `1.5.0`
+- Contract version: edge_api `1.6.0`
 - Source path: `aion-v1/api/eigent/v1/`
-- Last synced from: aion-v1 commit `c840bdd` on main, together with
-  `test/fixtures/aion/eigent/v1/`. The spec files themselves last changed in
-  PR #157 (`skills: readable usage counters`); PR #158 only added a fixture.
+- Last synced from: aion-v1 commit `c919feb7c56e38ec10cccfcec67ebb1882935a33`
+  (the squash merge of aion-v1#165 onto main), which adds `GET /projects` and
+  the `ProjectList` schema, together with `test/fixtures/aion/eigent/v1/` (which
+  gains `project_list_response.json`).

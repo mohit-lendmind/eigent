@@ -525,5 +525,12 @@
   "support-download": "Download",
   "support-log-saved": "Log saved to {{path}}",
   "support-log-empty": "No log files found yet.",
-  "support-log-export-failed": "Could not export the log."
+  "support-log-export-failed": "Could not export the log.",
+  "home-list-model": "Modèle",
+  "projects-status-idle": "Inactif",
+  "projects-status-closed": "Fermé",
+  "projects-status-cancelled": "Annulé",
+  "projects-backend-too-old": "Les projets sont indisponibles : le backend connecté (edge API {{version}}) est antérieur à la liste des projets. Mettez à jour le backend pour les voir ici.",
+  "projects-remote-error": "Impossible de charger les projets : {{message}}",
+  "projects-load-more": "Charger plus"
 }

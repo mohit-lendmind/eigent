@@ -525,5 +525,12 @@
   "support-download": "Download",
   "support-log-saved": "Log saved to {{path}}",
   "support-log-empty": "No log files found yet.",
-  "support-log-export-failed": "Could not export the log."
+  "support-log-export-failed": "Could not export the log.",
+  "home-list-model": "模型",
+  "projects-status-idle": "閒置",
+  "projects-status-closed": "已關閉",
+  "projects-status-cancelled": "已取消",
+  "projects-backend-too-old": "無法顯示專案：已連線的後端（edge API {{version}}）尚不支援專案清單。請更新後端以在此檢視。",
+  "projects-remote-error": "無法載入專案：{{message}}",
+  "projects-load-more": "載入更多"
 }

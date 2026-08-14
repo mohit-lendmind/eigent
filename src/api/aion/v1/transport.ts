@@ -20,6 +20,7 @@ import type { components } from './gen/edge-api';
 type Schemas = components['schemas'];
 export type Project = Schemas['Project'];
 export type ProjectSnapshot = Schemas['ProjectSnapshot'];
+export type ProjectList = Schemas['ProjectList'];
 export type CreateProjectRequest = Schemas['CreateProjectRequest'];
 export type SubmitCommandRequest = Schemas['SubmitCommandRequest'];
 export type CommandReceipt = Schemas['CommandReceipt'];
@@ -90,6 +91,24 @@ export class EdgeTransport {
 
   getProject(projectId: string): Promise<ProjectSnapshot> {
     return this.json('GET', `/projects/${encodeURIComponent(projectId)}`);
+  }
+
+  /**
+   * One page of the tenant's Projects, newest first. Each entry is the same
+   * snapshot getProject serves, so a list row renders — and resumes its run —
+   * without a request per row. `pageToken` comes from a prior page's
+   * `next_page_token`; an absent token means this was the last page.
+   */
+  listProjects(
+    options: { pageSize?: number; pageToken?: string } = {}
+  ): Promise<ProjectList> {
+    const query = new URLSearchParams();
+    if (options.pageSize !== undefined) {
+      query.set('page_size', String(options.pageSize));
+    }
+    if (options.pageToken) query.set('page_token', options.pageToken);
+    const suffix = query.size > 0 ? `?${query}` : '';
+    return this.json('GET', `/projects${suffix}`);
   }
 
   submitCommand(

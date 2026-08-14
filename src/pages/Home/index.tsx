@@ -12,11 +12,10 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { fetchPut, proxyFetchDelete } from '@/api/http';
+import { proxyFetchDelete } from '@/api/http';
 import AlertDialog from '@/components/ui/alertDialog';
 import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import { share } from '@/lib/share';
-import { ChatTaskStatus } from '@/types/constants';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -27,6 +26,7 @@ import {
   type HomeSortDirection,
   type HomeViewMode,
 } from './context';
+import { useAionProjects } from './hooks/useAionProjects';
 import { useHomeHubCounts } from './hooks/useHomeHubCounts';
 import { useHomeHubProjects } from './hooks/useHomeHubProjects';
 import { useHomeHubTriggers } from './hooks/useHomeHubTriggers';
@@ -61,7 +61,15 @@ export default function HomeHub() {
     handleProjectDelete: hubHandleProjectDelete,
   } = useHomeHubProjects();
   const { triggers, triggersLoading, reloadTriggers } = useHomeHubTriggers();
-  const sectionCounts = useHomeHubCounts(projects);
+  const aionProjects = useAionProjects();
+  const sectionCounts = useHomeHubCounts(
+    projects,
+    // Only aion mode owns the count. A mode that cannot serve the list at all
+    // (too old, or erroring) contributes no number rather than a misleading 0.
+    aionProjects.mode?.kind === 'remote'
+      ? aionProjects.projects.length
+      : undefined
+  );
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteCallback, setDeleteCallback] = useState<() => void>(() => {});
@@ -176,26 +184,6 @@ export default function HomeHub() {
     share(taskId);
   };
 
-  const handleTakeControl = (type: 'pause' | 'resume', taskId: string) => {
-    if (!chatStore?.tasks?.[taskId]) return;
-
-    if (type === 'pause') {
-      let { taskTime, elapsed } = chatStore.tasks[taskId];
-      const now = Date.now();
-      elapsed += now - taskTime;
-      chatStore.setElapsed(taskId, elapsed);
-      chatStore.setTaskTime(taskId, 0);
-    } else {
-      chatStore.setTaskTime(taskId, Date.now());
-    }
-    fetchPut(`/task/${taskId}/take-control`, { action: type });
-    if (type === 'pause') {
-      chatStore.setStatus(taskId, ChatTaskStatus.PAUSE);
-    } else {
-      chatStore.setStatus(taskId, ChatTaskStatus.RUNNING);
-    }
-  };
-
   const hubContextValue = useMemo(
     () => ({
       viewMode,
@@ -208,6 +196,7 @@ export default function HomeHub() {
       setSortDirection,
       projects,
       projectsLoading,
+      aionProjects,
       triggers,
       triggersLoading,
       reloadTriggers,
@@ -217,10 +206,6 @@ export default function HomeHub() {
       onProjectDelete: handleProjectDelete,
       onProjectRename: handleProjectRename,
       activeTaskId: chatStore?.activeTaskId || undefined,
-      onOngoingTaskPause: (taskId: string) =>
-        handleTakeControl('pause', taskId),
-      onOngoingTaskResume: (taskId: string) =>
-        handleTakeControl('resume', taskId),
     }),
     // `handle*` callbacks aren't memoized themselves and the parent re-renders
     // are infrequent; include only the data dependencies React tracks here.
@@ -232,6 +217,7 @@ export default function HomeHub() {
       sortDirection,
       projects,
       projectsLoading,
+      aionProjects,
       triggers,
       triggersLoading,
       reloadTriggers,
