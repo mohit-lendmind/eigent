@@ -12,34 +12,64 @@
 //   - fewer tests collected than recorded -> tests were deleted, which would
 //     otherwise be a silent way to make the numbers look better
 //
-// The failure set is deterministic (verified across repeated full runs), so an
-// exact match is a fair thing to demand.
+// The failure set is deterministic within one environment (verified across
+// repeated full runs), so an exact match is a fair thing to demand. It is NOT
+// portable across Node majors: the baseline is recorded on the supported Node
+// line, and running the suite on an unsupported one produces failures that
+// belong to the runtime rather than to the code. This script says so rather
+// than letting them read as regressions.
 //
 // Usage:
 //   node scripts/check-vitest-baseline.mjs
 //   node scripts/check-vitest-baseline.mjs --update   # after fixing tests
 //   node scripts/check-vitest-baseline.mjs --report path/to/vitest.json
-//     (compare an existing JSON report instead of running the suite)
+//     (compare an existing JSON report instead of running the suite — this is
+//      how the baseline is regenerated from a CI run's uploaded report)
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BASELINE_PATH = path.join(REPO_ROOT, 'test', 'vitest-baseline.json');
+// Gitignored, and uploaded as a CI artifact so a failing run can be diagnosed
+// without re-running it.
+const REPORT_PATH = path.join(REPO_ROOT, 'test-results', 'vitest-report.json');
 
 const args = process.argv.slice(2);
 const update = args.includes('--update');
 const reportFlag = args.indexOf('--report');
 const existingReport = reportFlag === -1 ? null : args[reportFlag + 1];
 
-function runSuite() {
-  const outputFile = path.join(
-    fs.mkdtempSync(path.join(os.tmpdir(), 'vitest-baseline-')),
-    'report.json'
+/** The Node line the baseline was recorded on, from package.json engines. */
+function supportedNodeMajors() {
+  const { engines } = JSON.parse(
+    fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf-8')
   );
+  const range = engines?.node ?? '';
+  const min = Number(/>=\s*(\d+)/.exec(range)?.[1] ?? NaN);
+  const max = Number(/<\s*(\d+)/.exec(range)?.[1] ?? NaN);
+  return { min, max, range };
+}
+
+function warnOnUnsupportedNode() {
+  const { min, max, range } = supportedNodeMajors();
+  const current = Number(process.versions.node.split('.')[0]);
+  if (Number.isNaN(min) || Number.isNaN(max)) return;
+  if (current >= min && current < max) return;
+  console.error(
+    `WARNING: running on Node ${process.versions.node}, outside package.json ` +
+      `engines (${range}). The baseline is recorded on the supported line, so ` +
+      `differences reported below may belong to the runtime, not to your change.\n`
+  );
+}
+
+function runSuite() {
+  warnOnUnsupportedNode();
+  const outputFile = REPORT_PATH;
+  fs.mkdirSync(path.dirname(outputFile), { recursive: true });
   const vitest = path.join(REPO_ROOT, 'node_modules', '.bin', 'vitest');
   if (!fs.existsSync(vitest)) {
     console.error(`vitest not found at ${vitest} — run an install first.`);
@@ -57,7 +87,32 @@ function runSuite() {
     console.error(result.stdout?.slice(-4000) ?? '');
     process.exit(2);
   }
+  // Stamped beside the report so `--update --report` on a downloaded CI
+  // artifact records CI's runtime rather than the machine doing the download.
+  fs.writeFileSync(
+    path.join(path.dirname(outputFile), 'environment.json'),
+    `${JSON.stringify(currentEnvironment(), null, 2)}\n`
+  );
   return outputFile;
+}
+
+function currentEnvironment() {
+  return {
+    node: process.versions.node,
+    platform: `${process.platform}-${process.arch}`,
+  };
+}
+
+/** The runtime a report was produced on, from the sibling stamp if there is
+ *  one — a report handed over with `--report` may come from another machine. */
+function environmentOf(reportPath) {
+  const stamp = path.join(path.dirname(reportPath), 'environment.json');
+  if (!fs.existsSync(stamp)) return currentEnvironment();
+  try {
+    return JSON.parse(fs.readFileSync(stamp, 'utf-8'));
+  } catch {
+    return currentEnvironment();
+  }
 }
 
 /** Failing files -> count of failed assertions. A file that fails to collect
@@ -80,11 +135,13 @@ const reportPath = existingReport ?? runSuite();
 const report = JSON.parse(fs.readFileSync(reportPath, 'utf-8'));
 const actual = failuresByFile(report);
 const totalTests = report.numTotalTests ?? 0;
+const recordedOn = environmentOf(reportPath);
 
 if (update) {
   const next = {
     _comment:
-      'Pre-existing vitest failures inherited from upstream. Regenerate with `pnpm check:vitest-baseline -- --update` and explain the movement in your PR.',
+      'Pre-existing vitest failures inherited from upstream, as they fail in CI. Regenerate from a CI run: download the `test-results` artifact and run `pnpm check:vitest-baseline -- --update --report <path>`. Explain the movement in your PR.',
+    recordedOn,
     totalTests,
     totalFailedTests: report.numFailedTests ?? 0,
     failingFiles: Object.fromEntries(
@@ -134,6 +191,22 @@ if (totalTests < baseline.totalTests) {
   );
 }
 
+/** A differing runtime explains far more movement than any one change does, so
+ *  say it before the developer starts bisecting their own diff. */
+function environmentNote() {
+  const was = baseline.recordedOn;
+  if (!was) return '';
+  if (was.node === recordedOn.node && was.platform === recordedOn.platform) {
+    return '';
+  }
+  return (
+    `\nThis run is Node ${recordedOn.node} on ${recordedOn.platform}; the ` +
+    `baseline was recorded on Node ${was.node} / ${was.platform}. Differences ` +
+    `may belong to the runtime rather than to your change — the CI run is the ` +
+    `authority.\n`
+  );
+}
+
 if (regressions.length > 0) {
   console.error('vitest-baseline: FAILED — the suite got worse\n');
   for (const line of regressions) console.error(`  ${line}`);
@@ -141,6 +214,7 @@ if (regressions.length > 0) {
     console.error('\nalso improved (fix the regressions first, then --update):');
     for (const line of improvements) console.error(`  ${line}`);
   }
+  console.error(environmentNote());
   process.exit(1);
 }
 
@@ -148,8 +222,10 @@ if (improvements.length > 0) {
   console.error('vitest-baseline: FAILED — the suite improved, so tighten it\n');
   for (const line of improvements) console.error(`  ${line}`);
   console.error(
-    '\nRun `pnpm check:vitest-baseline -- --update` and commit the result.'
+    '\nIf this is a CI run, regenerate the baseline from its `test-results`' +
+      '\nartifact — `--update --report <path>` — and commit the result.'
   );
+  console.error(environmentNote());
   process.exit(1);
 }
 
