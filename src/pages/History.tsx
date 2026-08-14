@@ -17,8 +17,8 @@ import {
   isHistoryTabId,
   type HistoryTabId,
 } from '@/components/Dashboard/HistoryTabsNav';
+import WelcomeHeadline from '@/components/Dashboard/WelcomeHeadline';
 import AlertDialog from '@/components/ui/alertDialog';
-import WordCarousel from '@/components/ui/WordCarousel';
 import HomeHub from '@/pages/Home';
 import Setting from '@/pages/Setting';
 import { useAuthStore } from '@/store/authStore';
@@ -94,30 +94,6 @@ export default function History() {
     }
   };
 
-  const formatWelcomeName = (raw: string): string => {
-    if (!raw) return '';
-    if (/^[^@]+@gmail\.com$/i.test(raw)) {
-      const local = raw.split('@')[0];
-      const pretty = local.replace(/[._-]+/g, ' ').trim();
-      return pretty
-        .split(/\s+/)
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(' ');
-    }
-    return raw;
-  };
-
-  const welcomeName = formatWelcomeName(displayName);
-
-  /** User's local time: morning 5–12, afternoon 12–17, evening/night otherwise */
-  const hour = new Date().getHours();
-  const timeGreetingKey =
-    hour >= 5 && hour < 12
-      ? 'layout.greeting-morning'
-      : hour >= 12 && hour < 17
-        ? 'layout.greeting-afternoon'
-        : 'layout.greeting-evening';
-
   const confirmDelete = () => {
     setDeleteModalOpen(false);
   };
@@ -139,21 +115,7 @@ export default function History() {
           cancelText={t('layout.cancel')}
         />
         {/* welcome text */}
-        <div className="flex w-full flex-row bg-gradient-to-b from-ds-bg-neutral-default-default to-ds-bg-neutral-default-default px-[74px] py-8">
-          <p className="m-0 inline-flex flex-wrap items-baseline gap-2">
-            <WordCarousel
-              words={[t(timeGreetingKey)]}
-              className="history-welcome-headline text-heading-xl font-bold not-italic tracking-tight"
-              rotateIntervalMs={100}
-              sweepDurationMs={2000}
-              sweepOnce
-              gradient="linear-gradient(90deg, var(--ds-text-brand-subtle-default) 0%, var(--ds-text-brand-muted-default) 100%)"
-            />
-            <span className="history-welcome-headline text-heading-xl font-bold italic tracking-tight text-ds-text-brand-default-default">
-              {`, ${welcomeName} !`}
-            </span>
-          </p>
-        </div>
+        <WelcomeHeadline name={displayName} />
         {/* Navbar */}
         {/* -top-px avoids a visible hairline: at top-0 subpixel rounding can leave a gap; */}
         <div
