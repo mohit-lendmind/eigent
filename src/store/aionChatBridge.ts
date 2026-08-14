@@ -8,6 +8,7 @@
 
 import type {
   ProjectUIState,
+  RunUIStatus,
   TimelineEntry,
 } from '@/api/aion/v1/reducer';
 import {
@@ -329,6 +330,34 @@ function failLiveTurns(binding: ProjectBinding, message: string): void {
   }
 }
 
+/**
+ * Failure reasons the UI states in its own words instead of echoing the wire
+ * enum and the backend's message.
+ *
+ * A run stopped by its spending ceiling is the case that needs this: nothing
+ * broke, and — alone among the failures here — trying again cannot help, so
+ * the generic "Run failed: <error>" wording would send the user round a loop
+ * that reaches the same point. Reason strings are an open set, so anything
+ * unnamed keeps the generic wording rather than rendering nothing.
+ */
+const NAMED_RUN_FAILURES: Record<string, string> = {
+  REASON_RUN_BUDGET_EXHAUSTED:
+    '⏹️ Run stopped: budget exhausted. This run reached the spending limit set for it — raising that limit is what lets it continue; running it again will stop at the same point.',
+};
+
+/** The message shown when a run settles anything other than succeeded. */
+export function runTerminalMessage(
+  status: RunUIStatus,
+  outcomeReason: string | undefined,
+  outcomeDetail: string | undefined
+): string {
+  const named = outcomeReason ? NAMED_RUN_FAILURES[outcomeReason] : undefined;
+  if (named) return named;
+  const label = status === 'cancelled' ? '⏹️ Run cancelled' : '❌ Run failed';
+  const detail = outcomeDetail || outcomeReason;
+  return detail ? `${label}: ${detail}` : `${label}.`;
+}
+
 const RUN_TERMINAL: Record<string, true> = {
   succeeded: true,
   failed: true,
@@ -438,12 +467,14 @@ function projectTurn(
         });
       }
     } else {
-      const label = run.status === 'cancelled' ? '⏹️ Run cancelled' : '❌ Run failed';
-      const detail = run.outcomeDetail || run.outcomeReason;
       wanted.push({
         id: `aion:${turn.runId}:outcome`,
         role: 'agent',
-        content: detail ? `${label}: ${detail}` : `${label}.`,
+        content: runTerminalMessage(
+          run.status,
+          run.outcomeReason,
+          run.outcomeDetail
+        ),
       });
     }
   }

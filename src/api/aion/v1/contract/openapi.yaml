@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Eigent Desktop Edge API
-  version: 1.6.0
+  version: 1.7.0
   description: |
     Public, additive-only API used by the Eigent desktop application. The edge
     authenticates the device/user, enforces tenant policy, and projects private
@@ -238,6 +238,69 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/IntegrationStatus'}
         '401': {$ref: '#/components/responses/Problem'}
+  /usage:
+    get:
+      operationId: getUsage
+      tags: [usage]
+      description: |
+        What the authenticated tenant's settled runs cost. The figures come
+        from the product's own run rows, recorded when each run settled — not
+        from per-provider-turn accounting, which is turn bookkeeping rather
+        than a ledger. Cost is therefore settlement-granular: a run still in
+        flight contributes nothing and is absent from both the totals and the
+        page.
+
+        `totals` covers the whole window on every page, so a client that reads
+        one page still reads a true total. `runs` is a bounded newest-settled-
+        first page of the individual contributions behind it.
+      parameters:
+        - name: project_id
+          in: query
+          required: false
+          description: |
+            Narrow both the totals and the page to one Project. A Project that
+            is not the caller's is `404 not_found`, never an empty bill — a
+            zero here is a claim about the caller's own spend.
+          schema: {type: string, maxLength: 128}
+        - name: since
+          in: query
+          required: false
+          description: |
+            Inclusive start of the settlement-time window (RFC 3339). Unset
+            means open, and the window is half-open, so adjacent windows
+            partition a tenant's runs without double-billing a boundary run.
+          schema: {type: string, format: date-time}
+        - name: until
+          in: query
+          required: false
+          description: |
+            Exclusive end of the settlement-time window (RFC 3339). Must be
+            later than `since`; an empty or inverted window is refused with
+            `400 invalid_argument` rather than answered as a confident zero.
+          schema: {type: string, format: date-time}
+        - name: page_size
+          in: query
+          required: false
+          description: |
+            Per-run entries per page (default 50). Bounds the detail page only;
+            the totals never depend on it.
+          schema: {type: integer, minimum: 1, maximum: 200}
+        - name: page_token
+          in: query
+          required: false
+          description: |
+            Opaque continuation from a prior response's `next_page_token`. One
+            this server cannot decode is `400 invalid_cursor`.
+          schema: {type: string, maxLength: 512}
+      responses:
+        '200':
+          description: Settled spend for the window
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UsageSummary'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
   /projects/{projectId}/artifacts/{artifactId}:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
@@ -511,6 +574,66 @@ components:
             Absent on the last page. When present there are entries behind it —
             the server reads one row past the page to know — so a client may
             offer "load more" without a speculative fetch.
+      additionalProperties: true
+    UsageSummary:
+      type: object
+      required: [totals, runs]
+      properties:
+        totals: {$ref: '#/components/schemas/UsageTotals'}
+        runs:
+          type: array
+          items: {$ref: '#/components/schemas/RunSpend'}
+        next_page_token:
+          type: string
+          description: |
+            Absent on the last page of per-run detail. It pages `runs` only —
+            `totals` is identical on every page.
+      additionalProperties: true
+    UsageTotals:
+      type: object
+      required: [cost_micro_usd, provider_calls, runs_settled, runs_unrecorded]
+      properties:
+        cost_micro_usd:
+          type: string
+          pattern: '^[0-9]+$'
+          description: |
+            Micro-USD (1e-6 USD) summed over the window's settled runs.
+        provider_calls:
+          type: string
+          pattern: '^[0-9]+$'
+          description: |
+            Metered provider calls behind that cost. Read the two together: a
+            non-zero call count beside a zero cost means the alias carries no
+            price list, which is UNPRICED, not free.
+        runs_settled:
+          type: string
+          pattern: '^[0-9]+$'
+          description: |
+            Terminal runs in the window. A live run is excluded — its spend is
+            not settled and billing it would report a figure that later changes.
+        runs_unrecorded:
+          type: string
+          pattern: '^[0-9]+$'
+          description: |
+            Settled runs carrying no figure at all. They contribute nothing to
+            the sums above, so a non-zero value here means the totals are a
+            FLOOR; a surface that drops this term shows a partial sum as the
+            whole bill.
+      additionalProperties: true
+    RunSpend:
+      type: object
+      required: [run_id, project_id, status]
+      description: |
+        One settled run's contribution. `cost_micro_usd` and `provider_calls`
+        are OMITTED together when nothing was recorded for the run — that
+        absence is what a client renders as pending, never as a cost of zero.
+      properties:
+        run_id: {type: string}
+        project_id: {type: string}
+        status: {type: string}
+        ended_at: {type: string, format: date-time}
+        cost_micro_usd: {type: string, pattern: '^[0-9]+$'}
+        provider_calls: {type: string, pattern: '^[0-9]+$'}
       additionalProperties: true
     SubmitCommandRequest:
       type: object

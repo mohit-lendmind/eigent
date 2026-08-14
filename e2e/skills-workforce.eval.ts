@@ -603,7 +603,15 @@ const SELECTED_OFF = /(^|\s)opacity-(60|50)(\s|$)/;
  */
 async function scopeToAgent(page: Page, skill: WorkforceSkill): Promise<void> {
   const row = byId(page, `skill-row-${skill.name}`);
-  await row.getByRole('button', { name: 'Select agent access' }).click();
+  // Wait on the panel rather than on the click: the chips below are unfindable
+  // until it is open, and a missing chip reads as a scoping failure.
+  const panel = byId(page, `skill-scope-${skill.name}`);
+  await expect(async () => {
+    if (!(await panel.isVisible())) {
+      await row.getByRole('button', { name: 'Select agent access' }).click();
+    }
+    await expect(panel).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
   const allAgents = row.getByRole('button', {
     name: 'All Agents',
     exact: true,

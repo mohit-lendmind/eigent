@@ -59,8 +59,16 @@ export function useAionMode(): AionMode {
 export function visibleInMode<T extends { id: string }>(
   items: readonly T[],
   mode: AionMode,
-  legacyOnly: readonly string[]
+  legacyOnly: readonly string[],
+  aionOnly: readonly string[] = []
 ): T[] {
-  if (mode === 'legacy') return [...items];
-  return items.filter((item) => !legacyOnly.includes(item.id));
+  if (mode === 'legacy') {
+    return items.filter((item) => !aionOnly.includes(item.id));
+  }
+  if (mode === 'aion') {
+    return items.filter((item) => !legacyOnly.includes(item.id));
+  }
+  return items.filter(
+    (item) => !legacyOnly.includes(item.id) && !aionOnly.includes(item.id)
+  );
 }

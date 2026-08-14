@@ -50,7 +50,7 @@ import { toast } from 'sonner';
 import { useHomeHub } from '../context';
 import { defaultSortDirectionForField, type HomeSortBy } from '../utils';
 
-type HomeSection = 'spaces' | 'projects' | 'tasks' | 'triggers';
+type HomeSection = 'spaces' | 'projects' | 'tasks' | 'triggers' | 'usage';
 
 type HomeHubToolbarProps = {
   activeTab: HomeSection;
@@ -58,7 +58,9 @@ type HomeHubToolbarProps = {
   menuItems: Array<{
     id: HomeSection;
     name: string;
-    count: number;
+    /** Omitted where no honest number exists — a paged list has a page count,
+     *  not a total, and badging one as the other understates the section. */
+    count?: number;
   }>;
 };
 
@@ -67,6 +69,7 @@ const SEARCH_PLACEHOLDER_KEYS: Record<HomeSection, string> = {
   projects: 'layout.search-projects',
   tasks: 'layout.search-tasks',
   triggers: 'layout.search-triggers',
+  usage: 'layout.search-usage',
 };
 
 export default function HomeHubToolbar({
@@ -211,9 +214,11 @@ export default function HomeHubToolbar({
           {menuItems.map((menu) => (
             <TabsTrigger key={menu.id} value={menu.id}>
               <span className="text-label-sm font-semibold">{menu.name}</span>
-              <span className="rounded-full bg-ds-bg-brand-subtle-disabled px-1.5 text-label-xs font-normal tabular-nums text-ds-text-brand-strong-default">
-                {menu.count}
-              </span>
+              {menu.count === undefined ? null : (
+                <span className="rounded-full bg-ds-bg-brand-subtle-disabled px-1.5 text-label-xs font-normal tabular-nums text-ds-text-brand-strong-default">
+                  {menu.count}
+                </span>
+              )}
             </TabsTrigger>
           ))}
         </TabsList>

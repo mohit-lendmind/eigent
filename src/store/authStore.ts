@@ -580,12 +580,16 @@ queueMicrotask(() => {
 // constant definition
 const EMPTY_LIST: Agent[] = [];
 
-// worker list - use in React components
-export const useWorkerList = (): Agent[] => {
-  const { email, workerListData } = getAuthStore();
-  const workerList = workerListData[email as string];
-  return workerList ?? EMPTY_LIST;
-};
+// worker list - use in React components. Subscribes, rather than reading
+// getAuthStore() once: a plain read returns whatever the list was at render
+// time and never brings the component back when the list arrives, so a screen
+// that mounted before the workers loaded keeps showing the empty one until
+// something unrelated re-renders it. EMPTY_LIST is a constant so the missing
+// case keeps a stable identity and does not re-render on every store change.
+export const useWorkerList = (): Agent[] =>
+  useAuthStore(
+    (state) => state.workerListData[state.email as string] ?? EMPTY_LIST
+  );
 
 // worker list - use outside React (e.g. in store actions)
 export const getWorkerList = (): Agent[] => {

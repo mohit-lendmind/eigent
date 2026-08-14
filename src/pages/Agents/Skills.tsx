@@ -20,7 +20,12 @@ import {
   getAionSyncUpCandidates,
 } from '@/store/aionSkillsStore';
 import { useSkillsStore, type Skill } from '@/store/skillsStore';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import {
+  AnimatePresence,
+  motion,
+  useReducedMotion,
+  type MotionProps,
+} from 'framer-motion';
 import { AlertCircle, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -134,91 +139,79 @@ export default function Skills() {
     setSkillToDelete(null);
   };
 
+  // `animateChanges` selects motion props, never the tree SHAPE. Swapping the
+  // shape — wrappers appearing or disappearing around the rows — makes React
+  // unmount and remount every row, and a remount throws away what the row is
+  // holding: an open scope popover, a focused control, a half-made choice. The
+  // flag flips the moment the first sync settles, which is exactly when
+  // someone is most likely to be mid-interaction.
   const renderYourSkills = (animateChanges: boolean) => {
-    if (!animateChanges) {
-      return yourSkills.length === 0 ? (
-        <SkillListItem
-          variant="placeholder"
-          message={
-            searchQuery
-              ? t('agents.no-skills-found')
-              : t('agents.no-your-skills')
-          }
-          addButtonText={
-            !searchQuery ? t('agents.add-your-first-skill') : undefined
-          }
-          onAddClick={
-            !searchQuery
-              ? () => {
-                  setSkillDialogMode('upload');
-                  setUploadDialogOpen(true);
-                }
-              : undefined
-          }
-        />
-      ) : (
-        <div className="flex flex-col gap-3">
-          {yourSkills.map((skill) => (
-            <SkillListItem
-              key={skill.id}
-              skill={skill}
-              onDelete={() => handleDeleteClick(skill)}
-            />
-          ))}
-        </div>
-      );
-    }
+    const still: MotionProps = { initial: false, transition: { duration: 0 } };
+    const rowMotion: MotionProps = animateChanges
+      ? {
+          initial: {
+            opacity: 0,
+            transform: shouldReduceMotion
+              ? 'translateY(0px)'
+              : 'translateY(8px)',
+          },
+          animate: { opacity: 1, transform: 'translateY(0px)' },
+          exit: {
+            opacity: 0,
+            transform: shouldReduceMotion
+              ? 'translateY(0px)'
+              : 'translateY(-4px)',
+            transition: {
+              duration: 0.16,
+              ease: [0.23, 1, 0.32, 1],
+            },
+          },
+          transition: {
+            duration: shouldReduceMotion ? 0.16 : 0.2,
+            ease: [0.23, 1, 0.32, 1],
+          },
+        }
+      : still;
+    const placeholderMotion: MotionProps = animateChanges
+      ? {
+          initial: { opacity: 0 },
+          animate: { opacity: 1 },
+          exit: { opacity: 0 },
+          transition: {
+            duration: 0.16,
+            ease: [0.23, 1, 0.32, 1],
+          },
+        }
+      : still;
 
     return (
       <div className="flex flex-col gap-3">
         <AnimatePresence mode="popLayout" initial={false}>
           {yourSkills.length === 0 ? (
-            <motion.div
-              key="your-skills-placeholder"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{
-                duration: 0.16,
-                ease: [0.23, 1, 0.32, 1],
-              }}
-            >
+            <motion.div key="your-skills-placeholder" {...placeholderMotion}>
               <SkillListItem
                 variant="placeholder"
-                message={t('agents.no-your-skills')}
-                addButtonText={t('agents.add-your-first-skill')}
-                onAddClick={() => {
-                  setSkillDialogMode('upload');
-                  setUploadDialogOpen(true);
-                }}
+                message={
+                  searchQuery
+                    ? t('agents.no-skills-found')
+                    : t('agents.no-your-skills')
+                }
+                addButtonText={
+                  !searchQuery ? t('agents.add-your-first-skill') : undefined
+                }
+                onAddClick={
+                  !searchQuery
+                    ? () => {
+                        setSkillDialogMode('upload');
+                        setUploadDialogOpen(true);
+                      }
+                    : undefined
+                }
               />
             </motion.div>
           ) : (
             yourSkills.map((skill) => (
-              <motion.div
-                key={skill.id}
-                initial={{
-                  opacity: 0,
-                  transform: shouldReduceMotion
-                    ? 'translateY(0px)'
-                    : 'translateY(8px)',
-                }}
-                animate={{ opacity: 1, transform: 'translateY(0px)' }}
-                exit={{
-                  opacity: 0,
-                  transform: shouldReduceMotion
-                    ? 'translateY(0px)'
-                    : 'translateY(-4px)',
-                  transition: {
-                    duration: 0.16,
-                    ease: [0.23, 1, 0.32, 1],
-                  },
-                }}
-                transition={{
-                  duration: shouldReduceMotion ? 0.16 : 0.2,
-                  ease: [0.23, 1, 0.32, 1],
-                }}
-              >
+              <motion.div key={skill.id} {...rowMotion}>
                 <SkillListItem
                   skill={skill}
                   onDelete={() => handleDeleteClick(skill)}

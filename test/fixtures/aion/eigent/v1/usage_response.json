@@ -1,0 +1,33 @@
+{
+  "totals": {
+    "cost_micro_usd": "12000",
+    "provider_calls": "5",
+    "runs_settled": "3",
+    "runs_unrecorded": "1"
+  },
+  "runs": [
+    {
+      "run_id": "run_01JY0000000000000000000003",
+      "project_id": "prj_01JY0000000000000000000001",
+      "status": "succeeded",
+      "ended_at": "2026-08-14T11:04:12Z",
+      "cost_micro_usd": "12000",
+      "provider_calls": "3"
+    },
+    {
+      "run_id": "run_01JY0000000000000000000002",
+      "project_id": "prj_01JY0000000000000000000002",
+      "status": "failed",
+      "ended_at": "2026-08-14T10:41:07Z",
+      "cost_micro_usd": "0",
+      "provider_calls": "2"
+    },
+    {
+      "run_id": "run_01JY0000000000000000000001",
+      "project_id": "prj_01JY0000000000000000000002",
+      "status": "succeeded",
+      "ended_at": "2026-08-14T09:58:33Z"
+    }
+  ],
+  "next_page_token": "Y3JlYXRlZC1hdC1jdXJzb3I"
+}
