@@ -34,9 +34,13 @@ source gate. The Bazel `//:lint` suite runs only the first two — the source ga
 scans git-tracked files, which no Bazel filegroup here declares. Run `pnpm lint`
 as well, not just the Bazel suite.
 
-GitHub Actions currently enforces `type-check`, the Electron access guard and
-`check:design-tokens` only. Everything else is on you locally. Treat that as a
-gap to close, not as permission to skip a check.
+**Nothing is enforced for you.** The workflows inherited from upstream are
+registered and marked active, but they have never executed in this fork — zero
+runs, across every PR merged so far. Do not read a green PR as a passing build;
+there is no build. The commands above are the only gate, so run them and put
+their output in the PR.
+
+Wiring up CI is worth doing. Until it is, treat the local run as mandatory.
 
 `pnpm test` and `tsc -p tsconfig.json` have known-failing baselines inherited
 from upstream — see
