@@ -67,19 +67,14 @@ describe('validateEdgeBaseUrl', () => {
 });
 
 describe('resolveRemoteBackend', () => {
-  it('resolves local mode when the URL is unset or blank', () => {
-    expect(resolveRemoteBackend({}, noFile)).toEqual({ mode: 'local' });
-    expect(
-      resolveRemoteBackend({ [REMOTE_BACKEND_URL_ENV]: '   ' }, noFile)
-    ).toEqual({ mode: 'local' });
-  });
-
-  it('never resolves local mode in a thin build', () => {
-    const result = resolveRemoteBackend({}, noFile, { thinBuild: true });
-    expect(result.mode).toBe('remote-invalid');
-    expect(result).toMatchObject({
-      error: expect.stringContaining('no local backend'),
-    });
+  it('refuses to resolve when the URL is unset or blank', () => {
+    for (const env of [{}, { [REMOTE_BACKEND_URL_ENV]: '   ' }]) {
+      const result = resolveRemoteBackend(env, noFile);
+      expect(result.mode).toBe('remote-invalid');
+      expect(result).toMatchObject({
+        error: expect.stringContaining('no backend configured'),
+      });
+    }
   });
 
   it('resolves remote mode from a direct API key', () => {
@@ -181,10 +176,7 @@ describe('resolveRemoteBackend', () => {
 });
 
 describe('rendererTransportConfig', () => {
-  it('passes through local and valid remote configurations', () => {
-    expect(rendererTransportConfig({ mode: 'local' })).toEqual({
-      mode: 'local',
-    });
+  it('passes a valid remote configuration through', () => {
     expect(
       rendererTransportConfig({
         mode: 'remote',

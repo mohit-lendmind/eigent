@@ -39,17 +39,8 @@ const Layout = () => {
   //Get Chatstore for the active project's task
   const { chatStore } = useChatStoreAdapter();
 
-  const {
-    installationState,
-    latestLog,
-    error,
-    backendError,
-    isInstalling,
-    isBackendReady,
-    shouldShowInstallScreen,
-    retryInstallation,
-    retryBackend,
-  } = useInstallationUI();
+  const { backendError, isBackendReady, shouldShowInstallScreen } =
+    useInstallationUI();
 
   useInstallationSetup();
 
@@ -80,8 +71,8 @@ const Layout = () => {
     };
   }, [chatStore, host]);
 
-  // Show install screen if: installation UI is active, user hasn't finished setup,
-  // or backend hasn't passed health check yet.
+  // Show the startup screen if: it is still active, the user hasn't finished
+  // setup, or the backend hasn't reported ready yet.
   // isBackendReady defaults to false on each app launch (non-persisted),
   // so the main UI is gated until health check passes — no race condition.
   // Also wait for first-launch onboarding to be completed before showing main UI.
@@ -115,16 +106,7 @@ const Layout = () => {
           </>
         )}
 
-        {(backendError || (error && installationState === 'error')) && (
-          <InstallationErrorDialog
-            error={error || ''}
-            backendError={backendError}
-            installationState={installationState}
-            latestLog={latestLog}
-            retryInstallation={retryInstallation}
-            retryBackend={retryBackend}
-          />
-        )}
+        {backendError && <InstallationErrorDialog backendError={backendError} />}
 
         <CloseNoticeDialog onOpenChange={setNoticeOpen} open={noticeOpen} />
       </div>

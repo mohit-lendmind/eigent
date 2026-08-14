@@ -16,73 +16,34 @@ import {
   Dialog,
   DialogContent,
   DialogContentSection,
-  DialogFooter,
   DialogHeader,
 } from '@/components/ui/dialog';
 import { t } from 'i18next';
 
 interface InstallationErrorDialogProps {
-  error: string;
-  backendError?: string;
-  installationState: string;
-  latestLog: any;
-  retryInstallation: () => void;
-  retryBackend?: () => void;
+  backendError: string;
 }
 
+// The only way startup fails is an unusable aion edge configuration, which is
+// read from the environment at main-process start — so there is nothing the
+// user can retry from here; the message names what to fix.
 const InstallationErrorDialog = ({
-  error,
   backendError,
-  installationState,
-  latestLog: _latestLog,
-  retryInstallation,
-  retryBackend,
-}: InstallationErrorDialogProps) => {
-  if (backendError) {
-    return (
-      <Dialog open={true}>
-        <DialogContent size="sm">
-          <DialogHeader title={t('layout.backend-startup-failed')} />
-          <DialogContentSection>
-            <div className="text-body-sm font-normal leading-normal text-ds-text-neutral-muted-default">
-              <div className="mb-1">
-                <span className="text-ds-text-neutral-muted-default">
-                  {backendError}
-                </span>
-              </div>
-            </div>
-          </DialogContentSection>
-          <DialogFooter
-            showConfirmButton
-            confirmButtonText={t('layout.retry')}
-            onConfirm={retryBackend}
-          />
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  return (
-    <Dialog open={installationState == 'error'}>
-      <DialogContent size="sm">
-        <DialogHeader title={t('layout.installation-failed')} />
-        <DialogContentSection>
-          <div className="text-body-sm font-normal leading-normal text-ds-text-neutral-muted-default">
-            <div className="mb-1">
-              <span className="text-ds-text-neutral-muted-default">
-                {error}
-              </span>
-            </div>
+}: InstallationErrorDialogProps) => (
+  <Dialog open={true}>
+    <DialogContent size="sm">
+      <DialogHeader title={t('layout.backend-startup-failed')} />
+      <DialogContentSection>
+        <div className="text-body-sm font-normal leading-normal text-ds-text-neutral-muted-default">
+          <div className="mb-1">
+            <span className="text-ds-text-neutral-muted-default">
+              {backendError}
+            </span>
           </div>
-        </DialogContentSection>
-        <DialogFooter
-          showConfirmButton
-          confirmButtonText={t('layout.retry')}
-          onConfirm={retryInstallation}
-        />
-      </DialogContent>
-    </Dialog>
-  );
-};
+        </div>
+      </DialogContentSection>
+    </DialogContent>
+  </Dialog>
+);
 
 export default InstallationErrorDialog;

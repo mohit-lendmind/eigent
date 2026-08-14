@@ -11,16 +11,8 @@
     "dist-electron",
     "dist",
     "resources",
-    "!resources/prebuilt",
     "!resources/example-skills",
-    "!backend",
     "!dist/images",
-    "!**/__pycache__",
-    "!**/*.py",
-    "!**/*.pyc",
-    "!**/*.pyo",
-    "!**/*.pyi",
-    "!server",
     "!docs"
   ],
   "protocols": [
@@ -38,7 +30,6 @@
     }
   ],
   "icon": "build/icon.ico",
-  "afterPack": "./config/before-sign.cjs",
   "afterSign": "./config/notarize.cjs",
   "mac": {
     "icon": "build/icon.icns",
@@ -49,11 +40,6 @@
     "gatekeeperAssess": false,
     "notarize": false,
     "signIgnore": [
-      ".*\\.py$",
-      ".*\\.pyc$",
-      ".*\\.pyo$",
-      ".*\\.pyi$",
-      ".*\\.typed$",
       ".*\\.txt$",
       ".*\\.md$",
       ".*\\.rst$",

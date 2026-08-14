@@ -54,20 +54,7 @@ export function ConnectionProvider({
 
     const resolveEndpoint = async () => {
       let resolvedEndpoint = '';
-      if (hasDesktop && host?.electronAPI?.getBackendPort) {
-        try {
-          const port = await host.electronAPI.getBackendPort();
-          if (port && port > 0) {
-            resolvedEndpoint = `http://localhost:${port}`;
-            setConnectionConfig({ brainEndpoint: resolvedEndpoint });
-            return resolvedEndpoint;
-          }
-        } catch {
-          // IPC not ready
-        }
-        return resolvedEndpoint;
-      }
-      // Web: VITE_BRAIN_ENDPOINT (dev default http://localhost:5001)
+      // VITE_BRAIN_ENDPOINT (dev default http://localhost:5001)
       const envEndpoint = getDefaultBrainEndpoint();
       if (envEndpoint && typeof envEndpoint === 'string') {
         resolvedEndpoint = envEndpoint.replace(/\/$/, '');

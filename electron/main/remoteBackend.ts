@@ -1,12 +1,10 @@
-// Remote-backend Electron mode (doc 10 §10 WP3): the desktop talks to a
-// remotely configured aion edge instead of supervising a local Python
-// backend. This module is the pure policy — endpoint validation and config
-// resolution — kept free of Electron imports so it is unit-testable.
+// The desktop's only backend is a remotely configured aion edge. This module
+// is the pure policy — endpoint validation and config resolution — kept free
+// of Electron imports so it is unit-testable.
 //
-// Mode is decided ONCE at main-process startup from the environment. A set
-// but invalid configuration is `remote-invalid`, never a silent fallback to
-// legacy local mode: half-configured remote intent must fail visibly, not
-// spawn uvicorn.
+// Configuration is resolved ONCE at main-process startup from the
+// environment. Absent or invalid configuration is `remote-invalid`: there is
+// no other backend to fall back to, so it must fail visibly.
 
 export const REMOTE_BACKEND_URL_ENV = 'EIGENT_REMOTE_BACKEND_URL';
 export const REMOTE_BACKEND_API_KEY_ENV = 'EIGENT_REMOTE_BACKEND_API_KEY';
@@ -14,7 +12,6 @@ export const REMOTE_BACKEND_API_KEY_FILE_ENV =
   'EIGENT_REMOTE_BACKEND_API_KEY_FILE';
 
 export type RemoteBackendResolution =
-  | { mode: 'local' }
   | { mode: 'remote'; edgeBaseUrl: string; apiKey: string }
   | { mode: 'remote-invalid'; error: string };
 
@@ -23,7 +20,6 @@ export type RemoteBackendResolution =
  * Nothing else about the main-process environment crosses the bridge.
  */
 export type RendererTransportConfig =
-  | { mode: 'local' }
   | { mode: 'remote'; edgeBaseUrl: string; apiKey: string }
   | { mode: 'remote'; error: string };
 
@@ -71,28 +67,20 @@ export function validateEdgeBaseUrl(raw: string): string {
 }
 
 /**
- * Resolves the backend mode from the environment. `readFile` is injected so
- * the key-file path stays testable; the caller passes fs.readFileSync.
- * When both key sources are set, the direct key wins.
- *
- * A thin build carries no local Brain, so `local` is not a mode it can run:
- * absent remote configuration resolves to `remote-invalid` with an
- * actionable error instead of a backend that can never start.
+ * Resolves the edge configuration from the environment. `readFile` is
+ * injected so the key-file path stays testable; the caller passes
+ * fs.readFileSync. When both key sources are set, the direct key wins.
  */
 export function resolveRemoteBackend(
   env: Record<string, string | undefined>,
-  readFile: (path: string) => string,
-  { thinBuild = false }: { thinBuild?: boolean } = {}
+  readFile: (path: string) => string
 ): RemoteBackendResolution {
   const rawUrl = env[REMOTE_BACKEND_URL_ENV]?.trim();
   if (!rawUrl) {
-    if (thinBuild) {
-      return {
-        mode: 'remote-invalid',
-        error: `this build has no local backend: set ${REMOTE_BACKEND_URL_ENV} and an API key via ${REMOTE_BACKEND_API_KEY_ENV} or ${REMOTE_BACKEND_API_KEY_FILE_ENV}`,
-      };
-    }
-    return { mode: 'local' };
+    return {
+      mode: 'remote-invalid',
+      error: `no backend configured: set ${REMOTE_BACKEND_URL_ENV} and an API key via ${REMOTE_BACKEND_API_KEY_ENV} or ${REMOTE_BACKEND_API_KEY_FILE_ENV}`,
+    };
   }
 
   let edgeBaseUrl: string;
@@ -139,8 +127,6 @@ export function rendererTransportConfig(
   resolution: RemoteBackendResolution
 ): RendererTransportConfig {
   switch (resolution.mode) {
-    case 'local':
-      return { mode: 'local' };
     case 'remote':
       return {
         mode: 'remote',

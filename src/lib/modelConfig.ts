@@ -89,7 +89,7 @@ export function formatModelConfigJson(value: unknown): string {
 }
 
 /**
- * Separate the reserved CAMEL model configuration from provider constructor
+ * Separate the reserved model configuration from provider constructor
  * parameters stored in the provider's existing `encrypted_config` JSON field.
  */
 export function splitProviderConfig(config: unknown): {

@@ -83,7 +83,6 @@ filegroup(
     ] + glob([
         "electron/*.ts",
         "public/**",
-        "resources/scripts/**",
         "scripts/**",
         "*.json",
         "*.js",
@@ -94,19 +93,15 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
-# Thin-package inputs (doc 10 §11 WP1): no backend/ and no resources/prebuilt
-# — the release package carries no local-backend payload. The fat legacy
-# comparison build is npm-script-only (build:legacy) and has no Bazel path.
+# Package inputs (doc 10 §11 WP1). The fork carries no local-backend payload
+# at all — there is no Python tree and no prebuilt interpreter to exclude.
 filegroup(
     name = "package_inputs",
-    srcs = glob(
-        [
-            "build/**",
-            "config/**",
-            "resources/**",
-        ],
-        exclude = ["resources/prebuilt/**"],
-    ) + [
+    srcs = glob([
+        "build/**",
+        "config/**",
+        "resources/**",
+    ]) + [
         "electron-builder.json",
         "entitlements.mac.plist",
         "package.json",
@@ -215,7 +210,7 @@ vitest_bin.vitest_test(
 # depending on :prebuild_compile instead would copy the same sources to bin
 # from both the test and the trimmed configuration — an action conflict).
 # Manual by design; run it with the stack up, from the repo root:
-#   bazel test //desktop:e2e_aion_lab --test_output=streamed \
+#   bazel test //:e2e_aion_lab --test_output=streamed \
 #     --test_env=HOME --test_env=PATH \
 #     --test_env=EIGENT_E2E_APP_DIR=$PWD \
 #     --test_env=EIGENT_E2E_BOOTSTRAP=/abs/path/to/aion-v1/deploy/eigent-local/run/bootstrap.json \
@@ -262,10 +257,6 @@ vite_bin.vite(
     name = "prebuild_compile",
     args = ["build"],
     chdir = package_name(),
-    # The Bazel pipeline always builds the THIN release (doc 10 §11 WP1):
-    # __EIGENT_THIN__ is defined true so Rollup dead-code-eliminates the
-    # Brain lifecycle from main and preload bundles.
-    env = {"EIGENT_THIN_BUILD": "1"},
     out_dirs = [
         "dist",
         "dist-electron",

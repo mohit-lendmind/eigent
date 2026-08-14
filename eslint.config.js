@@ -81,12 +81,8 @@ export default [
       // Generated aion edge client — byte-exact with the contract mirror
       // (bazel test //:aion_edge_client_gen); no rewriting tool may touch it
       'src/api/aion/v1/gen/**',
-      // Python files
+      // Skill payloads that run in the aion cell, not desktop source
       '**/*.py',
-      '__pycache__/**',
-      '**/.venv/**',
-      // Prebuilt resources
-      'resources/prebuilt/**',
       // Archive (pre-refactor snapshots)
       'archive/**',
     ],

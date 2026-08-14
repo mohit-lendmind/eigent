@@ -41,17 +41,12 @@ describe('filterVisibleAgentFiles', () => {
         relativePath: 'task_task_9cf6edb4be72400eb48338bb387',
       },
       {
-        name: 'events.jsonl',
-        path: '/Users/test/.eigent/user/project_p/task_1/camel_logs/events.jsonl',
-        relativePath: 'task_1/camel_logs/events.jsonl',
-      },
-      {
         name: 'trace.jsonl',
         path: '/Users/test/.eigent/user/project_p/task_1/trace.jsonl',
-        source: 'camel_log',
+        relativePath: 'task_1/trace.jsonl',
       },
     ];
 
-    expect(filterVisibleAgentFiles(files)).toEqual([files[0]]);
+    expect(filterVisibleAgentFiles(files)).toEqual([files[0], files[4]]);
   });
 });

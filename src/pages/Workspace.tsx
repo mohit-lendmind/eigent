@@ -12,7 +12,6 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { checkLocalServerStale } from '@/api/http';
 import {
   DashedLinesBackground,
   DotPatternBackground,
@@ -401,10 +400,6 @@ export default function WorkspacePage() {
       setTriggerSelectedId(pendingTriggerSelectId);
     }
   }, [pendingTriggerSelectId, triggerSelectRequestId]);
-
-  useEffect(() => {
-    checkLocalServerStale();
-  }, []);
 
   // Project-scoped tabs (except new-project shell) require an active project.
   // When opening inbox/runs/project from the workspace tab without a selection,

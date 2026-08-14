@@ -21,8 +21,6 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { useHost } from '@/host';
-import { useAuthStore } from '@/store/authStore';
-import { useProjectRuntimeStore } from '@/store/projectRuntimeStore';
 import { Download, ExternalLink, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -42,50 +40,28 @@ interface ReportBugDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type LogKind = 'eigent' | 'camel';
-
 export default function ReportBugDialog({
   open,
   onOpenChange,
 }: ReportBugDialogProps) {
   const host = useHost();
   const { t } = useTranslation();
-  const email = useAuthStore((s) => s.email);
-  const userId = useAuthStore((s) => s.user_id);
-  const projectStore = useProjectRuntimeStore();
   const [description, setDescription] = useState('');
   const [steps, setSteps] = useState('');
   const [meta, setMeta] = useState<DiagnosticsInfo | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [exportingLog, setExportingLog] = useState<LogKind | null>(null);
+  const [exportingLog, setExportingLog] = useState(false);
 
   const hasElectron = Boolean(host?.electronAPI?.exportDiagnosticsZip);
   const canDownloadLogs = Boolean(host?.electronAPI?.exportLog);
 
   const handleDownloadLog = useCallback(
-    async (kind: LogKind) => {
+    async () => {
       const api = host?.electronAPI;
       if (!api || exportingLog) return;
-      setExportingLog(kind);
+      setExportingLog(true);
       try {
-        let result;
-        if (kind === 'eigent') {
-          result = await api.exportLog();
-        } else {
-          // Target the task the user last ran so we grab the right camel_logs.
-          const activeProjectId = projectStore.activeProjectId ?? undefined;
-          const activeTaskId =
-            (activeProjectId
-              ? projectStore.peekActiveChatStore(activeProjectId)
-              : null
-            )?.getState().activeTaskId ?? undefined;
-          result = await api.exportCamelLog(
-            email,
-            activeTaskId,
-            activeProjectId,
-            userId
-          );
-        }
+        const result = await api.exportLog();
         if (result?.success && result.savedPath) {
           toast.success(
             t('layout.support-log-saved', {
@@ -114,10 +90,10 @@ export default function ReportBugDialog({
           })
         );
       } finally {
-        setExportingLog(null);
+        setExportingLog(false);
       }
     },
-    [email, userId, exportingLog, host?.electronAPI, projectStore, t]
+    [exportingLog, host?.electronAPI, t]
   );
 
   useEffect(() => {
@@ -284,13 +260,13 @@ export default function ReportBugDialog({
                   variant="secondary"
                   size="sm"
                   className="shrink-0"
-                  onClick={() => void handleDownloadLog('eigent')}
-                  disabled={exportingLog !== null}
+                  onClick={() => void handleDownloadLog()}
+                  disabled={exportingLog}
                   aria-label={t('layout.support-eigent-log', {
                     defaultValue: 'Eigent log',
                   })}
                 >
-                  {exportingLog === 'eigent' ? (
+                  {exportingLog ? (
                     <Loader2
                       className="h-4 w-4 shrink-0 animate-spin"
                       aria-hidden
@@ -301,42 +277,6 @@ export default function ReportBugDialog({
                   {t('layout.support-download', { defaultValue: 'Download' })}
                 </Button>
               </div>
-              {Boolean(host?.electronAPI?.exportCamelLog) && (
-                <div className="flex items-center justify-between gap-md">
-                  <div className="flex min-w-0 flex-col">
-                    <span className="text-body-sm font-medium text-ds-text-neutral-default-default">
-                      {t('layout.support-camel-log', {
-                        defaultValue: 'Camel log',
-                      })}
-                    </span>
-                    <span className="text-body-xs text-ds-text-neutral-subtle-default">
-                      {t('layout.support-camel-log-desc', {
-                        defaultValue: 'Agent task logs (CAMEL backend)',
-                      })}
-                    </span>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => void handleDownloadLog('camel')}
-                    disabled={exportingLog !== null || !email}
-                    aria-label={t('layout.support-camel-log', {
-                      defaultValue: 'Camel log',
-                    })}
-                  >
-                    {exportingLog === 'camel' ? (
-                      <Loader2
-                        className="h-4 w-4 shrink-0 animate-spin"
-                        aria-hidden
-                      />
-                    ) : (
-                      <Download className="h-4 w-4 shrink-0" aria-hidden />
-                    )}
-                    {t('layout.support-download', { defaultValue: 'Download' })}
-                  </Button>
-                </div>
-              )}
             </div>
           )}
         </div>

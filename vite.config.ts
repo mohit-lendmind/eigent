@@ -13,25 +13,12 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import react from '@vitejs/plugin-react';
-import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { defineConfig, loadEnv } from 'vite';
 import electron from 'vite-plugin-electron/simple';
 import pkg from './package.json';
-
-// Git hash of the last commit that touched server/ — used for stale-server detection.
-// Set as VITE_ env var so Vite exposes it to import.meta.env automatically.
-try {
-  process.env.VITE_SERVER_CODE_HASH = execSync(
-    'git log -1 --format=%H -- server/'
-  )
-    .toString()
-    .trim();
-} catch {
-  // git not available (CI, packaged build, etc.)
-}
 
 // Node resolution anchored at the project root — used to pin packages that
 // must appear exactly once in the renderer bundle (see resolve.alias).
@@ -105,12 +92,6 @@ export default defineConfig(({ command, mode }) => {
   const isBuild = command === 'build';
   const sourcemap = isServe || !!process.env.VSCODE_DEBUG;
   const env = loadEnv(mode, process.cwd(), '');
-  // Thin (release) desktop build: no local Brain payload, remote backend
-  // required. Statically defined so the Brain lifecycle modules are
-  // dead-code-eliminated from main and preload. See electron/main/brain.ts.
-  const thinDefine = {
-    __EIGENT_THIN__: JSON.stringify(process.env.EIGENT_THIN_BUILD === '1'),
-  };
   return {
     resolve: {
       alias: [
@@ -158,7 +139,6 @@ export default defineConfig(({ command, mode }) => {
             }
           },
           vite: {
-            define: thinDefine,
             build: {
               sourcemap,
               minify: isBuild,
@@ -176,7 +156,6 @@ export default defineConfig(({ command, mode }) => {
           // Preload scripts may contain Web assets, so use the `build.rollupOptions.input` instead `build.lib.entry`.
           input: 'electron/preload/index.ts',
           vite: {
-            define: thinDefine,
             build: {
               sourcemap: sourcemap ? 'inline' : undefined, // #332
               minify: isBuild,
@@ -228,15 +207,4 @@ export default defineConfig(({ command, mode }) => {
       clearScreen: false,
     },
   };
-});
-
-process.on('SIGINT', () => {
-  try {
-    const backend = path.join(__dirname, 'backend');
-    const pid = readFileSync(backend + '/runtime/run.pid', 'utf-8');
-    process.kill(parseInt(pid), 'SIGINT');
-  } catch (e) {
-    console.log('no pid file');
-    console.log(e);
-  }
 });

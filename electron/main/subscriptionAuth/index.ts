@@ -36,7 +36,6 @@ import {
   expiresAtFromTokenPayload,
 } from './oauthToken';
 import { createPkcePair } from './pkce';
-import { getCodexResolverEnv } from './resolverServer';
 import type { CodexSubscriptionIpcResult } from './types';
 
 const CODEX_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
@@ -485,4 +484,3 @@ export async function completeCodexOAuthCallback(
   return { handled: true };
 }
 
-export { getCodexResolverEnv };

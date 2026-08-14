@@ -11,7 +11,7 @@
 // the app payload is exactly what Bazel built.
 //
 // Steps: stage bazel outputs → electron-builder --dir (unsigned) →
-// inspect-thin-package gate → package-report (manifest/SBOM/version/
+// inspect-package gate → package-report (manifest/SBOM/version/
 // checksums). The dependency query report is emitted by the evidence
 // driver (`bazel query "deps(//:package_pipeline)"`) since bazel cannot
 // re-enter itself while a run command holds the workspace lock.
@@ -58,7 +58,7 @@ run(
 );
 
 console.log('running package inspection gate…');
-run(process.execPath, [path.join(workspace, 'scripts', 'inspect-thin-package.mjs'), 'release']);
+run(process.execPath, [path.join(workspace, 'scripts', 'inspect-package.mjs'), 'release']);
 
 console.log('emitting package reports…');
 const gitSha = execFileSync('git', ['rev-parse', 'HEAD'], {

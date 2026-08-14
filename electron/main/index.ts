@@ -28,25 +28,16 @@ import log from 'electron-log';
 import FormData from 'form-data';
 import fsp from 'fs/promises';
 import mime from 'mime';
-import { ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs, { existsSync } from 'node:fs';
 import http from 'node:http';
 import os, { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import kill from 'tree-kill';
 import { copyBrowserData } from './copy';
 import { FileReader } from './fileReader';
-import {
-  checkAndInstallDepsOnUpdate,
-  checkToolInstalled,
-  getInstallationStatus,
-  startBackend,
-  THIN_BUILD,
-  type PromiseReturnType,
-} from './brain';
-import { findAvailablePort, killProcessOnPort } from './utils/port';
+import { findAvailablePort } from './utils/port';
 import { setRoundedCorners } from './native/macos-window';
 import {
   rendererTransportConfig,
@@ -55,7 +46,6 @@ import {
 } from './remoteBackend';
 import {
   completeCodexOAuthCallback,
-  getCodexResolverEnv,
   registerCodexSubscriptionAuthIpcHandlers,
 } from './subscriptionAuth';
 import { disposeAllTerminals, registerTerminalIpcHandlers } from './terminal';
@@ -68,16 +58,9 @@ import {
   removeEnvKey,
   updateEnvBlock,
 } from './utils/envUtil';
-import { createDiagnosticsZip, zipDirectories, zipFolder } from './utils/log';
+import { createDiagnosticsZip, zipFolder } from './utils/log';
 import { addMcp, readMcpConfig, removeMcp, updateMcp } from './utils/mcpConfig';
-import {
-  checkVenvExistsForPreCheck,
-  getBackendPath,
-  isBinaryExists,
-} from './utils/process';
 import { WebViewManager } from './webview';
-
-const userData = app.getPath('userData');
 
 // ==================== constants ====================
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -93,25 +76,25 @@ let win: BrowserWindow | null = null;
 let createWindowPromise: Promise<void> | null = null;
 let webViewManager: WebViewManager | null = null;
 let fileReader: FileReader | null = null;
-let python_process: ChildProcessWithoutNullStreams | null = null;
-let backendPort: number = 5001;
-let backendStartPromise: Promise<BackendStartResult> | null = null;
 let browser_port = 9222;
 let use_external_cdp = false;
 let proxyUrl: string | null = null;
 
-// Remote-backend mode (doc 10 §10 WP3) is decided once at startup. In any
-// non-local mode the main process never installs dependencies, spawns
-// uvicorn, or health-polls a local port; a set-but-invalid configuration
-// stays remote (and fails visibly) rather than falling back to legacy mode.
+// The aion edge is the only backend, resolved once at startup. A
+// set-but-invalid configuration stays remote and fails visibly — there is no
+// other backend to fall back to.
 const remoteBackend: RemoteBackendResolution = resolveRemoteBackend(
   process.env,
-  (file) => fs.readFileSync(file, 'utf-8'),
-  { thinBuild: THIN_BUILD }
+  (file) => fs.readFileSync(file, 'utf-8')
 );
-const isRemoteBackendMode = remoteBackend.mode !== 'local';
 
 const PREVIEW_WEBVIEW_PARTITION = 'persist:session-preview';
+
+// The browser runs headless inside the aion sandbox pod (browser_* tools over
+// the exec seam), so the app never launches a local Chrome under CDP: that
+// would be an unauthenticated localhost control surface with no consumer. The
+// pool IPC surface stays wired for the renderer but is inert.
+const CDP_BROWSERS_ENABLED = false;
 
 const isHttpOrHttpsUrl = (url: unknown): url is string => {
   if (typeof url !== 'string') return false;
@@ -137,18 +120,9 @@ let cdpHealthCheckTimer: ReturnType<typeof setInterval> | null = null;
 
 const CDP_POOL_FILE = path.join(os.homedir(), '.eigent', 'cdp-browsers.json');
 
-type BackendStartOptions = {
-  forceRestart?: boolean;
-};
-
 type BackendStartResult =
-  | { success: true; port: number }
   | { success: true; remote: true; port: null }
   | { success: false; error: string };
-
-function formatErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 function isBrokenConsolePipeError(error: unknown): boolean {
   return (
@@ -180,15 +154,6 @@ function handleProcessPipeError(error: Error): void {
 process.stdout.on('error', handleProcessPipeError);
 process.stderr.on('error', handleProcessPipeError);
 
-function isPythonProcessRunning(): boolean {
-  return Boolean(
-    python_process &&
-    !python_process.killed &&
-    python_process.exitCode === null &&
-    python_process.signalCode === null
-  );
-}
-
 function notifyBackendReady(result: BackendStartResult): void {
   if (!win || win.isDestroyed()) {
     return;
@@ -207,29 +172,6 @@ function notifyBackendReady(result: BackendStartResult): void {
           error: result.error,
         }
   );
-}
-
-function checkBackendHealth(port: number): Promise<boolean> {
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    return Promise.resolve(false);
-  }
-
-  return new Promise((resolve) => {
-    const req = http.get(
-      `http://127.0.0.1:${port}/health`,
-      { timeout: 1000 },
-      (res) => {
-        res.resume();
-        resolve(res.statusCode === 200);
-      }
-    );
-
-    req.on('error', () => resolve(false));
-    req.on('timeout', () => {
-      req.destroy();
-      resolve(false);
-    });
-  });
 }
 
 /** Persist pool to disk. */
@@ -455,43 +397,13 @@ let profileInitPromise: Promise<void>;
 // 3. tool_controller: ~/.eigent/browser_profiles/profile_user_login → source of truth for login cookies
 // 4. CDP browser: uses separate profile (doesn't share with main app)
 //
-// In remote-backend mode the browser runs headless inside the aion sandbox
-// pod (browser_* tools over the exec seam), so the app must not open a local
-// CDP debugging port — an unauthenticated localhost control surface with no
-// consumer.
-if (isRemoteBackendMode) {
-  profileInitPromise = Promise.resolve();
-  log.info(
-    '[CDP BROWSER] disabled in remote-backend mode: the browser runs in the aion sandbox pod'
-  );
-} else {
-  profileInitPromise = findAvailablePort(browser_port).then(async (port) => {
-    browser_port = port;
-    app.commandLine.appendSwitch('remote-debugging-port', port + '');
-
-    // Create isolated profile for CDP browser only
-    const browserProfilesBase = path.join(
-      os.homedir(),
-      '.eigent',
-      'browser_profiles'
-    );
-    const cdpProfile = path.join(browserProfilesBase, `cdp_profile_${port}`);
-
-    try {
-      await fsp.mkdir(cdpProfile, { recursive: true });
-      log.info(`[CDP BROWSER] Created CDP profile directory at ${cdpProfile}`);
-    } catch (error) {
-      log.error(`[CDP BROWSER] Failed to create directory: ${error}`);
-    }
-
-    // Set user-data-dir for Chrome DevTools Protocol only
-    app.commandLine.appendSwitch('user-data-dir', cdpProfile);
-
-    log.info(`[CDP BROWSER] Chrome DevTools Protocol enabled on port ${port}`);
-    log.info(`[CDP BROWSER] CDP profile directory: ${cdpProfile}`);
-    log.info(`[STORAGE] Main app userData: ${app.getPath('userData')}`);
-  });
-}
+// The browser runs headless inside the aion sandbox pod (browser_* tools
+// over the exec seam), so the app must not open a local CDP debugging port —
+// an unauthenticated localhost control surface with no consumer.
+profileInitPromise = Promise.resolve();
+log.info(
+  '[CDP BROWSER] disabled: the browser runs in the aion sandbox pod'
+);
 
 // Memory optimization settings
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096');
@@ -833,11 +745,9 @@ function registerIpcHandlers() {
 
   // ==================== basic info handler ====================
   ipcMain.handle('get-browser-port', () => {
-    if (isRemoteBackendMode) {
-      // No local CDP browser exists in remote mode; null keeps any legacy
-      // localhost CDP URL construction visibly broken instead of silently
-      // pointing at a port nothing listens on (same convention as
-      // get-backend-port).
+    if (!CDP_BROWSERS_ENABLED) {
+      // Null keeps any localhost CDP URL construction visibly broken instead
+      // of silently pointing at a port nothing listens on.
       return null;
     }
     log.info('Getting browser port');
@@ -848,10 +758,10 @@ function registerIpcHandlers() {
   ipcMain.handle(
     'set-browser-port',
     (event, port: number, isExternal: boolean = false) => {
-      if (isRemoteBackendMode) {
+      if (!CDP_BROWSERS_ENABLED) {
         return {
           success: false,
-          error: 'CDP browsers are disabled in remote-backend mode',
+          error: 'CDP browsers are disabled: the browser runs in the sandbox',
         };
       }
       log.info(`Setting browser port to ${port}, external: ${isExternal}`);
@@ -879,10 +789,10 @@ function registerIpcHandlers() {
   ipcMain.handle(
     'add-cdp-browser',
     (event, port: number, isExternal: boolean, name?: string) => {
-      if (isRemoteBackendMode) {
+      if (!CDP_BROWSERS_ENABLED) {
         return {
           success: false,
-          error: 'CDP browsers are disabled in remote-backend mode',
+          error: 'CDP browsers are disabled: the browser runs in the sandbox',
         };
       }
       const existing = cdp_browser_pool.find((b) => b.port === port);
@@ -943,10 +853,10 @@ function registerIpcHandlers() {
 
   // Launch CDP browser with automatic port assignment
   ipcMain.handle('launch-cdp-browser', async () => {
-    if (isRemoteBackendMode) {
+    if (!CDP_BROWSERS_ENABLED) {
       return {
         success: false,
-        error: 'CDP browsers are disabled in remote-backend mode',
+        error: 'CDP browsers are disabled: the browser runs in the sandbox',
       };
     }
     try {
@@ -1120,23 +1030,15 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('get-app-version', () => app.getVersion());
-  // In remote mode there is no local backend port — null keeps any legacy
-  // localhost URL construction visibly broken instead of silently wrong.
-  ipcMain.handle('get-backend-port', () =>
-    isRemoteBackendMode ? null : backendPort
-  );
   // The minimum authenticated transport configuration for the renderer's
-  // aion boundary (src/api/aion/v1). Local mode returns { mode: 'local' }.
+  // aion boundary (src/api/aion/v1).
   ipcMain.handle('get-aion-transport-config', () =>
     rendererTransportConfig(remoteBackend)
   );
 
   // ==================== restart app handler ====================
-  ipcMain.handle('restart-app', async () => {
+  ipcMain.handle('restart-app', () => {
     log.info('[RESTART] Restarting app to apply user profile changes');
-
-    // Clean up Python process first
-    await cleanupPythonProcess();
 
     // Schedule relaunch after a short delay
     setTimeout(() => {
@@ -1145,18 +1047,6 @@ function registerIpcHandlers() {
     }, 100);
   });
 
-  ipcMain.handle('restart-backend', async () => {
-    try {
-      const result = await restartBackendService();
-      if (result.success) {
-        log.info('Backend restart completed successfully');
-      }
-      return result;
-    } catch (error) {
-      log.error('Failed to restart backend:', error);
-      return { success: false, error: formatErrorMessage(error) };
-    }
-  });
   ipcMain.handle('get-system-language', getSystemLanguage);
   ipcMain.handle('is-fullscreen', () => win?.isFullScreen() || false);
   ipcMain.handle('get-home-dir', () => {
@@ -1305,55 +1195,6 @@ function registerIpcHandlers() {
       return { success: false, error: error.message };
     }
   });
-
-  // Camel (backend) logs live per task at
-  // ~/.eigent/<identity>/[project_<id>/]task_<taskId>/camel_logs.
-  // Targets the task the user last ran when provided; otherwise exports all.
-  ipcMain.handle(
-    'export-camel-log',
-    async (
-      _event,
-      email: string,
-      taskId?: string,
-      projectId?: string,
-      userId?: string | number | null
-    ) => {
-      try {
-        if (typeof email !== 'string' || !email) {
-          return { success: false, error: 'Missing email' };
-        }
-
-        const manager = checkManagerInstance(fileReader, 'FileReader');
-        const camelLogEntries = manager.getCamelLogEntries(
-          email,
-          taskId,
-          projectId,
-          userId
-        );
-        if (camelLogEntries.length === 0) {
-          return { success: false, error: 'no log file' };
-        }
-
-        const appVersion = app.getVersion();
-        const defaultFileName = `eigent-camel-logs-${appVersion}-${Date.now()}.zip`;
-        const { canceled, filePath } = await dialog.showSaveDialog({
-          title: 'Save Camel logs',
-          defaultPath: defaultFileName,
-          filters: [{ name: 'ZIP archive', extensions: ['zip'] }],
-        });
-
-        if (canceled || !filePath) {
-          return { success: false, error: '' };
-        }
-
-        await zipDirectories(filePath, camelLogEntries);
-        return { success: true, savedPath: filePath };
-      } catch (error: any) {
-        log.error('export-camel-log failed:', error);
-        return { success: false, error: error.message };
-      }
-    }
-  );
 
   ipcMain.handle('get-diagnostics-info', async () => {
     return {
@@ -2293,102 +2134,6 @@ function registerIpcHandlers() {
     });
   });
 
-  // ==================== dependency install handler ====================
-  ipcMain.handle('install-dependencies', async () => {
-    try {
-      if (win === null) throw new Error('Window is null');
-
-      // Remote-backend mode has no local dependencies to install.
-      if (isRemoteBackendMode) {
-        if (!win.isDestroyed()) {
-          win.webContents.send('install-dependencies-complete', {
-            success: true,
-            code: 0,
-          });
-        }
-        await checkAndStartBackend();
-        return { success: true, isInstalled: true };
-      }
-
-      // Prevent concurrent installations
-      if (isInstallationInProgress) {
-        log.info('[DEPS INSTALL] Installation already in progress, waiting...');
-        await installationLock;
-        return {
-          success: true,
-          message: 'Installation completed by another process',
-        };
-      }
-
-      log.info('[DEPS INSTALL] Manual installation/retry triggered');
-
-      // Set lock
-      isInstallationInProgress = true;
-      installationLock = checkAndInstallDepsOnUpdate({
-        win,
-        forceInstall: true,
-      }).finally(() => {
-        isInstallationInProgress = false;
-      });
-
-      const result = await installationLock;
-
-      if (!result.success) {
-        log.error('[DEPS INSTALL] Manual installation failed:', result.message);
-        // Note: Failure event already sent by installDependencies function
-        return { success: false, error: result.message };
-      }
-
-      log.info('[DEPS INSTALL] Manual installation succeeded');
-
-      // IMPORTANT: Send install-dependencies-complete success event
-      if (!win.isDestroyed()) {
-        win.webContents.send('install-dependencies-complete', {
-          success: true,
-          code: 0,
-        });
-        log.info(
-          '[DEPS INSTALL] Sent install-dependencies-complete event after retry'
-        );
-      }
-
-      // Start backend after retry with cleanup
-      await startBackendAfterInstall();
-
-      return { success: true, isInstalled: result.success };
-    } catch (error) {
-      log.error('[DEPS INSTALL] Manual installation error:', error);
-      return { success: false, error: (error as Error).message };
-    }
-  });
-
-  ipcMain.handle('check-tool-installed', async () => {
-    // Remote-backend mode needs no local uv/bun toolchain.
-    if (isRemoteBackendMode) {
-      return { success: true, isInstalled: true };
-    }
-    try {
-      const isInstalled = await checkToolInstalled();
-      return { success: true, isInstalled: isInstalled.success };
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
-    }
-  });
-
-  ipcMain.handle('get-installation-status', async () => {
-    try {
-      const { isInstalling, hasLockFile } = await getInstallationStatus();
-      return {
-        success: true,
-        isInstalling,
-        hasLockFile,
-        timestamp: Date.now(),
-      };
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
-    }
-  });
-
   // ==================== register update related handler ====================
   registerUpdateIpcHandlers();
 }
@@ -2579,25 +2324,6 @@ async function seedDefaultSkillsIfEmpty(): Promise<void> {
   await syncDefaultSkillsFromBundle();
 }
 
-// ==================== Shared backend startup logic ====================
-// Starts backend after installation completes
-// Used by both initial startup and retry flows
-const startBackendAfterInstall = async () => {
-  log.info('[DEPS INSTALL] Starting backend...');
-
-  // Add a small delay to ensure any previous processes are fully cleaned up
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  await checkAndStartBackend();
-};
-
-// ==================== installation lock ====================
-let isInstallationInProgress = false;
-let installationLock: Promise<PromiseReturnType> = Promise.resolve({
-  message: 'No installation needed',
-  success: true,
-});
-
 // ==================== window create ====================
 async function createWindow() {
   const existingWindow =
@@ -2631,17 +2357,11 @@ async function createWindowInternal() {
   ensureEigentDirectories();
   await seedDefaultSkillsIfEmpty();
 
-  // Load persisted CDP browser pool from disk (local backend only — in
-  // remote-backend mode the pool stays empty and its IPC surface is inert)
-  if (!isRemoteBackendMode) {
+  if (CDP_BROWSERS_ENABLED) {
     loadCdpPool();
   }
 
-  log.info(
-    isRemoteBackendMode
-      ? '[PROJECT BROWSER WINDOW] Creating BrowserWindow (CDP disabled: remote-backend mode)'
-      : `[PROJECT BROWSER WINDOW] Creating BrowserWindow which will start Chrome with CDP on port ${browser_port}`
-  );
+  log.info('[PROJECT BROWSER WINDOW] Creating BrowserWindow (CDP disabled)');
   log.info(
     `[PROJECT BROWSER WINDOW] Current user data path: ${app.getPath(
       'userData'
@@ -2882,164 +2602,12 @@ async function createWindowInternal() {
   handleBeforeClose();
 
   // Start CDP health-check polling (probes every 3s, removes dead browsers)
-  if (!isRemoteBackendMode) {
+  if (CDP_BROWSERS_ENABLED) {
     startCdpHealthCheck();
   }
 
   // ==================== auto update ====================
   update(win);
-
-  // ==================== CHECK IF INSTALLATION IS NEEDED BEFORE LOADING CONTENT ====================
-  log.info('Pre-checking if dependencies need to be installed...');
-
-  // Check if prebuilt dependencies are available (for packaged app)
-  let hasPrebuiltDeps = false;
-  if (app.isPackaged) {
-    const prebuiltBinDir = path.join(process.resourcesPath, 'prebuilt', 'bin');
-    const prebuiltDir = path.join(process.resourcesPath, 'prebuilt');
-    const prebuiltVenvDir = path.join(prebuiltDir, 'venv');
-    const uvPath = path.join(
-      prebuiltBinDir,
-      process.platform === 'win32' ? 'uv.exe' : 'uv'
-    );
-    const bunPath = path.join(
-      prebuiltBinDir,
-      process.platform === 'win32' ? 'bun.exe' : 'bun'
-    );
-    const pyvenvCfg = path.join(prebuiltVenvDir, 'pyvenv.cfg');
-
-    const hasVenv = fs.existsSync(pyvenvCfg);
-    hasPrebuiltDeps =
-      fs.existsSync(uvPath) && fs.existsSync(bunPath) && hasVenv;
-    if (hasPrebuiltDeps) {
-      log.info(
-        '[PRE-CHECK] Prebuilt dependencies found, skipping installation check'
-      );
-    }
-  }
-
-  // Check version and tools status synchronously
-  const currentVersion = app.getVersion();
-  const versionFile = path.join(app.getPath('userData'), 'version.txt');
-  const versionExists = fs.existsSync(versionFile);
-  let savedVersion = '';
-  if (versionExists) {
-    savedVersion = fs.readFileSync(versionFile, 'utf-8').trim();
-  }
-
-  const uvExists = await isBinaryExists('uv');
-  const bunExists = await isBinaryExists('bun');
-
-  // Check if installation was previously completed
-  const backendPath = getBackendPath();
-  const installedLockPath = path.join(backendPath, 'uv_installed.lock');
-  const installationCompleted = fs.existsSync(installedLockPath);
-
-  // Check venv existence WITHOUT triggering extraction (defers to startBackend when window is visible)
-  const { exists: venvExists, path: venvPath } =
-    checkVenvExistsForPreCheck(currentVersion);
-
-  // If the backend is remote or prebuilt deps are available, skip installation
-  const needsInstallation = isRemoteBackendMode || hasPrebuiltDeps
-    ? false
-    : !versionExists ||
-      savedVersion !== currentVersion ||
-      !uvExists ||
-      !bunExists ||
-      !installationCompleted ||
-      !venvExists;
-
-  log.info('Installation check result:', {
-    needsInstallation,
-    versionExists,
-    versionMatch: savedVersion === currentVersion,
-    uvExists,
-    bunExists,
-    installationCompleted,
-    venvExists,
-    venvPath,
-  });
-
-  // Handle localStorage based on installation state
-  if (needsInstallation) {
-    log.info(
-      'Installation needed - resetting initState to carousel while preserving auth data'
-    );
-
-    // Instead of deleting the entire localStorage, we'll update only the initState
-    // This preserves login information while resetting the initialization flow
-    // Set up the injection for when page loads
-    win.webContents.once('dom-ready', () => {
-      if (!win || win.isDestroyed()) {
-        log.warn(
-          'Window destroyed before DOM ready - skipping localStorage injection'
-        );
-        return;
-      }
-      log.info(
-        'DOM ready - updating initState to carousel while preserving auth data'
-      );
-      win.webContents
-        .executeJavaScript(
-          `
-        (function() {
-          try {
-            const authStorage = localStorage.getItem('auth-storage');
-            if (authStorage) {
-              // Preserve existing auth data, only update initState
-              const parsed = JSON.parse(authStorage);
-              const updatedStorage = {
-                ...parsed,
-                state: {
-                  ...parsed.state,
-                  initState: 'carousel'
-                }
-              };
-              localStorage.setItem('auth-storage', JSON.stringify(updatedStorage));
-              console.log('[ELECTRON PRE-INJECT] Updated initState to carousel, preserved auth data');
-            } else {
-              // No existing storage, create new one with carousel state
-              const newAuthStorage = {
-                state: {
-                  token: null,
-                  username: null,
-                  email: null,
-                  user_id: null,
-                  appearance: 'light',
-                  language: 'system',
-                  isFirstLaunch: true,
-                  modelType: 'cloud',
-                  cloud_model_type: 'gpt-5.4',
-                  initState: 'carousel',
-                  share_token: null,
-                  workerListData: {}
-                },
-                version: 0
-              };
-              localStorage.setItem('auth-storage', JSON.stringify(newAuthStorage));
-              console.log('[ELECTRON PRE-INJECT] Created fresh auth-storage with carousel state');
-            }
-          } catch (e) {
-            console.error('[ELECTRON PRE-INJECT] Failed to update storage:', e);
-          }
-        })();
-      `
-        )
-        .catch((err) => {
-          log.error('Failed to inject script:', err);
-        });
-    });
-  } else {
-    // The proper flow is now handled by useInstallationSetup.ts with dual-check mechanism:
-    // 1. Installation complete event → installationCompleted.current = true
-    // 2. Backend ready event → backendReady.current = true
-    // 3. Only when BOTH are true → setInitState('done')
-    //
-    // This ensures frontend never shows before backend is ready.
-    log.info(
-      'Installation already complete - letting useInstallationSetup handle state transitions'
-    );
-  }
 
   // Load content
   if (VITE_DEV_SERVER_URL) {
@@ -3079,50 +2647,7 @@ async function createWindowInternal() {
   // Wait for React components to mount and register event listeners
   await new Promise((resolve) => setTimeout(resolve, 500));
 
-  // Remote-backend mode skips dependency installation and uvicorn startup
-  // entirely: the renderer still receives install-dependencies-complete and
-  // backend-ready so its state machine converges the same way.
-  if (isRemoteBackendMode) {
-    log.info('[REMOTE BACKEND] Skipping dependency installation and local backend');
-    if (!win.isDestroyed()) {
-      win.webContents.send('install-dependencies-complete', {
-        success: true,
-        code: 0,
-      });
-    }
-    await checkAndStartBackend();
-    return;
-  }
-
-  // Now check and install dependencies
-  let res: PromiseReturnType = await checkAndInstallDepsOnUpdate({ win });
-  if (!res.success) {
-    log.info('[DEPS INSTALL] Dependency Error: ', res.message);
-    // Note: install-dependencies-complete failure event is already sent by installDependencies function
-    // in install-deps.ts, so we don't send it again here to avoid duplicate events
-    return;
-  }
-  log.info('[DEPS INSTALL] Dependency Success: ', res.message);
-
-  // IMPORTANT: Wait a bit to ensure React components have mounted and registered event listeners
-  // This prevents race condition where events are sent before listeners are ready
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  // IMPORTANT: Always send install-dependencies-complete event when installation check succeeds
-  // This includes both cases: actual installation completed AND installation was skipped (already installed)
-  // The frontend needs this event to properly transition from installation screen to main app
-  if (!win.isDestroyed()) {
-    win.webContents.send('install-dependencies-complete', {
-      success: true,
-      code: 0,
-    });
-    log.info(
-      '[DEPS INSTALL] Sent install-dependencies-complete event to frontend'
-    );
-  }
-
-  // Start backend after dependencies are ready
-  await startBackendAfterInstall();
+  await checkAndStartBackend();
 }
 
 // ==================== window event listeners ====================
@@ -3212,202 +2737,28 @@ const setupExternalLinkHandling = () => {
   });
 };
 
-// ==================== check and start backend ====================
-async function restartBackendService(): Promise<BackendStartResult> {
-  if (backendStartPromise) {
-    log.info(
-      'Backend startup already in progress, waiting before forced restart...'
-    );
-    await backendStartPromise;
-  }
-
-  log.info('Restarting backend service...');
-  return checkAndStartBackend({ forceRestart: true });
-}
-
-const checkAndStartBackend = async (
-  options: BackendStartOptions = {}
-): Promise<BackendStartResult> => {
-  // Remote-backend mode: there is no local backend to install, spawn,
-  // health-poll, or restart. Readiness was decided by config validation at
-  // startup; edge reachability is the renderer session layer's concern.
+// ==================== backend readiness ====================
+// There is no local backend to install, spawn, health-poll, or restart:
+// readiness is decided by edge-config validation at startup, and edge
+// reachability is the renderer session layer's concern.
+const checkAndStartBackend = async (): Promise<BackendStartResult> => {
   if (remoteBackend.mode === 'remote') {
-    const result: BackendStartResult = { success: true, remote: true, port: null };
-    notifyBackendReady(result);
-    return result;
-  }
-  if (remoteBackend.mode === 'remote-invalid') {
-    log.error('Remote backend configuration is invalid:', remoteBackend.error);
     const result: BackendStartResult = {
-      success: false,
-      error: `Remote backend configuration is invalid: ${remoteBackend.error}`,
+      success: true,
+      remote: true,
+      port: null,
     };
     notifyBackendReady(result);
     return result;
   }
 
-  if (backendStartPromise) {
-    log.info('Backend startup already in progress, waiting...');
-    return backendStartPromise;
-  }
-
-  backendStartPromise = (async () => {
-    log.info('Checking and starting backend service...');
-    try {
-      if (isPythonProcessRunning()) {
-        if (!options.forceRestart) {
-          const isHealthy = await checkBackendHealth(backendPort);
-          if (isHealthy) {
-            log.info('Backend service is already running', {
-              port: backendPort,
-            });
-            const result: BackendStartResult = {
-              success: true,
-              port: backendPort,
-            };
-            notifyBackendReady(result);
-            return result;
-          }
-
-          log.warn(
-            'Backend process is running but health check failed; restarting...'
-          );
-        } else {
-          log.info('Cleaning up existing backend process before restart...');
-        }
-
-        await cleanupPythonProcess();
-      } else if (python_process) {
-        python_process = null;
-      }
-
-      const isToolInstalled = await checkToolInstalled();
-      if (isToolInstalled.success) {
-        log.info('Tool installed, starting backend service...');
-        const codexResolverEnv = await getCodexResolverEnv();
-        const exampleSkillsDir = getExampleSkillsSourceDir();
-
-        // Start backend and wait for health check to pass
-        python_process = await startBackend(
-          (port) => {
-            backendPort = port;
-            log.info('Backend service started successfully', { port });
-          },
-          {
-            ...codexResolverEnv,
-            EIGENT_EXAMPLE_SKILLS_DIR: exampleSkillsDir,
-          }
-        );
-
-        // Notify frontend that backend is ready
-        log.info('Backend is ready, notifying frontend...');
-        const result: BackendStartResult = {
-          success: true,
-          port: backendPort,
-        };
-        notifyBackendReady(result);
-
-        python_process?.on('exit', (code, signal) => {
-          log.info('Python process exited', { code, signal });
-        });
-
-        return result;
-      } else {
-        log.warn('Tool not installed, cannot start backend service');
-        // Notify frontend that backend cannot start
-        const result: BackendStartResult = {
-          success: false,
-          error: 'Tools not installed',
-        };
-        notifyBackendReady(result);
-        return result;
-      }
-    } catch (error) {
-      log.error('Failed to start backend:', error);
-      // Notify frontend of backend startup failure
-      const result: BackendStartResult = {
-        success: false,
-        error: formatErrorMessage(error),
-      };
-      notifyBackendReady(result);
-      return result;
-    }
-  })().finally(() => {
-    backendStartPromise = null;
-  });
-
-  return backendStartPromise;
-};
-
-// ==================== process cleanup ====================
-const cleanupPythonProcess = async () => {
-  try {
-    // First attempt: Try to kill using PID and all children
-    if (python_process?.pid) {
-      const pid = python_process.pid;
-      log.info('Cleaning up Python process and all children', { pid });
-
-      // Remove all listeners to prevent memory leaks
-      python_process.removeAllListeners();
-
-      await new Promise<void>((resolve) => {
-        // Kill the entire process tree (parent + all children)
-        kill(pid, 'SIGTERM', (err) => {
-          if (err) {
-            log.error('Failed to clean up process tree with SIGTERM:', err);
-            // Try SIGKILL as fallback for entire tree
-            kill(pid, 'SIGKILL', (killErr) => {
-              if (killErr) {
-                log.error('Failed to force kill process tree:', killErr);
-              }
-              resolve();
-            });
-          } else {
-            log.info('Successfully sent SIGTERM to process tree');
-            // Give processes 1 second to clean up, then SIGKILL
-            setTimeout(() => {
-              kill(pid, 'SIGKILL', () => {
-                log.info('Sent SIGKILL to ensure cleanup');
-                resolve();
-              });
-            }, 1000);
-          }
-        });
-      });
-    }
-
-    // Second attempt: Use port-based cleanup as fallback
-    const portFile = path.join(userData, 'port.txt');
-    if (fs.existsSync(portFile)) {
-      try {
-        const port = parseInt(fs.readFileSync(portFile, 'utf-8').trim(), 10);
-        if (!isNaN(port) && port > 0 && port < 65536) {
-          log.info(`Attempting to kill process on port: ${port}`);
-          await killProcessOnPort(port);
-        }
-        fs.unlinkSync(portFile);
-      } catch (error) {
-        log.error('Error handling port file:', error);
-      }
-    }
-
-    // Clean up any temporary files in userData
-    try {
-      const tempFiles = ['backend.lock', 'uv_installing.lock'];
-      for (const file of tempFiles) {
-        const filePath = path.join(userData, file);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      }
-    } catch (error) {
-      log.error('Error cleaning up temp files:', error);
-    }
-
-    python_process = null;
-  } catch (error) {
-    log.error('Error occurred while cleaning up process:', error);
-  }
+  log.error('Backend configuration is invalid:', remoteBackend.error);
+  const result: BackendStartResult = {
+    success: false,
+    error: `Backend configuration is invalid: ${remoteBackend.error}`,
+  };
+  notifyBackendReady(result);
+  return result;
 };
 
 // before close
@@ -3636,7 +2987,6 @@ app.on('activate', async () => {
 // ==================== app exit event ====================
 app.on('before-quit', async (event) => {
   log.info('before-quit');
-  log.info('quit python_process.pid: ' + python_process?.pid);
 
   // Stop CDP health-check polling
   stopCdpHealthCheck();
@@ -3660,9 +3010,6 @@ app.on('before-quit', async (event) => {
       win.destroy();
       win = null;
     }
-
-    // Wait for Python process cleanup
-    await cleanupPythonProcess();
 
     // Clean up file reader if exists
     if (fileReader) {

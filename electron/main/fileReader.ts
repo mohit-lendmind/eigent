@@ -23,7 +23,6 @@ import Papa from 'papaparse';
 import * as unzipper from 'unzipper';
 import { parseStringPromise } from 'xml2js';
 import { normalizeLegacySandboxPath } from './utils/filePath';
-import { findDirectoriesByName } from './utils/log';
 import { resolveProjectStoragePath } from './utils/projectStoragePath';
 
 interface FileInfo {
@@ -34,7 +33,7 @@ interface FileInfo {
   relativePath: string;
   task_id?: string;
   project_id?: string;
-  source?: 'project_output' | 'camel_log';
+  source?: 'project_output';
 }
 
 export class FileReader {
@@ -568,7 +567,6 @@ export class FileReader {
   // Folders to hide in the Agent Folder view
   private readonly hiddenFolders = [
     'browser_agent',
-    'camel_logs',
     'developer_agent',
     'document_agent',
     'multi_modal_agent',
@@ -836,87 +834,23 @@ export class FileReader {
     projectId?: string,
     userId?: string | number | null
   ): FileInfo[] {
-    const { dirPath, logPath } = this.resolveTaskPaths(
+    const { dirPath } = this.resolveTaskPaths(
       email,
       taskId,
       projectId,
       userId
     );
-    const camelLogPath = path.join(logPath, 'camel_logs');
-
     try {
-      const projectFiles = fs.existsSync(dirPath)
+      return fs.existsSync(dirPath)
         ? this.getFilesRecursive(dirPath, dirPath).map((file) => ({
             ...file,
             source: 'project_output' as const,
           }))
         : [];
-      const camelLogFiles = fs.existsSync(camelLogPath)
-        ? this.getFilesRecursive(camelLogPath, camelLogPath).map((file) => ({
-            ...file,
-            source: 'camel_log' as const,
-          }))
-        : [];
-
-      if (projectFiles.length === 0 && camelLogFiles.length === 0) {
-        return [];
-      }
-
-      return [...projectFiles, ...camelLogFiles];
     } catch (err) {
       console.error('Load file failed:', err);
       return [];
     }
-  }
-
-  /**
-   * Resolves the `camel_logs` directories to export as `{ src, destName }`
-   * entries (destName is the path inside `~/.eigent`, so the zip stays readable).
-   *
-   * Prefers the specific task the user last ran (via {@link resolveTaskPaths},
-   * the same resolution `get-file-list` uses). Falls back to every `camel_logs`
-   * folder under the user's identity roots when no task is supplied or its
-   * folder is missing.
-   */
-  public getCamelLogEntries(
-    email: string,
-    taskId?: string,
-    projectId?: string,
-    userId?: string | number | null
-  ): { src: string; destName: string }[] {
-    const userHome = app.getPath('home');
-    const eigentRoot = path.join(userHome, '.eigent');
-    const toEntry = (dir: string) => ({
-      src: dir,
-      destName: path.relative(eigentRoot, dir) || path.basename(dir),
-    });
-
-    if (taskId) {
-      const { logPath } = this.resolveTaskPaths(
-        email,
-        taskId,
-        projectId,
-        userId
-      );
-      const camelLogPath = path.join(logPath, 'camel_logs');
-      if (fs.existsSync(camelLogPath)) {
-        return [toEntry(camelLogPath)];
-      }
-      return [];
-    }
-
-    const identities = this.getStorageIdentityCandidates(email, userId);
-    const seen = new Set<string>();
-    const entries: { src: string; destName: string }[] = [];
-    for (const identity of identities) {
-      const identityRoot = path.join(eigentRoot, identity);
-      for (const dir of findDirectoriesByName(identityRoot, 'camel_logs', 4)) {
-        if (seen.has(dir)) continue;
-        seen.add(dir);
-        entries.push(toEntry(dir));
-      }
-    }
-    return entries;
   }
 
   public deleteTaskFiles(

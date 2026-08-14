@@ -187,7 +187,7 @@ export const useSkillsStore = create<SkillsState>()(
           return { ignoredFields: result.ignored_fields ?? [] };
         }
 
-        // Persist to filesystem (Electron) as CAMEL-compatible SKILL.md
+        // Persist to filesystem (Electron) as SKILL.md
         if (hasSkillsFsApi()) {
           const meta = parseSkillMd(skill.fileContent);
           const name = meta?.name || skill.name;

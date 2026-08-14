@@ -9,8 +9,6 @@ on:
       - '**.spec.js'
       - '.idea'
       - '.vscode'
-      - '.dockerignore'
-      - 'Dockerfile'
       - '.gitignore'
       - '.github/**'
       - '!.github/workflows/pre-build.yml'
@@ -65,7 +63,6 @@ jobs:
           uname -a || true
           node --version || true
           npm --version || true
-          python3 --version || true
           xcodebuild -version || true
 
       # Clean node_modules on self-hosted runner to ensure fresh install
@@ -81,24 +78,10 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup Python
-        if: ${{ !matrix.self_hosted }}
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
       - name: Point electron-builder publish target to private repo
         shell: bash
         run: |
           node -e "const fs=require('fs'); const path='electron-builder.json'; const config=JSON.parse(fs.readFileSync(path,'utf8')); if (Array.isArray(config.publish)) { config.publish=config.publish.map((entry) => entry && entry.provider === 'github' ? { ...entry, repo: 'eigent-private-lab' } : entry); } fs.writeFileSync(path, JSON.stringify(config, null, 2) + '\n');"
-
-      - name: Install Python Dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          pip3 install uv
-
-      - name: Install bun
-        run: npm install -g bun
 
       - name: Install Dependencies
         run: npm install

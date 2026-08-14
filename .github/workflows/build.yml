@@ -9,8 +9,6 @@ on:
       - '**.spec.js'
       - '.idea'
       - '.vscode'
-      - '.dockerignore'
-      - 'Dockerfile'
       - '.gitignore'
       - '.github/**'
       - '!.github/workflows/build.yml'
@@ -65,7 +63,6 @@ jobs:
           uname -a || true
           node --version || true
           npm --version || true
-          python3 --version || true
           xcodebuild -version || true
 
       # Clean node_modules on self-hosted runner to ensure fresh install
@@ -80,20 +77,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 20
-
-      - name: Setup Python
-        if: ${{ !matrix.self_hosted }}
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
-      - name: Install Python Dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          pip3 install uv
-
-      - name: Install bun
-        run: npm install -g bun
 
       - name: Install Dependencies
         run: npm install

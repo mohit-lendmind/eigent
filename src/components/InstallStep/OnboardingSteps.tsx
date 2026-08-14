@@ -65,8 +65,8 @@ const THEME_PRESETS = [
     darkAccent: '#ede1db',
   },
   {
-    id: 'camel',
-    label: 'CAMEL',
+    id: 'violet',
+    label: 'Violet',
     lightAccent: '#4c19e8',
     darkAccent: '#b5afff',
   },

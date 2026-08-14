@@ -1,369 +1,327 @@
-<div align="center"><a name="readme-top"></a>
+# Eigent desktop on aion
 
-[![][image-head]][eigent-site]
+This is a fork of [eigent-ai/eigent](https://github.com/eigent-ai/eigent) whose
+desktop application runs entirely against an **aion** control plane.
 
-[![][image-seperator]][eigent-site]
+Upstream Eigent ships two things: an Electron desktop and a Python agent
+runtime that the desktop installs and supervises on the user's machine. This
+fork keeps the desktop and replaces the runtime. Agents, tools, browsers,
+terminals and skills all execute inside an aion session pod, reached over one
+authenticated HTTP/SSE surface — the **Eigent edge API** (`/eigent/v1`).
 
-### Eigent: The Open Source Cowork Desktop to Unlock Your Exceptional Productivity
+The desktop therefore has no runtime of its own beyond Electron: nothing to
+install on first launch, no Python, no local agent framework, no second control
+plane. `scripts/check-no-legacy-backend.mjs` and
+`scripts/inspect-package.mjs` are the gates that keep it that way.
 
-<!-- SHIELD GROUP -->
+---
 
-[![][download-shield]][eigent-download]
-[![][github-star]][eigent-github]
-[![][social-x-shield]][social-x-link]
-[![][discord-image]][discord-url]<br>
-[![Reddit][reddit-image]][reddit-url]
-[![Wechat][wechat-image]][wechat-url]
-[![][sponsor-shield]][sponsor-link]
-[![][built-with-camel]][camel-github]
-[![][join-us-image]][join-us]
+## Contents
 
-</div>
+- [Architecture](#architecture)
+- [What differs from upstream](#what-differs-from-upstream)
+- [Prerequisites](#prerequisites)
+- [Build and run](#build-and-run)
+  - [1. Bring up an aion edge](#1-bring-up-an-aion-edge)
+  - [2. Point the desktop at it](#2-point-the-desktop-at-it)
+  - [3. Run in development](#3-run-in-development)
+  - [4. Build a packaged app](#4-build-a-packaged-app)
+- [Verifying a change](#verifying-a-change)
+- [Repository layout](#repository-layout)
+- [The aion contract](#the-aion-contract)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
 
-<hr/>
-<div align="center">
+---
 
-**English** · [Português](./README_PT-BR.md) · [简体中文](./README_CN.md) · [日本語](./README_JA.md) · [Official Site][eigent-site] · [Documents][docs-site] · [Feedback][github-issue-link]
+## Architecture
 
-</div>
-<br/>
-
-**Eigent** is the open source Cowork desktop application, empowering you to build, manage, and deploy a custom AI workforce that can turn your most complex workflows into automated tasks. As a leading open-source Cowork product, Eigent brings together the best of open-source collaboration and AI-powered automation.
-
-Built on [CAMEL-AI][camel-site]'s acclaimed open-source project, our system introduces a **Multi-Agent Workforce** that **boosts productivity** through parallel execution, customization, and privacy protection.
-
-### ⭐ 100% Open Source - 🥇 Local Deployment - 🏆 MCP Integration
-
-- ✅ **Zero Setup** - No technical configuration required
-- ✅ **Multi-Agent Coordination** - Handle complex multi-agent workflows
-- ✅ **Single-Agent Harness** - Run focused tasks with one meta agent
-- ✅ **Local Deployment**
-- ✅ **Open Source**
-- ✅ **Model Agnostic** - Support any model of your choice
-- ✅ **MCP Integration**
-- ✅ **Skill Integration**
-- ✅ **Built-in Browser & Terminal Toolkits**
-- ✅ **Enterprise Features** - SSO, access control, and custom enquiries
-
-<br/>
-
-[![][image-join-us]][join-us]
-
-<details>
-<summary><kbd>Table of contents</kbd></summary>
-
-#### TOC
-
-- [🚀 Getting Started with Open Source Cowork](#-getting-started-with-open-source-Cowork)
-  - [🏠 Local Deployment (Recommended)](#-local-deployment-recommended)
-  - [⚡ Quick Start (Cloud-Connected)](#-quick-start-cloud-connected)
-  - [🏢 Enterprise](#-enterprise)
-  - [☁️ Cloud Version](#%EF%B8%8F-cloud-version)
-- [✨ Key features - Open Source Cowork](#-key-features---open-source-Cowork)
-  - [🧑‍💻 Cowork with Single Agent](#-cowork-with-single-agent)
-  - [🏭 Cowork with Workforce](#-cowork-with-workforce)
-  - [⏰ Automation](#-automation)
-  - [🔒 Local & Secure](#-local--secure)
-  - [🧠 Model Agnostic](#-model-agnostic)
-  - [👐 100% Open Source](#-100-open-source)
-- [🧩 Use Cases - Open Source Cowork](#-use-cases---open-source-Cowork)
-  - [For Developers](#for-developers)
-  - [Featured](#featured)
-- [🛠️ Tech Stack](#-tech-stack)
-  - [Backend](#backend)
-  - [Frontend](#frontend)
-- [🌟 Staying ahead - Open Source Cowork](#-staying-ahead---open-source-Cowork)
-- [🗺️ Roadmap - Open Source Cowork](#%EF%B8%8F-roadmap---open-source-Cowork)
-- [📖 Contributing](#-contributing)
-  - [Main Contributors](#main-contributors)
-  - [Distinguished ambassador](#distinguished-ambassador)
-- [Ecosystem](#ecosystem)
-- [📄 Open Source License](#-open-source-license)
-- [🌐 Community & contact](#-community--contact)
-
-####
-
-<br/>
-
-</details>
-
-## **🚀 Getting Started with Open Source Cowork**
-
-> **🔓 Build in Public** — Eigent is **100% open source** from day one. Every feature, every commit, every decision is transparent. We believe the best AI tools should be built openly with the community, not behind closed doors.
-
-### 🏠 Local Deployment (Recommended)
-
-The recommended way to run Eigent — fully standalone with complete control over your data, no cloud account required.
-
-👉 **[Full Local Deployment Guide](./server/README_EN.md)**
-
-This setup includes:
-
-- Local backend server with full API
-- Local model integration (vLLM, Ollama, LM Studio, etc.)
-- Complete isolation from cloud services
-- Zero external dependencies
-
-### ⚡ Quick Start (Cloud-Connected)
-
-For a quick preview using our cloud backend — get started in seconds:
-
-#### Prerequisites
-
-- Node.js (version 18-22) and npm
-
-#### Steps
-
-```bash
-git clone https://github.com/eigent-ai/eigent.git
-cd eigent
-npm install
-npm run dev
+```
+┌──────────────────────────────┐
+│  Desktop (this repo)         │
+│                              │
+│  Electron main               │  resolves the edge endpoint from the
+│   └─ remoteBackend.ts        │  environment once, at startup
+│                              │
+│  Renderer (React)            │
+│   └─ src/api/aion/v1/        │  generated client, byte-exact with the
+│      transport + reducers    │  aion contract mirror
+└──────────────┬───────────────┘
+               │  HTTPS + SSE, one API key
+               │  /eigent/v1  (turns, events, skills, approvals, files)
+┌──────────────▼───────────────┐
+│  aion edge                   │  the only surface the desktop knows
+├──────────────────────────────┤
+│  aion cell                   │  orchestrator, inference, SkillStore,
+│   └─ session pod             │  sandbox — agents and tools run here
+└──────────────────────────────┘
 ```
 
-> Note: This mode connects to Eigent cloud services and requires account registration. For a fully standalone experience, use [Local Deployment](#-local-deployment-recommended) instead.
+Two properties follow from this shape and are worth stating explicitly, because
+they shape how you debug:
 
-#### Updating Dependencies
+- **Startup readiness is a configuration check, not a health poll.** The main
+  process validates the edge endpoint at launch. There is no local process to
+  spawn or wait for, so a misconfigured endpoint fails visibly and immediately
+  rather than hanging on a readiness probe.
+- **The desktop never holds a provider key.** It holds one edge API key.
+  Model credentials live server-side, in the aion inference plane.
 
-After pulling new code (`git pull`), update both frontend and backend dependencies:
+## What differs from upstream
+
+If you are reading upstream Eigent's documentation, these parts do not apply
+here:
+
+| Upstream                                          | This fork                                          |
+| ------------------------------------------------- | -------------------------------------------------- |
+| `backend/` — local Python agent runtime           | removed; agents run in the aion cell               |
+| `server/` — Python cloud service                  | removed                                            |
+| First-launch dependency install (`uv`, `bun`, venv, baked interpreter) | removed; there is nothing to install |
+| Local Chrome under CDP for browser tools          | browser runs headless in the session pod           |
+| Local backend port, health poll, restart          | edge endpoint validated once at startup            |
+| CAMEL multi-agent framework                       | aion orchestrator + workforce                      |
+
+Two upstream surfaces deliberately remain, because they are URL-addressed HTTP
+clients with no local runtime behind them and cutting them is a separate
+migration:
+
+- `src/api/http.ts` still carries clients for Eigent's **hosted** cloud API and
+  for a Brain-shaped endpoint. Both are dormant when the desktop runs against
+  an aion edge.
+- `camel_task_id` appears in `src/pages/Workspace.tsx` and
+  `src/store/chatStore.ts`. It is a wire-format field of that hosted API, so it
+  cannot be renamed unilaterally.
+
+## Prerequisites
+
+| Tool   | Version                        | Needed for                        |
+| ------ | ------------------------------ | --------------------------------- |
+| Node   | ≥ 18, < 23                     | everything                        |
+| pnpm   | 10.33.2 (see `packageManager`) | dependency install, dev server    |
+| Bazel  | via `bazelisk`                 | gates, packaging, the local stack |
+| Docker | daemon running                 | the local aion stack              |
 
 ```bash
-# 1. Update frontend dependencies (in project root)
-npm install
-
-# 2. Update backend/Python dependencies (in backend directory)
-cd backend
-uv sync
+pnpm install
 ```
 
-### 🏢 Enterprise
+## Build and run
 
-For organizations requiring maximum security, customization, and control:
+The desktop is useless without an edge to talk to, so bring the edge up first.
 
-- **Exclusive Features** (like SSO & custom development)
-- **Scalable Enterprise Deployment**
-- **Negotiated SLAs** & implementation services
+### 1. Bring up an aion edge
 
-📧 For further details, [contact our sales team](https://www.eigent.ai/contact-sales).
+The `aion-v1` repo ships a self-contained Docker stack — Postgres, MinIO,
+`aion-edge`, the cell services and the sandbox — driven through Bazel. From the
+`aion-v1` checkout:
 
-### ☁️ Cloud Version
+```bash
+bazel run //dev/eigent_local:images
+bazel run //dev/eigent_local:up
+```
 
-For teams who prefer managed infrastructure, we also offer a cloud platform. The fastest way to experience Eigent's multi-agent AI capabilities without setup complexity. We'll host the models, APIs, and cloud storage, ensuring Eigent runs flawlessly.
+`:up` writes `deploy/eigent-local/run/bootstrap.json`, which carries the edge
+URL, tenant/cell IDs and a desktop API key. That file and
+`deploy/eigent-local/secrets/` are gitignored and must never be committed.
 
-- **Instant Access** - Start building multi-agent workflows in minutes.
-- **Managed Infrastructure** - We handle scaling, updates, and maintenance.
-- **Premium Support** - Subscribe and get priority assistance from our engineering team.
+See `deploy/eigent-local/README.md` in `aion-v1` for the rest of the lifecycle
+targets (`logs`, `down`, `reset_data`) and for the session-pod image.
 
-<br/>
+### 2. Point the desktop at it
 
-[![image-public-beta]][eigent-download]
+The main process reads exactly two variables at startup:
 
-<div align="right">
-<a href="https://www.eigent.ai/download">Get started at Eigent.ai →</a>
-</div>
+| Variable                             | Meaning                                           |
+| ------------------------------------ | ------------------------------------------------- |
+| `EIGENT_REMOTE_BACKEND_URL`          | edge base URL **including the `/eigent/v1` path** |
+| `EIGENT_REMOTE_BACKEND_API_KEY`      | the desktop API key                               |
+| `EIGENT_REMOTE_BACKEND_API_KEY_FILE` | alternative: a file to read the key from          |
 
-## **✨ Key features - Open Source Cowork**
+Supply the key by one of the two key variables; if both are set, the direct one
+wins. The URL is validated at startup (`electron/main/remoteBackend.ts`):
+**https anywhere, plain http only on loopback**, no embedded credentials, no
+query or fragment. A plain-http URL pointing at anything but `localhost` /
+`127.0.0.0/8` / `[::1]` is refused — that is deliberate, not a bug to work
+around.
 
-### 🧑‍💻 Cowork with Single Agent
-
-Start with one focused agent for direct tasks. Research, write, debug, and operate alongside it in your desktop workspace.
-
-### 🏭 Cowork with Workforce
-
-Scale to multiple specialized agents that divide work, collaborate in parallel, and execute complex multi-step workflows together.
-
-### ⏰ Automation
-
-Schedule recurring workflows and let agents run tasks at the right time—so work continues even when you step away.
-
-### 🔒 Local & Secure
-
-Run agents on your machine with local-first execution. Your files, credentials, and context stay under your control.
-
-### 🧠 Model Agnostic
-
-Connect the models you already use—cloud APIs, enterprise gateways, or local inference—without locking into one vendor.
-
-### 👐 100% Open Source
-
-Eigent is completely open-sourced. You can download, inspect, and modify the code, ensuring transparency and fostering a community-driven ecosystem for multi-agent innovation.
-
-## 🧩 Use Cases - Open Source Cowork
-
-Explore how Eigent turns complex desktop work into repeatable agent workflows.
-
-### For Developers
-
-#### [Build 10 Chinese New Year HTML5 Games with Eigent](https://www.eigent.ai/use-cases/build-10-cny-horse-themed-html5-games)
-
-Coordinate parallel agents to build ten polished, mobile-friendly browser games across genres, complete with scoring, increasing difficulty, and restart flows.
-
-[View demo →](https://www.eigent.ai/use-cases/build-10-cny-horse-themed-html5-games/video)
-
-[View guide →](https://www.eigent.ai/use-cases/build-10-cny-horse-themed-html5-games)
-
-#### [Build a 3D Snow Bros Platformer with Gemini 3.1 Pro](https://www.eigent.ai/use-cases/build-3d-snow-bros-platformer-gemini)
-
-Create a complete browser-based 3D platformer with snowball combat, enemy chains, scoring, lives, scaling difficulty, and layered environments.
-
-[View demo →](https://www.eigent.ai/use-cases/build-3d-snow-bros-platformer-gemini/video)
-
-[View guide →](https://www.eigent.ai/use-cases/build-3d-snow-bros-platformer-gemini)
-
-#### [Automate Monthly Dev Reports with DeepSeek via Ollama](https://www.eigent.ai/use-cases/monthly-dev-reports-automated-eigent-with-deepseek-v4-pro-via-ollama)
-
-Review a month of GitHub pull requests with a locally hosted model, generate a Word summary, and prepare the corresponding Slack release update.
-
-[View demo →](https://www.eigent.ai/use-cases/monthly-dev-reports-automated-eigent-with-deepseek-v4-pro-via-ollama/video)
-
-[View guide →](https://www.eigent.ai/use-cases/monthly-dev-reports-automated-eigent-with-deepseek-v4-pro-via-ollama)
-
-### Featured
-
-#### [Organize Desktop Files](https://www.eigent.ai/use-cases/organize-desktop-files)
-
-Ask Eigent to inspect a cluttered desktop and organize files into a cleaner, more useful structure directly on your machine.
-
-[View demo →](https://www.eigent.ai/use-cases/organize-desktop-files/video)
-
-[View guide →](https://www.eigent.ai/use-cases/organize-desktop-files)
-
-#### [Audit ML CI Failures with Gemini 3.5 Flash on Eigent](https://www.eigent.ai/use-cases/eigent-gemini-managed-agents)
-
-Orchestrate a multi-agent CI investigation that fetches logs, compares golden values, traces evidence, delegates deep reasoning, and produces structured audit reports.
-
-[View demo →](https://www.eigent.ai/use-cases/eigent-gemini-managed-agents/video)
-
-[View guide →](https://www.eigent.ai/use-cases/eigent-gemini-managed-agents)
-
-#### [Ticket Management System Integration and Reporting](https://www.eigent.ai/use-cases/ticket-management-system-integration-and-reporting)
-
-Import local ticket data into a browser-based management system, then generate a statistical report with charts and visual summaries.
-
-[View demo →](https://www.eigent.ai/use-cases/ticket-management-system-integration-and-reporting/video)
-
-[View guide →](https://www.eigent.ai/use-cases/ticket-management-system-integration-and-reporting)
-
-[Explore more use cases →](https://www.eigent.ai/use-cases)
-
-## 🛠️ Tech Stack
-
-Eigent open-source Cowork desktop is built on modern, reliable technologies that ensure scalability, performance, and extensibility.
-
-### Backend
-
-- **Framework:** FastAPI
-- **Package Manager:** uv
-- **Async Server:** Uvicorn
-- **Authentication:** OAuth 2.0, Passlib.
-- **Multi-agent framework:** CAMEL
-
-### Frontend
-
-- **Framework:** React
-- **Desktop App Framework:** Electron
-- **Language:** TypeScript
-- **UI:** Tailwind CSS, Radix UI, Lucide React, Framer Motion
-- **State Management:** Zustand
-- **Flow Editor:** React Flow
-
-## 🌟 Staying ahead - Open Source Cowork
-
-> [!IMPORTANT]
->
-> **Star Eigent**, You will receive all release notifications from GitHub without any delay ~ ⭐️
-
-![][image-star-us]
-
-## 🗺️ Roadmap - Open Source Cowork
-
-Our open-source Cowork continues to evolve with input from the community. Here's what's coming next:
-
-| Topics                      | Issues                                                                                                                         | Discord Channel                                             |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| **Context Engineering**     | - Prompt caching<br> - System prompt optimize<br> - Toolkit docstring optimize<br> - Context compression                       | [**Join Discord →**](https://discord.com/invite/CNcNpquyDc) |
-| **Multi-modal Enhancement** | - More accurate image understanding when using browser<br> - Advanced video generation                                         | [**Join Discord →**](https://discord.com/invite/CNcNpquyDc) |
-| **Multi-agent system**      | - Workforce support fixed workflow<br> - Workforce support multi-round conversion                                              | [**Join Discord →**](https://discord.com/invite/CNcNpquyDc) |
-| **Browser Toolkit**         | - BrowseComp integration<br> - Benchmark improvement<br> - Forbid repeated page visiting<br> - Automatic cache button clicking | [**Join Discord →**](https://discord.com/invite/CNcNpquyDc) |
-| **Document Toolkit**        | - Support dynamic file editing                                                                                                 | [**Join Discord →**](https://discord.com/invite/CNcNpquyDc) |
-| **Terminal Toolkit**        | - Benchmark improvement<br> - Terminal-Bench integration                                                                       | [**Join Discord →**](https://discord.com/invite/CNcNpquyDc) |
-| **Environment & RL**        | - Environment design<br> - Data-generation<br> - RL framework integration (VERL, TRL, OpenRLHF)                                | [**Join Discord →**](https://discord.com/invite/CNcNpquyDc) |
-
-## [🤝 Contributing][contribution-link]
-
-We believe in building trust and embracing all forms of open-source collaborations. Your creative contributions help drive the innovation of `Eigent`. Explore our GitHub issues and projects to dive in and show us what you’ve got 🤝❤️ [Contribution Guideline][contribution-link]
-
-## Contributors
-
-<a href="https://github.com/eigent-ai/eigent/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=eigent-ai/eigent" />
-</a>
-
-Made with [contrib.rocks](https://contrib.rocks).
-
-<br>
-
-## [❤️ Sponsor][sponsor-link]
-
-Eigent is built on top of [CAMEL-AI.org][camel-ai-org-github]'s research and infrastructures. [Sponsoring CAMEL-AI.org][sponsor-link] will make `Eigent` better.
-
-## **📄 Open Source License**
-
-This repository is licensed under the [Apache License 2.0](LICENSE).
-
-## 🌐 Community & Contact
-
-For more information please contact info@eigent.ai
-
-- **GitHub Issues:** Report bugs, request features, and track development. [Submit an issue][github-issue-link]
-
-- **Discord:** Get real-time support, chat with the community, and stay updated. [Join us](https://discord.com/invite/CNcNpquyDc)
-
-- **X (Twitter):** Follow for updates, AI insights, and key announcements. [Follow us][social-x-link]
-
-- **WeChat Community:** Scan the QR code below to add our WeChat assistant, and join our WeChat community group.
-
-<div align="center">
-  <img src="./src/assets/wechat_qr.jpg" width="200" style="display: inline-block; margin: 10px;">
-</div>
-
-<!-- LINK GROUP -->
-
-<!-- Social -->
-
-<!-- camel & eigent -->
-
-<!-- marketing -->
-
-<!-- feature -->
-
-[built-with-camel]: https://img.shields.io/badge/-Built--with--CAMEL-4C19E8.svg?logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQ4IiBoZWlnaHQ9IjI3MiIgdmlld0JveD0iMCAwIDI0OCAyNzIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik04LjgzMTE3IDE4LjU4NjVMMCAzMC44MjY3QzUuNDY2OTIgMzUuMDQzMiAxNS4xMzkxIDM4LjgyNTggMjQuODExNCAzNi4yOTU5QzMwLjY5ODggNDAuOTM0MSAzOS42NzAyIDQwLjIzMTMgNDQuMTU1OSA0MC4wOTA4QzQzLjQ1NSA0Ny4zOTk0IDQyLjQ3MzcgNzAuOTU1OCA0NC4xNTU5IDEwNi43MTJDNDUuODM4IDE0Mi40NjggNzEuNzcwOCAxNjYuODY4IDg0LjUyNjkgMTc0LjU5OEw3Ni4wMDAyIDIyMEw4NC41MjY5IDI3MkgxMDguOTE4TDk4LjAwMDIgMjIwTDEwOC45MTggMTc0LjU5OEwxMjkuOTQ0IDI3MkgxNTQuNzU2TDEzNC4xNSAxNzQuNTk4SDE4Ny4xMzdMMTY2LjUzMSAyNzJIMTkxLjc2M0wyMTIuMzY5IDE3NC41OThMMjI2IDIyMEwyMTIuMzY5IDI3MkgyMzcuNjAxTDI0OC4wMDEgMjIwTDIzNy4xOCAxNzQuNTk4QzIzOS4yODMgMTY5LjExNyAyNDAuNDAxIDE2Ni45NzYgMjQxLjgwNiAxNjEuMTA1QzI0OS4zNzUgMTI5LjQ4MSAyMzUuMDc3IDEwMy45MDEgMjI2LjY2NyA5NC40ODRMMjA2LjQ4MSA3My44MjNDMTk3LjY1IDY0Ljk2ODMgMTgyLjUxMSA2NC41NDY3IDE3Mi44MzkgNzIuNTU4MUMxNjUuNzI4IDc4LjQ0NzcgMTYxLjcwMSA3OC43NzI3IDE1NC43NTYgNzIuNTU4MUMxNTEuODEyIDcwLjAyODEgMTQ0LjUzNSA2MS40ODg5IDEzNC45OTEgNTMuNTgzN0MxMjUuMzE5IDQ1LjU3MjMgMTA4LjQ5NyA0OC45NDU1IDEwMi4xODkgNTUuNjkxOUw3My41OTMxIDg0LjM2NDRWNy42MjM0OUw3OS4xMjczIDBDNjAuOTA0MiAzLjY1NDMzIDIzLjgwMjEgOS41NjMwOSAxOS43NjUgMTAuNTc1MUMxNS43Mjc5IDExLjU4NyAxMC43OTM3IDE2LjMzNzcgOC44MzExNyAxOC41ODY1WiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTQzLjIwMzggMTguNzE4N0w0OS4wOTEyIDEzLjA0OTNMNTQuOTc4NyAxOC43MTg3TDQ5LjA5MTIgMjQuODI0Mkw0My4yMDM4IDE4LjcxODdaIiBmaWxsPSIjNEMxOUU4Ii8+Cjwvc3ZnPgo=
-[camel-ai-org-github]: https://github.com/camel-ai
-[camel-github]: https://github.com/camel-ai/camel
-[camel-site]: https://www.camel-ai.org
-[contribution-link]: https://github.com/eigent-ai/eigent/blob/main/CONTRIBUTING.md
-[discord-image]: https://img.shields.io/discord/1082486657678311454?logo=discord&labelColor=%20%235462eb&logoColor=%20%23f5f5f5&color=%20%235462eb
-[discord-url]: https://discord.com/invite/CNcNpquyDc
-[docs-site]: https://docs.eigent.ai
-[download-shield]: https://img.shields.io/badge/Download%20Eigent-363AF5?style=plastic
-[eigent-download]: https://www.eigent.ai/download
-[eigent-github]: https://github.com/eigent-ai/eigent
-[eigent-site]: https://www.eigent.ai
-[github-issue-link]: https://github.com/eigent-ai/eigent/issues
-[github-star]: https://img.shields.io/github/stars/eigent-ai?color=F5F4F0&labelColor=gray&style=plastic&logo=github
-[image-head]: https://eigent-ai.github.io/.github/assets/head.png
-[image-join-us]: https://camel-ai.github.io/camel_asset/graphics/join_us.png
-[image-opensource]: https://eigent-ai.github.io/.github/assets/opensource.png
-[image-public-beta]: https://eigent-ai.github.io/.github/assets/banner.png
-[image-seperator]: https://eigent-ai.github.io/.github/assets/seperator.png
-[image-star-us]: https://eigent-ai.github.io/.github/assets/star-us.gif
-[join-us]: https://www.eigent.ai/careers
-[join-us-image]: https://img.shields.io/badge/Join%20Us-yellow?style=plastic
-[reddit-image]: https://img.shields.io/reddit/subreddit-subscribers/CamelAI?style=plastic&logo=reddit&label=r%2FCAMEL&labelColor=white
-[reddit-url]: https://www.reddit.com/r/CamelAI/
-[social-x-link]: https://x.com/Eigent_AI
-[social-x-shield]: https://img.shields.io/badge/-%40Eigent_AI-white?labelColor=gray&logo=x&logoColor=white&style=plastic
-[sponsor-link]: https://github.com/sponsors/camel-ai
-[sponsor-shield]: https://img.shields.io/badge/-Sponsor%20CAMEL--AI-1d1d1d?logo=github&logoColor=white&style=plastic
-[wechat-image]: https://img.shields.io/badge/WeChat-CamelAIOrg-brightgreen?logo=wechat&logoColor=white
-[wechat-url]: https://ghli.org/camel/wechat.png
+```bash
+BOOTSTRAP=/path/to/aion-v1/deploy/eigent-local/run/bootstrap.json
+export EIGENT_REMOTE_BACKEND_URL="$(python3 -c "
+import json,sys; print(json.load(open(sys.argv[1]))['edge_url'].rstrip('/') + '/eigent/v1')" "$BOOTSTRAP")"
+export EIGENT_REMOTE_BACKEND_API_KEY="$(python3 -c "
+import json,sys; print(json.load(open(sys.argv[1]))['api_key'])" "$BOOTSTRAP")"
+```
+
+The `/eigent/v1` suffix is not optional and is the most common setup mistake —
+`bootstrap.json` stores the bare origin. See
+[Troubleshooting](#troubleshooting).
+
+### 3. Run in development
+
+```bash
+pnpm dev
+```
+
+This starts Vite and Electron together against the configured edge. If the
+configuration is missing or invalid the app falls through to the login wall at
+`#/login` — see [Troubleshooting](#troubleshooting).
+
+For the renderer alone in a browser (no Electron host, so desktop-only
+surfaces are inert):
+
+```bash
+pnpm dev:web
+```
+
+### 4. Build a packaged app
+
+Package through Bazel, not `pnpm build`. The pipeline stages the declared vite
+outputs, runs `electron-builder` in the source workspace (its native-module
+collector needs the real pnpm store), then runs the package-inspection gate and
+emits the manifest, SBOM, version manifest and checksums into `release/` and
+`package-report/`:
+
+```bash
+bazel run //:package_pipeline
+```
+
+To check an existing build on its own:
+
+```bash
+node scripts/inspect-package.mjs release
+```
+
+The gate exits non-zero if the package carries a Python or `uv` runtime, an
+embedded service payload, a Go service binary, a local database, provider key
+material, a Docker socket client, or an internal (non-edge) service endpoint.
+
+## Verifying a change
+
+```bash
+pnpm type-check       # tsc -p tsconfig.build.json --noEmit
+pnpm lint             # eslint + design tokens + the legacy-backend source gate
+pnpm test             # vitest
+pnpm check:i18n       # key parity across the 11 locales
+```
+
+The same checks run under Bazel, from this repo's root:
+
+```bash
+bazel test //:type_check //:lint //:vitest //:aion_edge_client_gen
+```
+
+One deliberate difference: `//:lint` is eslint + design tokens only. The
+legacy-backend source gate scans **git-tracked** files — docs, CI workflows,
+dotfiles — which no Bazel filegroup here declares, so it is reachable only as
+`pnpm lint` / `pnpm check:no-legacy-backend`. Run both.
+
+`//:aion_edge_client_gen` has no npm equivalent; it is the freshness gate for
+the generated edge client.
+
+The Electron end-to-end suite needs the live stack, a display server and a
+built app, so it is manual by design. From the repo root, with the stack up:
+
+```bash
+bazel test //:e2e_aion_lab --test_output=streamed \
+  --test_env=HOME --test_env=PATH \
+  --test_env=EIGENT_E2E_APP_DIR=$PWD \
+  --test_env=EIGENT_E2E_BOOTSTRAP=/abs/path/to/bootstrap.json
+```
+
+Optional `--test_env` values: `EIGENT_E2E_EVIDENCE_DIR` to collect screenshots,
+video and logs into a directory, and `EIGENT_E2E_PACKAGED_APP` pointed at an
+unsigned package to drive the packaged build instead of the dev one. Each suite
+allocates its own throwaway Electron profile, so runs do not share state.
+
+**Known-failing baselines inherited from upstream.** These fail on a clean
+checkout and are not caused by your change — compare against them rather than
+expecting green:
+
+- `pnpm test`: 23 files / 108 tests fail (store and integration suites).
+- `tsc -p tsconfig.json`: 127 errors. `tsconfig.build.json` — the one the gate
+  uses — is clean.
+- `pnpm lint`: 28 warnings, 0 errors.
+
+## Repository layout
+
+```
+electron/main/          Electron main process
+  remoteBackend.ts        edge endpoint validation + config resolution (pure)
+  index.ts                windows, IPC, protocol handlers, startup
+  terminal.ts             PTY surface
+  subscriptionAuth/       Codex OAuth
+electron/preload/       the renderer's only bridge to main
+
+src/api/aion/v1/        edge client
+  contract/               byte-exact mirror of aion-v1/api/eigent/v1
+  gen/                    generated from the mirror; never hand-edited
+src/store/              zustand stores (chat, skills, projects, spaces)
+src/pages/, components/ renderer UI
+src/host/               desktop-vs-web capability injection
+src/i18n/locales/       11 locales, parity-checked
+
+scripts/                gates and generators
+  check-no-legacy-backend.mjs   no CAMEL / Python service may re-enter
+  inspect-package.mjs           the packaged app carries no runtime
+  gen-aion-edge-client.mjs      regenerate the edge client
+  package-pipeline.mjs          package + report
+
+e2e/                    Playwright suites against a live edge
+test/                    vitest unit and integration suites
+resources/example-skills/  skill payloads; these execute in the aion cell
+```
+
+## The aion contract
+
+`src/api/aion/v1/contract/` is a byte-for-byte mirror of `aion-v1/api/eigent/v1/`
+and is never edited here. To pick up a contract change: re-copy the mirror and
+`test/fixtures/aion/eigent/v1/` together, record the aion-v1 commit in
+`src/api/aion/v1/contract/README.md`, then regenerate:
+
+```bash
+pnpm gen:aion-edge
+```
+
+`bazel test //:aion_edge_client_gen` fails until the mirror and the generated
+client agree.
+
+## Troubleshooting
+
+**The app opens to a login screen at `#/login`.** The edge configuration is
+missing or wrong. Almost always the `/eigent/v1` suffix is absent from
+`EIGENT_REMOTE_BACKEND_URL`, or no API key was supplied. Do not try to log in —
+there is no account to log into. Read the reason from the main-process log,
+which names the exact cause:
+
+The log is `<userData>/logs/main.log`. On macOS that is
+`~/Library/Application Support/eigent/` under `pnpm dev` and
+`~/Library/Application Support/Eigent/` for a packaged build — the app name
+differs because only the packaged build gets `productName`.
+
+```bash
+grep 'Backend configuration is invalid' \
+  ~/Library/Application\ Support/eigent/logs/main.log
+```
+
+Then fix the environment and relaunch. There is no other backend to fall back
+to and nothing to retry from inside the app, which is why a misconfiguration
+shows up as "not signed in" rather than as a degraded session.
+
+**A skill fails with a missing interpreter or library.** Session pods have no
+network egress, so nothing can be installed at run time. The dependency belongs
+in the pod image (`deploy/eigent-local/workspace/Dockerfile` in `aion-v1`);
+rebuild and re-pin with `bazel run //dev/eigent_local:images`.
+
+**`pnpm build` produced something odd.** Use `bazel run //:package_pipeline`.
+The npm scripts do not run the package-inspection gate or emit the report.
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) and [SECURITY.md](./SECURITY.md).
+
+## License
+
+Apache-2.0, as inherited from
+[eigent-ai/eigent](https://github.com/eigent-ai/eigent). See
+[LICENSE](./LICENSE).

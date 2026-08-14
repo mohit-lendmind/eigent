@@ -140,9 +140,6 @@ function main() {
   // Directories to skip (third-party code, build outputs, etc.)
   const skipDirs = [
     'node_modules',
-    '.venv',
-    'venv',
-    '__pycache__',
     'dist',
     'dist-electron',
     'build',

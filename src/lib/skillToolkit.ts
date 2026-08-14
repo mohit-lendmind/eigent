@@ -15,12 +15,9 @@
 import { getConnectionConfig } from '@/store/connectionStore';
 
 /**
- * Skill toolkit utilities aligned with CAMEL's skill_toolkit:
- * https://github.com/camel-ai/camel/blob/master/camel/toolkits/skill_toolkit.py
- *
  * Skills are stored as SKILL.md files with YAML frontmatter (name, description)
- * and a markdown body. Discovery order: repo > user > system (CAMEL);
- * in Eigent we use user scope at ~/.eigent/.camel/skills (one folder per skill).
+ * and a markdown body. Locally they live under ~/.eigent/skills, one folder per
+ * skill; the aion SkillStore is the durable source of truth.
  */
 
 export interface SkillMeta {
@@ -84,7 +81,7 @@ function parseSimpleYaml(text: string): Record<string, string> {
 
 /**
  * Parse a SKILL.md file content and extract name, description, and body.
- * Compatible with CAMEL's _parse_skill format.
+ * Parses the frontmatter/body split.
  */
 export function parseSkillMd(contents: string): SkillMeta | null {
   const { frontmatter, body } = splitFrontmatter(contents);
@@ -142,7 +139,7 @@ export function extractSkillFromReply(content: string): ReplySkill | null {
 }
 
 /**
- * Build SKILL.md content from name, description, and body (CAMEL-compatible).
+ * Build SKILL.md content from name, description, and body.
  */
 export function buildSkillMd(
   name: string,

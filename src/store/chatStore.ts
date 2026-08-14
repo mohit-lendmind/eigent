@@ -414,7 +414,7 @@ interface Task {
   createdAt: number;
 }
 
-type UploadFileSource = 'project_output' | 'camel_log' | 'user_attachment';
+type UploadFileSource = 'project_output' | 'user_attachment';
 
 interface UploadCandidate {
   path: string;
@@ -449,25 +449,8 @@ function isReadableLocalPath(filePath?: string): filePath is string {
   return !/^(https?:|file:|blob:|data:)/i.test(filePath);
 }
 
-function buildUploadName(
-  fileName: string,
-  source: UploadFileSource,
-  taskId: string,
-  attachmentIndex: number,
-  relativePath?: string
-): string {
-  if (source === 'camel_log') {
-    if (relativePath) {
-      return `camel_log/${relativePath}/${fileName}`;
-    }
-    return `camel_log/${fileName}`;
-  }
-
-  if (source === 'user_attachment') {
-    return `user_attachment/${fileName}`;
-  }
-
-  return `project_output/${fileName}`;
+function buildUploadName(fileName: string, source: UploadFileSource): string {
+  return `${source === 'user_attachment' ? 'user_attachment' : 'project_output'}/${fileName}`;
 }
 
 function syncProjectDisplayName(
@@ -599,7 +582,6 @@ export function collectTaskUploadFiles(
   generatedFiles: GeneratedUploadFile[],
   messages: Message[],
   pendingAttaches: File[] = [],
-  taskId = 'unknown_task',
   taskOutputFiles: FileInfo[] = []
 ): UploadCandidate[] {
   const uploadCandidates: Array<
@@ -612,7 +594,7 @@ export function collectTaskUploadFiles(
       path: file.path,
       name: file.name,
       relativePath: file.relativePath,
-      source: file.source === 'camel_log' ? 'camel_log' : 'project_output',
+      source: 'project_output',
     });
   }
 
@@ -654,19 +636,12 @@ export function collectTaskUploadFiles(
   }
 
   const uniqueCandidates = new Map<string, UploadCandidate>();
-  let attachmentIndex = 1;
   for (const file of uploadCandidates) {
     if (!uniqueCandidates.has(file.path)) {
-      const { relativePath, ...rest } = file;
+      const { relativePath: _relativePath, ...rest } = file;
       uniqueCandidates.set(file.path, {
         ...rest,
-        uploadName: buildUploadName(
-          file.name,
-          file.source,
-          taskId,
-          file.source === 'user_attachment' ? attachmentIndex++ : 0,
-          relativePath
-        ),
+        uploadName: buildUploadName(file.name, file.source),
       });
     }
   }
@@ -1104,7 +1079,7 @@ const ensureSingleAgentAssignment = (
   if (existingIndex !== -1) return existingIndex;
   taskAssigning.push({
     agent_id: agentId || `${taskId}-single-agent`,
-    name: 'CAMEL Agent',
+    name: 'Agent',
     type: 'single_agent',
     status: AgentStatusValue.RUNNING,
     tasks: [],
@@ -2307,7 +2282,7 @@ const chatStore = (initial?: Partial<ChatStore>) =>
             document_agent: 'Document Agent',
             multi_modal_agent: 'Multi Modal Agent',
             social_media_agent: 'Social Media Agent',
-            single_agent: 'CAMEL Agent',
+            single_agent: 'Agent',
           };
 
           /**
@@ -2713,7 +2688,7 @@ const chatStore = (initial?: Partial<ChatStore>) =>
               type !== 'replay' &&
                 agentMessages.data.sub_tasks?.push(newTaskInfo);
             }
-            // Sub-tasks arrive from the backend with a camel `state` field
+            // Sub-tasks arrive from the backend with a `state` field
             // (OPEN/RUNNING/DONE/FAILED), not the frontend's `status`. Seed
             // every entry with EMPTY so the badge renders as Pending; later
             // SSE events (ASSIGN_TASK, TASK_STATE, …) drive the real status.
@@ -2907,7 +2882,7 @@ const chatStore = (initial?: Partial<ChatStore>) =>
               existingIndex === -1
                 ? {
                     agent_id: agentId,
-                    name: 'CAMEL Agent',
+                    name: 'Agent',
                     type: 'single_agent',
                     tasks: todoTasks,
                     log: [],
@@ -2918,7 +2893,7 @@ const chatStore = (initial?: Partial<ChatStore>) =>
                 : {
                     ...existingAgents[existingIndex],
                     agent_id: existingAgents[existingIndex].agent_id || agentId,
-                    name: existingAgents[existingIndex].name || 'CAMEL Agent',
+                    name: existingAgents[existingIndex].name || 'Agent',
                     type: 'single_agent',
                     tasks: todoTasks,
                   };
@@ -4014,7 +3989,6 @@ const chatStore = (initial?: Partial<ChatStore>) =>
                       generatedFiles,
                       tasks[currentTaskId].messages,
                       tasks[currentTaskId].attaches,
-                      currentTaskId,
                       taskOutputFiles
                     );
                     console.log('Task upload files collected:', {
