@@ -77,6 +77,9 @@ These are enforced by gates because they are easy to break by accident:
   data from `src/api/aion/v1/transport.ts` instead. Retiring a call site fails
   the gate too — that is progress, so record it with
   `pnpm check:no-dead-brain-calls -- --update` and name the surface that moved.
+  It counts a mention in a comment as a reference, deliberately: naming one of
+  these functions is how the next call site gets written, so describe the client
+  rather than naming its exports.
 - **A screen only one plane can serve is hidden on the other.** Nav registries
   gate on `useAionMode()` (`src/hooks/useAionMode.ts`), and an unresolved mode
   counts as aion, so a dead entry can never flash into the nav. Deep links to a

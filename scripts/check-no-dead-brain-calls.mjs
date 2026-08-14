@@ -177,7 +177,10 @@ if (regressions.length > 0 || stale.length > 0) {
     console.error(
       '\n  A new call site on either client is a new surface that cannot serve an\n' +
         '  aion tenant. Read the data from the edge (src/api/aion/v1/transport.ts)\n' +
-        '  instead.\n'
+        '  instead.\n' +
+        '\n  A mention in a comment counts as a reference and is meant to: naming one\n' +
+        '  of these functions is how the next call site gets written. Describe the\n' +
+        '  client rather than naming its exports.\n'
     );
   }
   for (const { key, rel, count, allowed } of stale) {
