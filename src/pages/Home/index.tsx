@@ -15,10 +15,12 @@
 import { proxyFetchDelete } from '@/api/http';
 import AlertDialog from '@/components/ui/alertDialog';
 import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
+import { useAionMode, visibleInMode } from '@/hooks/useAionMode';
 import { share } from '@/lib/share';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import AionUsage from './AionUsage';
 import HomeHubToolbar from './components/HomeHubToolbar';
 import {
   HomeHubProvider,
@@ -40,8 +42,19 @@ import {
   readStoredHomeViewMode,
 } from './utils';
 
-const HOME_SECTIONS = ['spaces', 'projects', 'tasks', 'triggers'] as const;
+const HOME_SECTIONS = [
+  'spaces',
+  'projects',
+  'tasks',
+  'triggers',
+  'usage',
+] as const;
 type HomeSection = (typeof HOME_SECTIONS)[number];
+
+// Only aion meters what a run costs, so the section is absent — not empty —
+// on the legacy plane, and absent while the mode is still unknown so it cannot
+// flash in and out during the handshake.
+const AION_ONLY_SECTIONS: readonly string[] = ['usage'];
 
 function isHomeSection(value: string | null): value is HomeSection {
   return value !== null && HOME_SECTIONS.includes(value as HomeSection);
@@ -80,11 +93,54 @@ export default function HomeHub() {
     (() => Promise<void>) | null
   >(null);
 
+  const aionMode = useAionMode();
+  const menuItems = useMemo(
+    () =>
+      visibleInMode(
+        [
+          {
+            id: 'spaces' as const,
+            name: capitalizeLabel(t('layout.spaces')),
+            count: sectionCounts.spaces,
+          },
+          {
+            id: 'projects' as const,
+            name: capitalizeLabel(t('layout.projects')),
+            count: sectionCounts.projects,
+          },
+          {
+            id: 'tasks' as const,
+            name: capitalizeLabel(t('layout.tasks')),
+            count: sectionCounts.tasks,
+          },
+          {
+            id: 'triggers' as const,
+            name: capitalizeLabel(t('layout.triggers')),
+            count: sectionCounts.triggers,
+          },
+          {
+            // No count: the bill is paged, so any number here would be the
+            // rows loaded so far rather than the runs there are.
+            id: 'usage' as const,
+            name: capitalizeLabel(t('layout.usage')),
+          },
+        ],
+        aionMode,
+        [],
+        AION_ONLY_SECTIONS
+      ),
+    [aionMode, sectionCounts, t]
+  );
+
   // URL is the source of truth for the active section — derive directly
-  // instead of mirroring into local state (avoids a resync window).
-  const activeTab: HomeSection = isHomeSection(sectionFromUrl)
-    ? sectionFromUrl
-    : 'spaces';
+  // instead of mirroring into local state (avoids a resync window). A section
+  // the current mode does not serve falls back rather than rendering nothing,
+  // so a bookmarked ?section=usage on a legacy desktop still lands somewhere.
+  const activeTab: HomeSection =
+    isHomeSection(sectionFromUrl) &&
+    menuItems.some((item) => item.id === sectionFromUrl)
+      ? sectionFromUrl
+      : 'spaces';
   const [viewMode, setViewModeState] = useState<HomeViewMode>(
     readStoredHomeViewMode
   );
@@ -102,34 +158,8 @@ export default function HomeHub() {
     setSortDirection('desc');
   }, [activeTab]);
 
-  const menuItems = useMemo(
-    () => [
-      {
-        id: 'spaces' as const,
-        name: capitalizeLabel(t('layout.spaces')),
-        count: sectionCounts.spaces,
-      },
-      {
-        id: 'projects' as const,
-        name: capitalizeLabel(t('layout.projects')),
-        count: sectionCounts.projects,
-      },
-      {
-        id: 'tasks' as const,
-        name: capitalizeLabel(t('layout.tasks')),
-        count: sectionCounts.tasks,
-      },
-      {
-        id: 'triggers' as const,
-        name: capitalizeLabel(t('layout.triggers')),
-        count: sectionCounts.triggers,
-      },
-    ],
-    [sectionCounts, t]
-  );
-
   const handleTabChange = (tabId: string) => {
-    if (!HOME_SECTIONS.includes(tabId as HomeSection)) return;
+    if (!menuItems.some((item) => item.id === tabId)) return;
     navigate(`?tab=home&section=${tabId}`, { replace: true });
   };
 
@@ -263,6 +293,7 @@ export default function HomeHub() {
           {activeTab === 'projects' && <Projects />}
           {activeTab === 'tasks' && <Tasks />}
           {activeTab === 'triggers' && <Triggers />}
+          {activeTab === 'usage' && <AionUsage />}
         </div>
       </div>
     </HomeHubProvider>

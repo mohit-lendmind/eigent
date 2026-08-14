@@ -171,6 +171,34 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description What the authenticated tenant's settled runs cost. The figures come
+         *     from the product's own run rows, recorded when each run settled — not
+         *     from per-provider-turn accounting, which is turn bookkeeping rather
+         *     than a ledger. Cost is therefore settlement-granular: a run still in
+         *     flight contributes nothing and is absent from both the totals and the
+         *     page.
+         *
+         *     `totals` covers the whole window on every page, so a client that reads
+         *     one page still reads a true total. `runs` is a bounded newest-settled-
+         *     first page of the individual contributions behind it.
+         */
+        get: operations["getUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/artifacts/{artifactId}": {
         parameters: {
             query?: never;
@@ -305,6 +333,57 @@ export type components = {
              *     offer "load more" without a speculative fetch.
              */
             next_page_token?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        UsageSummary: {
+            totals: components["schemas"]["UsageTotals"];
+            runs: components["schemas"]["RunSpend"][];
+            /**
+             * @description Absent on the last page of per-run detail. It pages `runs` only —
+             *     `totals` is identical on every page.
+             */
+            next_page_token?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        UsageTotals: {
+            /** @description Micro-USD (1e-6 USD) summed over the window's settled runs. */
+            cost_micro_usd: string;
+            /**
+             * @description Metered provider calls behind that cost. Read the two together: a
+             *     non-zero call count beside a zero cost means the alias carries no
+             *     price list, which is UNPRICED, not free.
+             */
+            provider_calls: string;
+            /**
+             * @description Terminal runs in the window. A live run is excluded — its spend is
+             *     not settled and billing it would report a figure that later changes.
+             */
+            runs_settled: string;
+            /**
+             * @description Settled runs carrying no figure at all. They contribute nothing to
+             *     the sums above, so a non-zero value here means the totals are a
+             *     FLOOR; a surface that drops this term shows a partial sum as the
+             *     whole bill.
+             */
+            runs_unrecorded: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * @description One settled run's contribution. `cost_micro_usd` and `provider_calls`
+         *     are OMITTED together when nothing was recorded for the run — that
+         *     absence is what a client renders as pending, never as a cost of zero.
+         */
+        RunSpend: {
+            run_id: string;
+            project_id: string;
+            status: string;
+            /** Format: date-time */
+            ended_at?: string;
+            cost_micro_usd?: string;
+            provider_calls?: string;
         } & {
             [key: string]: unknown;
         };
@@ -877,6 +956,58 @@ export interface operations {
                 };
             };
             401: components["responses"]["Problem"];
+        };
+    };
+    getUsage: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Narrow both the totals and the page to one Project. A Project that
+                 *     is not the caller's is `404 not_found`, never an empty bill — a
+                 *     zero here is a claim about the caller's own spend.
+                 */
+                project_id?: string;
+                /**
+                 * @description Inclusive start of the settlement-time window (RFC 3339). Unset
+                 *     means open, and the window is half-open, so adjacent windows
+                 *     partition a tenant's runs without double-billing a boundary run.
+                 */
+                since?: string;
+                /**
+                 * @description Exclusive end of the settlement-time window (RFC 3339). Must be
+                 *     later than `since`; an empty or inverted window is refused with
+                 *     `400 invalid_argument` rather than answered as a confident zero.
+                 */
+                until?: string;
+                /**
+                 * @description Per-run entries per page (default 50). Bounds the detail page only;
+                 *     the totals never depend on it.
+                 */
+                page_size?: number;
+                /**
+                 * @description Opaque continuation from a prior response's `next_page_token`. One
+                 *     this server cannot decode is `400 invalid_cursor`.
+                 */
+                page_token?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Settled spend for the window */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageSummary"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
         };
     };
     getArtifact: {

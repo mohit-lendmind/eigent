@@ -29,6 +29,9 @@ export type ApprovalResponse = Schemas['ApprovalResponse'];
 export type ModelAliasCatalog = Schemas['ModelAliasCatalog'];
 export type IntegrationStatus = Schemas['IntegrationStatus'];
 export type ArtifactAccess = Schemas['ArtifactAccess'];
+export type UsageSummary = Schemas['UsageSummary'];
+export type UsageTotals = Schemas['UsageTotals'];
+export type RunSpend = Schemas['RunSpend'];
 export type Skill = Schemas['Skill'];
 export type SkillCatalog = Schemas['SkillCatalog'];
 export type PutSkillRequest = Schemas['PutSkillRequest'];
@@ -109,6 +112,33 @@ export class EdgeTransport {
     if (options.pageToken) query.set('page_token', options.pageToken);
     const suffix = query.size > 0 ? `?${query}` : '';
     return this.json('GET', `/projects${suffix}`);
+  }
+
+  /**
+   * What the tenant's settled runs cost. `totals` covers the whole window on
+   * every page — only `runs` pages — so a caller that reads one page still
+   * reads a true total. A run still in flight is absent from both: cost is
+   * recorded at settlement.
+   */
+  getUsage(
+    options: {
+      projectId?: string;
+      since?: string;
+      until?: string;
+      pageSize?: number;
+      pageToken?: string;
+    } = {}
+  ): Promise<UsageSummary> {
+    const query = new URLSearchParams();
+    if (options.projectId) query.set('project_id', options.projectId);
+    if (options.since) query.set('since', options.since);
+    if (options.until) query.set('until', options.until);
+    if (options.pageSize !== undefined) {
+      query.set('page_size', String(options.pageSize));
+    }
+    if (options.pageToken) query.set('page_token', options.pageToken);
+    const suffix = query.size > 0 ? `?${query}` : '';
+    return this.json('GET', `/usage${suffix}`);
   }
 
   submitCommand(

@@ -128,6 +128,12 @@ const SKILL_USAGE_MINIMUM_EDGE = [1, 5];
 // tell me your projects" are opposite facts.
 const PROJECT_LIST_MINIMUM_EDGE = [1, 6];
 
+// The usage route shipped in edge API 1.7.0. Below the floor the desktop has
+// no bill to read at all, which is not the same fact as a bill of zero — so
+// the cost surface must say the backend cannot report spend rather than show
+// a confident $0.00.
+const USAGE_MINIMUM_EDGE = [1, 7];
+
 function meetsEdgeFloor(status: IntegrationStatus, floor: number[]): boolean {
   if (!negotiateCompatibility(status).compatible) {
     return false;
@@ -146,4 +152,8 @@ export function supportsSkillUsage(status: IntegrationStatus): boolean {
 
 export function supportsProjectList(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, PROJECT_LIST_MINIMUM_EDGE);
+}
+
+export function supportsUsage(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, USAGE_MINIMUM_EDGE);
 }

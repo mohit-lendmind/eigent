@@ -58,4 +58,18 @@ describe('visibleInMode', () => {
       ['skills', 'memory']
     );
   });
+
+  it('gates aion-only entries the same way, from the other side', () => {
+    const withUsage = [...items, { id: 'usage' }] as const;
+    const aionOnly = ['usage'];
+    expect(
+      visibleInMode(withUsage, 'aion', legacyOnly, aionOnly).map((i) => i.id)
+    ).toEqual(['skills', 'memory', 'usage']);
+    expect(
+      visibleInMode(withUsage, 'legacy', legacyOnly, aionOnly).map((i) => i.id)
+    ).toEqual(['models', 'skills', 'sub-agents', 'memory']);
+    expect(
+      visibleInMode(withUsage, 'unknown', legacyOnly, aionOnly).map((i) => i.id)
+    ).toEqual(['skills', 'memory']);
+  });
 });

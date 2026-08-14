@@ -18,7 +18,8 @@
     "skill_response.json",
     "skill_catalog_response.json",
     "skill_catalog_usage_response.json",
-    "put_skill_response.json"
+    "put_skill_response.json",
+    "usage_response.json"
   ],
   "events": [
     "event_run_accepted.json",
