@@ -66,8 +66,10 @@ These are enforced by gates because they are easy to break by accident:
   [The aion contract](./README.md#the-aion-contract).
 - **Only `src/host/createHost.ts` may touch `window.electronAPI` /
   `window.ipcRenderer`.** Everything else goes through the host bridge so the
-  renderer stays runnable on the web. Guarded by
-  `scripts/check-electron-access.sh`.
+  renderer stays runnable on the web. `scripts/check-electron-access.sh` catches
+  the literal `window.` forms only — aliasing `window` to a local first walks
+  straight past it, so treat the guard as a backstop and the rule as the actual
+  constraint.
 - **No hard-coded colors in UI source.** Use design tokens. Guarded by
   `scripts/check-design-token-usage.mjs`; genuine exceptions go in
   `scripts/design-token-usage.allowlist` or carry an inline
