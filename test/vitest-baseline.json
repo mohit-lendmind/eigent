@@ -4,7 +4,7 @@
     "node": "20.20.2",
     "platform": "linux-x64"
   },
-  "totalTests": 817,
+  "totalTests": 838,
   "totalFailedTests": 24,
   "failingFiles": {
     "test/integration/chatStore/activeQueue.test.tsx": 2,
