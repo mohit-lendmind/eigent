@@ -177,9 +177,10 @@ describe('IntegrationLab diagnostics', () => {
     const { transport } = fakeTransport();
     renderLab(transport);
     await screen.findByTestId('lab-status-panel');
-    expect((await screen.findByTestId('lab-health')).textContent).toBe(
-      'health: ok'
-    );
+    // The panel renders before /status answers, so lab-health exists reading
+    // "checking" — findByTestId waits for the node, not for the text in it.
+    const health = await screen.findByTestId('lab-health');
+    await waitFor(() => expect(health.textContent).toBe('health: ok'));
     expect(
       (await screen.findByTestId('lab-execution-mode')).textContent
     ).toContain('remote');
