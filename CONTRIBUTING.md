@@ -25,8 +25,9 @@ Run before pushing:
 ```bash
 pnpm type-check
 pnpm lint
-pnpm test
 pnpm check:i18n
+pnpm check:vitest-baseline
+bash scripts/check-electron-access.sh
 ```
 
 `pnpm lint` is three checks: eslint, design-token usage, and the legacy-backend
@@ -34,18 +35,22 @@ source gate. The Bazel `//:lint` suite runs only the first two — the source ga
 scans git-tracked files, which no Bazel filegroup here declares. Run `pnpm lint`
 as well, not just the Bazel suite.
 
-**Nothing is enforced for you.** The workflows inherited from upstream are
-registered and marked active, but they have never executed in this fork — zero
-runs, across every PR merged so far. Do not read a green PR as a passing build;
-there is no build. The commands above are the only gate, so run them and put
-their output in the PR.
+`.github/workflows/gates.yml` runs all of the above on every pull request and
+every push to `main`. Every gate runs even after an earlier one fails, so one run
+tells you everything that is broken rather than only the first thing.
 
-Wiring up CI is worth doing. Until it is, treat the local run as mandatory.
+Run them locally anyway — the round trip through CI is the slow way to find a
+type error. But **CI is the authority**, for one concrete reason: the vitest
+failure set moves with the Node major. Use the Node line `package.json` declares
+(`>=18 <23`) and your numbers will match CI's. On a newer Node they will not, and
+`check:vitest-baseline` will tell you the runtime differs rather than letting you
+bisect your own diff for hours.
 
-`pnpm test` and `tsc -p tsconfig.json` have known-failing baselines inherited
-from upstream — see
-[Known-failing baselines](./README.md#verifying-a-change). Compare against
-them; do not add to them.
+`pnpm check:vitest-baseline` and `tsc -p tsconfig.json` have known-failing
+baselines inherited from upstream — see
+[Known-failing baselines](./README.md#verifying-a-change). Compare against them;
+do not add to them. If your change *fixes* one, the gate fails too: regenerate
+the baseline from the CI run's `test-results` artifact and say so in the PR.
 
 A pre-commit hook runs eslint, prettier, the design-token check and the license
 header updater on staged files.

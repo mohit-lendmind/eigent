@@ -1,30 +1,22 @@
 {
-  "_comment": "Pre-existing vitest failures inherited from upstream. Regenerate with `pnpm check:vitest-baseline -- --update` and explain the movement in your PR.",
+  "_comment": "Pre-existing vitest failures inherited from upstream, as they fail in CI. Regenerate from a CI run: download the `test-results` artifact and run `pnpm check:vitest-baseline -- --update --report <path>`. Explain the movement in your PR.",
+  "recordedOn": {
+    "node": "20.20.2",
+    "platform": "linux-x64"
+  },
   "totalTests": 776,
-  "totalFailedTests": 108,
+  "totalFailedTests": 24,
   "failingFiles": {
-    "src/store/projectStore.test.ts": 8,
-    "src/store/spaceStore.test.ts": 5,
-    "test/integration/chatStore/activeQueue.test.tsx": 4,
+    "test/integration/chatStore/activeQueue.test.tsx": 2,
     "test/integration/chatStore/deadWorkforce.test.tsx": 3,
-    "test/integration/chatStore/newProject.test.tsx": 8,
+    "test/integration/chatStore/newProject.test.tsx": 4,
     "test/integration/chatStore/replayComplete.test.tsx": 6,
-    "test/integration/components/ChatBox.integration.test.tsx": 8,
+    "test/integration/components/ChatBox.integration.test.tsx": 3,
     "test/unit/api/http.test.ts": 0,
     "test/unit/components/Layout/ThemeProvider.test.tsx": 0,
     "test/unit/components/SearchInput.test.tsx": 2,
-    "test/unit/components/Session/PreviewBrowserLayer.test.tsx": 6,
-    "test/unit/components/Session/PreviewPanel.test.tsx": 9,
-    "test/unit/components/Session/TerminalTab.test.tsx": 1,
-    "test/unit/components/Workspace.test.tsx": 2,
     "test/unit/electron/githubReleaseCdnProvider.test.ts": 1,
-    "test/unit/hooks/useRemoteControlBridge.test.ts": 3,
-    "test/unit/hooks/useSelectedProjectTurn.test.tsx": 2,
-    "test/unit/hooks/useTriggerTaskExecutor.test.ts": 15,
-    "test/unit/lib/projectAchievement.test.ts": 5,
     "test/unit/pages/Browser/CDP.test.tsx": 1,
-    "test/unit/store/chatStore.test.ts": 2,
-    "test/unit/store/pageTabStore.preview.test.ts": 15,
-    "test/unit/store/pageTabStore.test.ts": 2
+    "test/unit/store/chatStore.test.ts": 2
   }
 }

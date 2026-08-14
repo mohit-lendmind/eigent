@@ -12,10 +12,19 @@ pnpm test:coverage
 pnpm test -- test/unit/store/installationStore.test.ts   # one file
 ```
 
-`pnpm test` has a **known-failing baseline inherited from upstream**: 23 files /
-108 tests fail on a clean checkout. Diff against that baseline rather than
-expecting a green run — see
-[Known-failing baselines](../README.md#verifying-a-change).
+`pnpm test` has a **known-failing baseline inherited from upstream**: 11 files /
+24 tests fail on a clean checkout. Diff against that baseline rather than
+expecting a green run. `pnpm check:vitest-baseline` does exactly that and is what
+CI gates on; the recorded set lives in
+[vitest-baseline.json](./vitest-baseline.json). See
+[Known-failing baselines](../README.md#verifying-a-change) for how to move it.
+
+The baseline is measured on the Node line `package.json` declares (`>=18 <23`),
+which is what CI runs. On a newer Node the suite fails differently — Node's own
+global `localStorage` shadows jsdom's and lacks its methods, so any test whose
+subject persists state behaves differently. A test that relies on Web Storage
+being either present or absent is relying on the runtime; reset the state it owns
+instead.
 
 ## Layout
 

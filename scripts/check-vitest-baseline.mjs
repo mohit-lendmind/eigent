@@ -88,7 +88,8 @@ function runSuite() {
     process.exit(2);
   }
   // Stamped beside the report so `--update --report` on a downloaded CI
-  // artifact records CI's runtime rather than the machine doing the download.
+  // artifact records CI's runtime rather than the machine doing the download,
+  // and can strip CI's checkout path off the absolute test file names.
   fs.writeFileSync(
     path.join(path.dirname(outputFile), 'environment.json'),
     `${JSON.stringify(currentEnvironment(), null, 2)}\n`
@@ -100,16 +101,17 @@ function currentEnvironment() {
   return {
     node: process.versions.node,
     platform: `${process.platform}-${process.arch}`,
+    repoRoot: REPO_ROOT,
   };
 }
 
-/** The runtime a report was produced on, from the sibling stamp if there is
- *  one — a report handed over with `--report` may come from another machine. */
+/** Where a report was produced, from the sibling stamp if there is one — a
+ *  report handed over with `--report` may come from another machine. */
 function environmentOf(reportPath) {
   const stamp = path.join(path.dirname(reportPath), 'environment.json');
   if (!fs.existsSync(stamp)) return currentEnvironment();
   try {
-    return JSON.parse(fs.readFileSync(stamp, 'utf-8'));
+    return { ...currentEnvironment(), ...JSON.parse(fs.readFileSync(stamp, 'utf-8')) };
   } catch {
     return currentEnvironment();
   }
@@ -118,14 +120,14 @@ function environmentOf(reportPath) {
 /** Failing files -> count of failed assertions. A file that fails to collect
  *  reports zero failed assertions, so presence in this map is what marks a
  *  file as failing, not the count. */
-function failuresByFile(report) {
+function failuresByFile(report, reportRoot) {
   const failing = {};
   for (const file of report.testResults ?? []) {
     const failed = (file.assertionResults ?? []).filter(
       (assertion) => assertion.status === 'failed'
     ).length;
     if (failed === 0 && file.status !== 'failed') continue;
-    const rel = path.relative(REPO_ROOT, file.name).split(path.sep).join('/');
+    const rel = path.relative(reportRoot, file.name).split(path.sep).join('/');
     failing[rel] = failed;
   }
   return failing;
@@ -133,9 +135,9 @@ function failuresByFile(report) {
 
 const reportPath = existingReport ?? runSuite();
 const report = JSON.parse(fs.readFileSync(reportPath, 'utf-8'));
-const actual = failuresByFile(report);
+const { repoRoot, ...recordedOn } = environmentOf(reportPath);
+const actual = failuresByFile(report, repoRoot);
 const totalTests = report.numTotalTests ?? 0;
-const recordedOn = environmentOf(reportPath);
 
 if (update) {
   const next = {
