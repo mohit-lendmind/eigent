@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Gates the vitest suite against a recorded baseline of pre-existing failures.
 //
-// The suite inherits 23 failing files from upstream, so `vitest run` can never
-// be a pass/fail gate on its own — a red run says nothing about the change that
+// The suite inherits failing files from upstream, so `vitest run` can never be
+// a pass/fail gate on its own — a red run says nothing about the change that
 // produced it. This compares the run against test/vitest-baseline.json and
 // fails on movement in either direction:
 //
@@ -42,6 +42,12 @@ const args = process.argv.slice(2);
 const update = args.includes('--update');
 const reportFlag = args.indexOf('--report');
 const existingReport = reportFlag === -1 ? null : args[reportFlag + 1];
+// Without this, `--report` with a forgotten path quietly runs the whole suite
+// instead — on the wrong runtime, which is the mistake this flag exists to avoid.
+if (reportFlag !== -1 && !existingReport) {
+  console.error('--report needs a path to a vitest JSON report');
+  process.exit(2);
+}
 
 /** The Node line the baseline was recorded on, from package.json engines. */
 function supportedNodeMajors() {
