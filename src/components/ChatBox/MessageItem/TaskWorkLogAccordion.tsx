@@ -91,7 +91,7 @@ function mergeTaggedAgentLogs(taskAssigning: Agent[] | undefined): TaggedLog[] {
  * in-progress todo's `active_form` (e.g. "Searching Google for relevant
  * papers") is plumbed into that task's `content` in the store. Surface it as
  * the live header label so the user sees what the agent is doing *right now*
- * instead of a static "CAMEL Agent" tag.
+ * instead of a static "Agent" tag.
  *
  * Falls back to the most recently completed step so the label never flashes
  * empty between todos or after the run finishes.
@@ -1011,7 +1011,7 @@ const AgentGroupRow = memo(function AgentGroupRow({
     isSingleAgent && group.agentType === 'single_agent';
 
   // Single agent: surface the live in-progress `active_form` in place of the
-  // static "CAMEL Agent" label. Fall back to the static label only when no
+  // static "Agent" label. Fall back to the static label only when no
   // step description is available (never expected while running).
   const singleAgentLabel =
     useSingleAgentLiveHeader && singleAgentActiveForm

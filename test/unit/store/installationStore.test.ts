@@ -16,40 +16,19 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   useInstallationStore,
+  useInstallationUI,
   type InstallationState,
 } from '../../../src/store/installationStore';
 import {
   setupElectronMocks,
-  TestScenarios,
   type MockedElectronAPI,
 } from '../../mocks/electronMocks';
 
-// Mock the authStore import since it's imported dynamically
-vi.mock('../../../src/store/authStore', () => ({
-  useAuthStore: {
-    getState: () => ({
-      setInitState: vi.fn(),
-    }),
-  },
-}));
-
 describe('Installation Store', () => {
   let electronAPI: MockedElectronAPI;
-  let mockSetInitState: ReturnType<typeof vi.fn>;
 
-  beforeEach(async () => {
-    // Set up electron mocks
-    const mocks = setupElectronMocks();
-    electronAPI = mocks.electronAPI;
-
-    // Mock the authStore
-    const { useAuthStore } = await import('../../../src/store/authStore');
-    mockSetInitState = vi.fn();
-    useAuthStore.getState = vi.fn().mockReturnValue({
-      setInitState: mockSetInitState,
-    });
-
-    // Reset the store to initial state
+  beforeEach(() => {
+    electronAPI = setupElectronMocks().electronAPI;
     useInstallationStore.getState().reset();
   });
 
@@ -59,37 +38,37 @@ describe('Installation Store', () => {
   });
 
   describe('Initial State', () => {
-    it('should have correct initial state', () => {
+    it('starts idle and hidden, with the backend not yet ready', () => {
       const { result } = renderHook(() => useInstallationStore());
 
       expect(result.current.state).toBe('idle');
       expect(result.current.progress).toBe(20);
-      expect(result.current.logs).toEqual([]);
-      expect(result.current.error).toBeUndefined();
+      expect(result.current.backendError).toBeUndefined();
       expect(result.current.isVisible).toBe(false);
+      expect(result.current.isBackendReady).toBe(false);
+      expect(result.current.needsBackendRestart).toBe(false);
     });
   });
 
   describe('State Transitions', () => {
-    it('should transition from idle to installing when startInstallation is called', () => {
+    it('shows the readiness screen while waiting on the backend', () => {
       const { result } = renderHook(() => useInstallationStore());
 
       act(() => {
-        result.current.startInstallation();
+        result.current.setWaitingBackend();
       });
 
-      expect(result.current.state).toBe('installing');
-      expect(result.current.progress).toBe(20);
-      expect(result.current.logs).toEqual([]);
-      expect(result.current.error).toBeUndefined();
+      expect(result.current.state).toBe('waiting-backend');
+      expect(result.current.progress).toBe(80);
       expect(result.current.isVisible).toBe(true);
+      expect(result.current.isBackendReady).toBe(false);
     });
 
-    it('should transition to completed when setSuccess is called', () => {
+    it('completes and marks the backend ready on success', () => {
       const { result } = renderHook(() => useInstallationStore());
 
       act(() => {
-        result.current.startInstallation();
+        result.current.setWaitingBackend();
       });
 
       act(() => {
@@ -98,175 +77,110 @@ describe('Installation Store', () => {
 
       expect(result.current.state).toBe('completed');
       expect(result.current.progress).toBe(100);
+      expect(result.current.isBackendReady).toBe(true);
     });
 
-    it('should transition to error when setError is called', () => {
+    it('records the backend error and drops readiness', () => {
       const { result } = renderHook(() => useInstallationStore());
-      const errorMessage = 'Installation failed';
+      const message = 'Backend configuration is invalid: no backend configured';
 
       act(() => {
-        result.current.startInstallation();
+        result.current.setWaitingBackend();
       });
 
       act(() => {
-        result.current.setError(errorMessage);
+        result.current.setBackendError(message);
       });
 
       expect(result.current.state).toBe('error');
-      expect(result.current.error).toBe(errorMessage);
-      expect(result.current.logs).toHaveLength(1);
-      expect(result.current.logs[0].type).toBe('stderr');
-      expect(result.current.logs[0].data).toBe(errorMessage);
+      expect(result.current.backendError).toBe(message);
+      expect(result.current.isBackendReady).toBe(false);
     });
 
-    it('should reset to installing state when retryInstallation is called', () => {
+    it('tracks the post-logout restart flag independently of readiness', () => {
       const { result } = renderHook(() => useInstallationStore());
 
-      // First, set error state
       act(() => {
-        result.current.startInstallation();
+        result.current.setNeedsBackendRestart(true);
       });
 
+      expect(result.current.needsBackendRestart).toBe(true);
+      expect(result.current.state).toBe('idle');
+
       act(() => {
-        result.current.setError('Some error');
+        result.current.setNeedsBackendRestart(false);
       });
 
-      expect(result.current.state).toBe('error');
+      expect(result.current.needsBackendRestart).toBe(false);
+    });
 
-      // Then retry
+    it('recovers to completed when a late ready event follows an error', () => {
+      const { result } = renderHook(() => useInstallationStore());
+
       act(() => {
-        result.current.retryInstallation();
+        result.current.setWaitingBackend();
+        result.current.setBackendError('transient');
+        result.current.setSuccess();
       });
 
-      expect(result.current.state).toBe('installing');
-      expect(result.current.logs).toEqual([]);
-      expect(result.current.error).toBeUndefined();
+      expect(result.current.state).toBe('completed');
+      expect(result.current.progress).toBe(100);
+      expect(result.current.isBackendReady).toBe(true);
+    });
+
+    it('hides the readiness screen when setup completes', () => {
+      const { result } = renderHook(() => useInstallationStore());
+
+      act(() => {
+        result.current.setVisible(true);
+      });
+
       expect(result.current.isVisible).toBe(true);
-    });
-  });
 
-  describe('Log Management', () => {
-    it('should add logs and update progress', () => {
+      act(() => {
+        result.current.completeSetup();
+      });
+
+      expect(result.current.state).toBe('completed');
+      expect(result.current.isVisible).toBe(false);
+    });
+
+    it('accepts manual progress updates', () => {
       const { result } = renderHook(() => useInstallationStore());
 
       act(() => {
-        result.current.startInstallation();
+        result.current.updateProgress(75);
       });
 
-      const initialProgress = result.current.progress;
-
-      act(() => {
-        result.current.addLog({
-          type: 'stdout',
-          data: 'Installing package...',
-          timestamp: new Date(),
-        });
-      });
-
-      expect(result.current.logs).toHaveLength(1);
-      expect(result.current.logs[0].type).toBe('stdout');
-      expect(result.current.logs[0].data).toBe('Installing package...');
-      expect(result.current.progress).toBe(initialProgress + 5);
+      expect(result.current.progress).toBe(75);
     });
 
-    it('should not exceed 90% progress when adding logs', () => {
+    it('follows idle -> waiting-backend -> completed on a clean launch', () => {
       const { result } = renderHook(() => useInstallationStore());
-
-      act(() => {
-        result.current.startInstallation();
-      });
-
-      // Add many logs to test progress cap
-      act(() => {
-        for (let i = 0; i < 20; i++) {
-          result.current.addLog({
-            type: 'stdout',
-            data: `Log entry ${i}`,
-            timestamp: new Date(),
-          });
-        }
-      });
-
-      expect(result.current.progress).toBe(90);
-      expect(result.current.logs).toHaveLength(20);
-    });
-  });
-
-  describe('Installation Flow Integration', () => {
-    it('should handle successful installation flow', async () => {
-      TestScenarios.versionUpdate(electronAPI);
-
-      const { result } = renderHook(() => useInstallationStore());
-
-      // Start installation
-      await act(async () => {
-        await result.current.performInstallation();
-      });
-
-      // Wait for the mocked installation to complete
-      await vi.waitFor(
-        () => {
-          expect(result.current.state).toBe('completed');
-        },
-        { timeout: 1000 }
+      const states: InstallationState[] = [];
+      const unsubscribe = useInstallationStore.subscribe((s) =>
+        states.push(s.state)
       );
 
-      expect(electronAPI.checkAndInstallDepsOnUpdate).toHaveBeenCalled();
-      expect(mockSetInitState).toHaveBeenCalledWith('done');
-    });
-
-    it('should handle installation failure', async () => {
-      TestScenarios.installationError(electronAPI);
-
-      const { result } = renderHook(() => useInstallationStore());
-
-      await act(async () => {
-        await result.current.performInstallation();
+      act(() => {
+        result.current.setWaitingBackend();
+        result.current.setSuccess();
       });
 
-      // Wait for the mocked installation to fail
-      await vi.waitFor(
-        () => {
-          expect(result.current.state).toBe('error');
-        },
-        { timeout: 1000 }
-      );
-
-      expect(result.current.error).toBe('Installation failed');
-    });
-
-    it('should handle fresh installation scenario', async () => {
-      TestScenarios.freshInstall(electronAPI);
-
-      const { result } = renderHook(() => useInstallationStore());
-
-      await act(async () => {
-        await result.current.performInstallation();
-      });
-
-      await vi.waitFor(
-        () => {
-          expect(result.current.state).toBe('completed');
-        },
-        { timeout: 1000 }
-      );
-
-      expect(electronAPI.checkAndInstallDepsOnUpdate).toHaveBeenCalled();
+      unsubscribe();
+      expect(states).toEqual(['waiting-backend', 'completed']);
     });
   });
 
   describe('Log Export', () => {
-    it('should export logs successfully', async () => {
+    it('opens the issue form after the log is saved', async () => {
       const { result } = renderHook(() => useInstallationStore());
 
-      // Mock window.location.href
       const originalLocation = window.location;
       Object.defineProperty(window, 'location', {
         value: { href: '' },
         writable: true,
       });
-
-      // Mock alert
       const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
 
       await act(async () => {
@@ -279,7 +193,6 @@ describe('Installation Store', () => {
         'https://github.com/eigent-ai/eigent/issues/new/choose'
       );
 
-      // Restore
       Object.defineProperty(window, 'location', {
         value: originalLocation,
         writable: true,
@@ -287,7 +200,7 @@ describe('Installation Store', () => {
       alertSpy.mockRestore();
     });
 
-    it('should handle export failure', async () => {
+    it('reports a cancelled or failed export', async () => {
       electronAPI.exportLog.mockResolvedValue({
         success: false,
         error: 'Export failed',
@@ -305,151 +218,35 @@ describe('Installation Store', () => {
     });
   });
 
-  describe('Computed Selectors', () => {
-    it('useLatestLog should return the most recent log', () => {
-      const { result: storeResult } = renderHook(() => useInstallationStore());
-      const { result: latestLogResult } = renderHook(() =>
-        useInstallationStore((state: any) => state.logs[state.logs.length - 1])
-      );
+  describe('useInstallationUI', () => {
+    it('shows the readiness screen only while it is visible and unfinished', () => {
+      const { result: store } = renderHook(() => useInstallationStore());
+      const { result: ui } = renderHook(() => useInstallationUI());
 
-      expect(latestLogResult.current).toBeUndefined();
-
-      act(() => {
-        storeResult.current.startInstallation();
-        storeResult.current.addLog({
-          type: 'stdout',
-          data: 'First log',
-          timestamp: new Date(),
-        });
-        storeResult.current.addLog({
-          type: 'stderr',
-          data: 'Latest log',
-          timestamp: new Date(),
-        });
-      });
-
-      expect(latestLogResult.current.data).toBe('Latest log');
-      expect(latestLogResult.current.type).toBe('stderr');
-    });
-
-    it('useInstallationStatus should return correct status', () => {
-      const { result: storeResult } = renderHook(() => useInstallationStore());
-      const { result: statusResult } = renderHook(() => {
-        const state = useInstallationStore((state: any) => state.state);
-        const isVisible = useInstallationStore((state: any) => state.isVisible);
-
-        return {
-          isInstalling: state === 'installing',
-          installationState: state,
-          shouldShowInstallScreen: isVisible && state !== 'completed',
-          isInstallationComplete: state === 'completed',
-          canRetry: state === 'error',
-        };
-      });
-
-      // Initial state
-      expect(statusResult.current.isInstalling).toBe(false);
-      expect(statusResult.current.installationState).toBe('idle');
-      expect(statusResult.current.shouldShowInstallScreen).toBe(false);
-      expect(statusResult.current.isInstallationComplete).toBe(false);
-      expect(statusResult.current.canRetry).toBe(false);
-
-      // Installing state
-      act(() => {
-        storeResult.current.startInstallation();
-      });
-
-      expect(statusResult.current.isInstalling).toBe(true);
-      expect(statusResult.current.shouldShowInstallScreen).toBe(true);
-      expect(statusResult.current.canRetry).toBe(false);
-
-      // Error state
-      act(() => {
-        storeResult.current.setError('Some error');
-      });
-
-      expect(statusResult.current.isInstalling).toBe(false);
-      expect(statusResult.current.canRetry).toBe(true);
-
-      // Completed state
-      act(() => {
-        storeResult.current.setSuccess();
-      });
-
-      expect(statusResult.current.isInstallationComplete).toBe(true);
-      expect(statusResult.current.shouldShowInstallScreen).toBe(false);
-    });
-  });
-
-  describe('Edge Cases', () => {
-    it('should handle multiple rapid state changes', () => {
-      const { result } = renderHook(() => useInstallationStore());
+      expect(ui.current.installationState).toBe('idle');
+      expect(ui.current.shouldShowInstallScreen).toBe(false);
+      expect(ui.current.isBackendReady).toBe(false);
 
       act(() => {
-        result.current.startInstallation();
-        result.current.setError('Error 1');
-        result.current.retryInstallation();
-        result.current.setSuccess();
+        store.current.setWaitingBackend();
       });
 
-      expect(result.current.state).toBe('completed');
-      expect(result.current.progress).toBe(100);
-    });
-
-    it('should handle visibility changes correctly', () => {
-      const { result } = renderHook(() => useInstallationStore());
-
-      expect(result.current.isVisible).toBe(false);
+      expect(ui.current.shouldShowInstallScreen).toBe(true);
+      expect(ui.current.progress).toBe(80);
 
       act(() => {
-        result.current.setVisible(true);
+        store.current.setBackendError('unreachable edge');
       });
 
-      expect(result.current.isVisible).toBe(true);
+      expect(ui.current.backendError).toBe('unreachable edge');
+      expect(ui.current.shouldShowInstallScreen).toBe(true);
 
       act(() => {
-        result.current.completeSetup();
+        store.current.setSuccess();
       });
 
-      expect(result.current.state).toBe('completed');
-      expect(result.current.isVisible).toBe(false);
-    });
-
-    it('should handle manual progress updates', () => {
-      const { result } = renderHook(() => useInstallationStore());
-
-      act(() => {
-        result.current.updateProgress(75);
-      });
-
-      expect(result.current.progress).toBe(75);
-    });
-  });
-
-  describe('Installation State Sequence', () => {
-    it('should follow correct state sequence for normal installation', async () => {
-      const { result } = renderHook(() => useInstallationStore());
-      const states: InstallationState[] = [];
-
-      // Subscribe to state changes
-      useInstallationStore.subscribe((state: any) => {
-        states.push(state.state);
-      });
-
-      await act(async () => {
-        await result.current.performInstallation();
-      });
-
-      await vi.waitFor(
-        () => {
-          expect(result.current.state).toBe('completed');
-        },
-        { timeout: 1000 }
-      );
-
-      // Should have progressed through: idle -> installing -> completed
-      expect(states).toContain('installing');
-      expect(states).toContain('completed');
+      expect(ui.current.isBackendReady).toBe(true);
+      expect(ui.current.shouldShowInstallScreen).toBe(false);
     });
   });
 });

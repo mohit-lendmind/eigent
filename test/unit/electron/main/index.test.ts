@@ -155,18 +155,6 @@ vi.mock('../../../../electron/main/update', () => ({
   registerUpdateIpcHandlers: vi.fn(),
 }));
 
-vi.mock('../../../../electron/main/init', () => ({
-  checkToolInstalled: vi.fn(),
-  killProcessOnPort: vi.fn(),
-  startBackend: vi.fn(),
-  findAvailablePort: vi.fn(),
-}));
-
-vi.mock('../../../../electron/main/install-deps', () => ({
-  checkAndInstallDepsOnUpdate: vi.fn(),
-  getInstallationStatus: vi.fn(),
-}));
-
 // Other internal mocks...
 vi.mock('../../../../electron/main/webview', () => ({
   WebViewManager: vi.fn(),
@@ -191,16 +179,12 @@ vi.mock('../../../../electron/main/utils/log', () => ({ zipFolder: vi.fn() }));
 vi.mock('tree-kill', () => ({ default: vi.fn() }));
 
 // Import the mocked functions
-import * as initModule from '../../../../electron/main/init';
-import * as installDepsModule from '../../../../electron/main/install-deps';
 import * as envUtil from '../../../../electron/main/utils/envUtil';
 import * as mcpConfig from '../../../../electron/main/utils/mcpConfig';
 
 // Cast the imports to mocked versions
 const mockedEnvUtil = vi.mocked(envUtil);
 const mockedMcpConfig = vi.mocked(mcpConfig);
-const mockedInitModule = vi.mocked(initModule);
-const mockedInstallDeps = vi.mocked(installDepsModule);
 
 describe('Electron Main Index Functions', () => {
   beforeEach(() => {
@@ -218,48 +202,6 @@ describe('Electron Main Index Functions', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
-  });
-
-  describe('checkAndInstallDepsOnUpdate', () => {
-    it('should return true when version file exists and matches current version', async () => {
-      mockFs.existsSync.mockReturnValue(true);
-      mockFs.readFileSync.mockReturnValue('1.0.0');
-      mockApp.getVersion.mockReturnValue('1.0.0');
-
-      // We test the logic that would be in the function
-      const versionExists = mockFs.existsSync('/mock/version.txt');
-      const savedVersion = mockFs.readFileSync('/mock/version.txt', 'utf-8');
-      const currentVersion = mockApp.getVersion();
-
-      expect(versionExists).toBe(true);
-      expect(savedVersion).toBe(currentVersion);
-    });
-
-    it('should install dependencies when version file does not exist', async () => {
-      mockFs.existsSync.mockReturnValue(false);
-      mockApp.getVersion.mockReturnValue('1.0.0');
-
-      const versionExists = mockFs.existsSync('/mock/version.txt');
-      expect(versionExists).toBe(false);
-    });
-
-    it('should install dependencies when version has changed', async () => {
-      mockFs.existsSync.mockReturnValue(true);
-      mockFs.readFileSync.mockReturnValue('0.9.0');
-      mockApp.getVersion.mockReturnValue('1.0.0');
-
-      const savedVersion = mockFs.readFileSync('/mock/version.txt', 'utf-8');
-      const currentVersion = mockApp.getVersion();
-      expect(savedVersion).not.toBe(currentVersion);
-    });
-
-    it('should handle errors during version check', async () => {
-      mockFs.existsSync.mockImplementation(() => {
-        throw new Error('File system error');
-      });
-
-      expect(() => mockFs.existsSync('/path')).toThrow('File system error');
-    });
   });
 
   describe('setupProtocolHandlers', () => {
@@ -425,14 +367,6 @@ describe('Electron Main Index Functions', () => {
 
         const result = mockApp.getVersion();
         expect(result).toBe('1.0.0');
-      });
-    });
-
-    describe('get-backend-port handler', () => {
-      it('should return backend port', () => {
-        const mockHandler = vi.fn().mockReturnValue(5001);
-
-        expect(typeof mockHandler()).toBe('number');
       });
     });
 
@@ -782,35 +716,6 @@ describe('Electron Main Index Functions', () => {
       const shouldOpenExternal =
         mockUrl.startsWith('https:') || mockUrl.startsWith('http:');
       expect(shouldOpenExternal).toBe(false);
-    });
-  });
-
-  describe('cleanupPythonProcess', () => {
-    it('should cleanup python process successfully', async () => {
-      const mockProcess = {
-        pid: 1234,
-        kill: vi.fn(),
-      };
-
-      // Test cleanup logic
-      if (mockProcess) {
-        mockProcess.kill();
-      }
-
-      expect(mockProcess.kill).toHaveBeenCalled();
-    });
-
-    it('should handle cleanup errors gracefully', async () => {
-      const mockKill = vi.fn().mockImplementation((pid, callback) => {
-        callback(new Error('Process not found'));
-      });
-
-      // Test error handling in cleanup
-      expect(() => {
-        mockKill(1234, (error: Error) => {
-          if (error) throw error;
-        });
-      }).toThrow('Process not found');
     });
   });
 
@@ -1180,48 +1085,6 @@ describe('Electron Main Index Functions', () => {
       expect(result).toEqual({
         success: false,
         error: 'Folder does not exist',
-      });
-    });
-  });
-
-  describe('Backend and Dependency Handlers', () => {
-    it('should handle check-tool-installed', async () => {
-      mockedInitModule.checkToolInstalled.mockResolvedValue({
-        success: true,
-        message: 'Tools exist already',
-      });
-      const mockHandler = vi.fn(async () => {
-        const status = await mockedInitModule.checkToolInstalled();
-        return { success: true, isInstalled: status.success };
-      });
-      mockIpcMain.handle('check-tool-installed', mockHandler);
-
-      const result = await mockHandler();
-      expect(mockedInitModule.checkToolInstalled).toHaveBeenCalled();
-      expect(result).toEqual({ success: true, isInstalled: true });
-    });
-
-    it('should handle installation triggering', async () => {
-      const mockHandler = vi.fn(async () => {
-        return await mockedInstallDeps.checkAndInstallDepsOnUpdate({
-          win: null,
-          forceInstall: true,
-        });
-      });
-      mockIpcMain.handle('install-dependencies', mockHandler);
-      mockIpcMain.handle('frontend-ready', mockHandler);
-
-      mockedInstallDeps.checkAndInstallDepsOnUpdate.mockResolvedValue({
-        success: true,
-        message: 'ok',
-      });
-
-      await mockHandler();
-      expect(
-        mockedInstallDeps.checkAndInstallDepsOnUpdate
-      ).toHaveBeenCalledWith({
-        win: null,
-        forceInstall: true,
       });
     });
   });

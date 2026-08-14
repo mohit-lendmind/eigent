@@ -153,7 +153,7 @@ describe('themeTokens v2 engine', () => {
 
   it('produces a full tone × emphasis × state × element matrix', () => {
     const theme = buildThemeV2(
-      createDefaultThemeContractV2('dark', { themeId: 'camel', contrast: 63 }),
+      createDefaultThemeContractV2('dark', { themeId: 'violet', contrast: 63 }),
       DEFAULT_THEME_CATALOG
     );
     const expected =

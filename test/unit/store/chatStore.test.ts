@@ -360,19 +360,13 @@ describe('ChatStore - Core Functionality', () => {
   });
 
   describe('Task Upload Files', () => {
-    it('collects project outputs, camel logs, and unique user attachments', () => {
+    it('collects project outputs and unique user attachments', () => {
       const uploadFiles = collectTaskUploadFiles(
         [
           {
             path: '/tmp/project/report.md',
             name: 'report.md',
             source: 'project_output',
-          },
-          {
-            path: '/tmp/logs/ba4462e1/agent.log',
-            name: 'agent.log',
-            relativePath: 'ba4462e1',
-            source: 'camel_log',
           },
           {
             path: '/tmp/project',
@@ -403,8 +397,7 @@ describe('ChatStore - Core Functionality', () => {
             fileName: 'followup.csv',
             filePath: '/Users/test/Documents/followup.csv',
           },
-        ],
-        'task-123'
+        ]
       );
 
       expect(uploadFiles).toEqual([
@@ -413,12 +406,6 @@ describe('ChatStore - Core Functionality', () => {
           name: 'report.md',
           uploadName: 'project_output/report.md',
           source: 'project_output',
-        },
-        {
-          path: '/tmp/logs/ba4462e1/agent.log',
-          name: 'agent.log',
-          uploadName: 'camel_log/ba4462e1/agent.log',
-          source: 'camel_log',
         },
         {
           path: '/Users/test/Documents/brief.pdf',
@@ -455,8 +442,7 @@ describe('ChatStore - Core Functionality', () => {
             ],
           },
         ] as any,
-        [],
-        'task-456'
+        []
       );
 
       expect(uploadFiles).toEqual([
@@ -470,7 +456,7 @@ describe('ChatStore - Core Functionality', () => {
     });
 
     it('collects generated files from task output file lists', () => {
-      const uploadFiles = collectTaskUploadFiles([], [], [], 'task-789', [
+      const uploadFiles = collectTaskUploadFiles([], [], [], [
         {
           path: '/Users/test/.eigent/user_1/space_x/index.html',
           name: 'index.html',
@@ -493,30 +479,6 @@ describe('ChatStore - Core Functionality', () => {
       ]);
     });
 
-    it('keeps camel log upload names nested under camel_log', () => {
-      const uploadFiles = collectTaskUploadFiles(
-        [
-          {
-            path: '/Users/test/.eigent/user_1/project_p/task_t/camel_logs/agent/conv.json',
-            name: 'conv.json',
-            relativePath: 'agent',
-            source: 'camel_log',
-          },
-        ],
-        [],
-        [],
-        'task-123'
-      );
-
-      expect(uploadFiles).toEqual([
-        {
-          path: '/Users/test/.eigent/user_1/project_p/task_t/camel_logs/agent/conv.json',
-          name: 'conv.json',
-          uploadName: 'camel_log/agent/conv.json',
-          source: 'camel_log',
-        },
-      ]);
-    });
   });
 
   describe('Cloud Model Platform Mapping', () => {

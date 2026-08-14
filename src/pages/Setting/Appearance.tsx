@@ -47,7 +47,7 @@ import { useTranslation } from 'react-i18next';
 
 const DEFAULT_EDITABLE_THEME_IDS = [
   'eigent',
-  'camel',
+  'violet',
   'claw',
   'starfish',
 ] as const;
@@ -75,7 +75,7 @@ function buildMergedCatalog(customThemeCatalog: ThemeCatalog): ThemeCatalog {
 function formatThemeLabel(id: string): string {
   if (id === 'whale') return 'Whale';
   if (id === 'custom') return 'Custom';
-  if (id === 'camel') return 'CAMEL';
+  if (id === 'violet') return 'Violet';
   if (id === 'claw') return 'Claw';
   if (id === 'starfish') return 'Starfish';
   if (!id) return id;

@@ -462,11 +462,11 @@ describe('buildAgentBlocks — preparation phase', () => {
       tag(
         'a-single',
         'single_agent',
-        'CAMEL Agent',
+        'Agent',
         mk(AgentStep.ACTIVATE_TOOLKIT, {
           toolkit_name: 'Todo Toolkit',
           method_name: 'register agent',
-          message: 'ChatAgent(CAMEL Agent)',
+          message: 'ChatAgent(Agent)',
         })
       ),
     ];

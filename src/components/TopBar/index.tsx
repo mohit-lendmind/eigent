@@ -168,9 +168,8 @@ function HeaderWin() {
   const appearance = useAuthStore((state) => state.appearance);
   const email = useAuthStore((s) => s.email);
   const userId = useAuthStore((s) => s.user_id);
-  const { isInstalling, installationState } = useInstallationUI();
-  const _isInstallationActive =
-    isInstalling || installationState === 'waiting-backend';
+  const { installationState } = useInstallationUI();
+  const _isInstallationActive = installationState === 'waiting-backend';
 
   useEffect(() => {
     if (!host?.electronAPI?.getPlatform) return;

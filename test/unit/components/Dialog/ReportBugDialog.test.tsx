@@ -62,7 +62,6 @@ describe('ReportBugDialog', () => {
 
   const mockElectronAPI = {
     exportLog: vi.fn().mockResolvedValue({ success: true }),
-    exportCamelLog: vi.fn().mockResolvedValue({ success: true }),
     getDiagnosticsInfo: vi.fn().mockResolvedValue({
       version: '1.0.0',
       platform: 'darwin',
@@ -109,7 +108,7 @@ describe('ReportBugDialog', () => {
     expect(mockToast.success).not.toHaveBeenCalled();
   });
 
-  it('downloads the Eigent log on its own', async () => {
+  it('downloads the Eigent log', async () => {
     mockElectronAPI.exportLog.mockResolvedValueOnce({
       success: true,
       savedPath: '/tmp/eigent.log',
@@ -125,49 +124,6 @@ describe('ReportBugDialog', () => {
       expect(mockElectronAPI.exportLog).toHaveBeenCalled();
       expect(mockToast.success).toHaveBeenCalled();
     });
-    expect(mockElectronAPI.exportCamelLog).not.toHaveBeenCalled();
-  });
-
-  it('downloads the Camel log with the signed-in email', async () => {
-    mockElectronAPI.exportCamelLog.mockResolvedValueOnce({
-      success: true,
-      savedPath: '/tmp/eigent-camel-logs.zip',
-    });
-
-    render(<ReportBugDialog open onOpenChange={vi.fn()} />);
-
-    await userEvent.click(
-      screen.getByRole('button', { name: 'layout.support-camel-log' })
-    );
-
-    await waitFor(() => {
-      expect(mockElectronAPI.exportCamelLog).toHaveBeenCalledWith(
-        'test@example.com',
-        'task_9',
-        'project_1',
-        42
-      );
-      expect(mockToast.success).toHaveBeenCalled();
-    });
-    expect(mockElectronAPI.exportLog).not.toHaveBeenCalled();
-  });
-
-  it('reports when no Camel logs exist yet', async () => {
-    mockElectronAPI.exportCamelLog.mockResolvedValueOnce({
-      success: false,
-      error: 'no log file',
-    });
-
-    render(<ReportBugDialog open onOpenChange={vi.fn()} />);
-
-    await userEvent.click(
-      screen.getByRole('button', { name: 'layout.support-camel-log' })
-    );
-
-    await waitFor(() => {
-      expect(mockToast.error).toHaveBeenCalled();
-    });
-    expect(mockToast.success).not.toHaveBeenCalled();
   });
 
   it('stays silent when the log save dialog is canceled', async () => {

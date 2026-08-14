@@ -18,11 +18,9 @@
  * auto-update integration, webview manager, and file reader initialization
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { setupMockEnvironment } from '../../../mocks/environmentMocks';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('createWindow - Window Event Setup and Lifecycle', () => {
-  let mockEnv: ReturnType<typeof setupMockEnvironment>;
   let mockWebContents: any;
   let mockWindow: any;
   let mockFileReader: any;
@@ -31,8 +29,6 @@ describe('createWindow - Window Event Setup and Lifecycle', () => {
   let mockMenu: any;
 
   beforeEach(() => {
-    mockEnv = setupMockEnvironment();
-
     // Mock webContents
     mockWebContents = {
       on: vi.fn(),
@@ -69,10 +65,6 @@ describe('createWindow - Window Event Setup and Lifecycle', () => {
 
     // Reset all mocks
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    mockEnv.reset();
   });
 
   describe('FileReader and WebViewManager Initialization', () => {

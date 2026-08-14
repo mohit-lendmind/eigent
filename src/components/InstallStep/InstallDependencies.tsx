@@ -25,8 +25,7 @@ import { useTranslation } from 'react-i18next';
 export const InstallDependencies: React.FC = () => {
   const shouldReduceMotion = useReducedMotion();
   const { t } = useTranslation();
-  const { progress, latestLog, isInstalling, installationState } =
-    useInstallationUI();
+  const { progress, installationState } = useInstallationUI();
   const {
     isFirstLaunch,
     onboardingCompleted,
@@ -38,12 +37,10 @@ export const InstallDependencies: React.FC = () => {
   const showOnboarding = isFirstLaunch && !onboardingCompleted;
 
   const installDone =
-    !isInstalling &&
-    installationState !== 'waiting-backend' &&
-    installationState !== 'idle';
+    installationState !== 'waiting-backend' && installationState !== 'idle';
 
   const displayProgress =
-    isInstalling || installationState === 'waiting-backend' ? progress : 100;
+    installationState === 'waiting-backend' ? progress : 100;
 
   const handleOnboardingComplete = () => {
     setOnboardingCompleted(true);
@@ -65,29 +62,20 @@ export const InstallDependencies: React.FC = () => {
 
             <div className="flex w-full flex-row items-start justify-between">
               <div className="text-body-sm font-medium text-ds-text-neutral-default-default">
-                {isInstalling
-                  ? t('layout.install-system-installing')
-                  : installationState === 'waiting-backend'
-                    ? t('layout.install-starting-up')
-                    : installDone
-                      ? t('layout.install-ready')
-                      : ''}
+                {installationState === 'waiting-backend'
+                  ? t('layout.install-starting-up')
+                  : installDone
+                    ? t('layout.install-ready')
+                    : ''}
               </div>
               <div className="text-body-sm font-medium text-ds-text-neutral-default-default">
                 {Math.round(displayProgress ?? 0)}%
               </div>
             </div>
 
-            {/* Latest log line */}
-            {latestLog?.data && (
-              <div className="text-body-sm font-normal leading-normal text-ds-text-neutral-muted-default">
-                {latestLog.data}
-              </div>
-            )}
-
             {/* Done state */}
             <AnimatePresence initial={false}>
-              {installDone && !isInstalling ? (
+              {installDone ? (
                 <motion.div
                   key="install-complete"
                   initial={{

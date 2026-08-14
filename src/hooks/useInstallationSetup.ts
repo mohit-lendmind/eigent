@@ -12,39 +12,27 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { checkBackendHealth, resetBaseURL } from '@/api/http';
+import { checkBackendHealth } from '@/api/http';
 import { useHost } from '@/host';
 import { useAuthStore } from '@/store/authStore';
-import {
-  getConnectionConfig,
-  resetConnectionConfig,
-  setConnectionConfig,
-} from '@/store/connectionStore';
+import { getConnectionConfig } from '@/store/connectionStore';
 import { useInstallationStore } from '@/store/installationStore';
 import { getSkillsStore } from '@/store/skillsStore';
 import { useCallback, useEffect, useRef } from 'react';
 
 /**
- * Hook that sets up Electron IPC listeners and handles installation state synchronization.
- * In Web mode (no Electron): polls Brain health via VITE_BRAIN_ENDPOINT, skips local install.
+ * Sets up the desktop readiness listeners and keeps startup state in sync.
+ * On the desktop the aion edge configuration decides readiness; in Web mode
+ * (no Electron) Brain health at VITE_BRAIN_ENDPOINT is polled instead.
  */
 export const useInstallationSetup = () => {
   const host = useHost();
-  const { initState, setInitState, email, user_id } = useAuthStore();
+  const { setInitState, email, user_id } = useAuthStore();
 
   const hasCheckedOnMount = useRef(false);
-  const installationCompleted = useRef(false);
   const backendReady = useRef(false);
   const syncedSkillsConfigKey = useRef<string | null>(null);
-  const startInstallation = useInstallationStore(
-    (state) => state.startInstallation
-  );
-  const _performInstallation = useInstallationStore(
-    (state) => state.performInstallation
-  );
-  const addLog = useInstallationStore((state) => state.addLog);
   const setSuccess = useInstallationStore((state) => state.setSuccess);
-  const setError = useInstallationStore((state) => state.setError);
   const setBackendError = useInstallationStore(
     (state) => state.setBackendError
   );
@@ -84,18 +72,22 @@ export const useInstallationSetup = () => {
     }
   }, []);
 
-  // Shared function to poll backend/Brain status
+  const markReady = useCallback(() => {
+    backendReady.current = true;
+    setSuccess();
+    setInitState('done');
+    setNeedsBackendRestart(false);
+  }, [setSuccess, setInitState, setNeedsBackendRestart]);
+
   const startBackendPolling = useCallback(() => {
     console.log('[useInstallationSetup] Starting backend polling');
 
+    // Web mode: no Electron host, so Brain health is the readiness signal.
     const checkViaHealth = async (): Promise<boolean> => {
       try {
         const ok = await checkBackendHealth();
         if (ok) {
-          backendReady.current = true;
-          setSuccess();
-          setInitState('done');
-          setNeedsBackendRestart(false);
+          markReady();
           void syncSkillsConfigOnOpen();
           return true;
         }
@@ -105,56 +97,33 @@ export const useInstallationSetup = () => {
       return false;
     };
 
-    // Electron: use getBackendPort + localhost health
-    const checkElectronBackend = async (): Promise<boolean> => {
+    // Desktop: the main process validated the edge endpoint at startup;
+    // reachability is the aion session layer's concern, not a readiness gate.
+    // The one-shot backend-ready event can race the listener mount, so this
+    // poll is the recovery path.
+    const checkEdgeConfigured = async (): Promise<boolean> => {
       try {
-        // Remote-backend mode: there is no local port to health-poll. The
-        // main process validated the edge endpoint at startup; reachability
-        // is the aion session layer's concern, not a readiness gate. This
-        // must run BEFORE the getBackendPort guard: the thin preload has no
-        // getBackendPort, and the one-shot backend-ready event can race the
-        // listener mount — this poll is the recovery path.
         const transportConfig =
           await host?.electronAPI?.getAionTransportConfig?.();
         if (transportConfig?.mode === 'remote') {
           if ('error' in transportConfig) {
             console.error(
-              '[useInstallationSetup] Remote backend config invalid:',
+              '[useInstallationSetup] Backend config invalid:',
               transportConfig.error
             );
             return false;
           }
-          backendReady.current = true;
-          setSuccess();
-          setInitState('done');
-          setNeedsBackendRestart(false);
+          markReady();
           return true;
         }
-        if (!host?.electronAPI?.getBackendPort) return false;
-        const backendPort = await host.electronAPI.getBackendPort();
-        if (backendPort && backendPort > 0) {
-          const backendEndpoint = `http://localhost:${backendPort}`;
-          const response = await fetch(`${backendEndpoint}/health`).catch(
-            () => null
-          );
-          if (response?.ok) {
-            setConnectionConfig({ brainEndpoint: backendEndpoint });
-            backendReady.current = true;
-            setSuccess();
-            setInitState('done');
-            setNeedsBackendRestart(false);
-            void syncSkillsConfigOnOpen();
-            return true;
-          }
-        }
       } catch (e) {
-        console.log('[useInstallationSetup] Electron backend check failed:', e);
+        console.log('[useInstallationSetup] Edge config check failed:', e);
       }
       return false;
     };
 
     const hasDesktop = !!(host?.electronAPI && host?.ipcRenderer);
-    const doCheck = hasDesktop ? checkElectronBackend : checkViaHealth;
+    const doCheck = hasDesktop ? checkEdgeConfigured : checkViaHealth;
 
     doCheck().then((isReady) => {
       if (isReady) {
@@ -169,31 +138,17 @@ export const useInstallationSetup = () => {
       }, 2000);
       setTimeout(() => clearInterval(pollInterval), 30000);
     });
-  }, [
-    setSuccess,
-    setInitState,
-    setNeedsBackendRestart,
-    host,
-    syncSkillsConfigOnOpen,
-  ]);
+  }, [markReady, host, syncSkillsConfigOnOpen]);
 
   // Monitor for backend restart after logout
   useEffect(() => {
     // When user logs in after logout, needsBackendRestart will be true
     if (needsBackendRestart && email !== null) {
       console.log(
-        '[useInstallationSetup] Detected login after logout, waiting for backend restart'
+        '[useInstallationSetup] Detected login after logout, waiting for backend'
       );
-
-      // For account switching, tools are already installed, only backend needs restart
-      // So we mark installation as completed and only wait for backend
-      installationCompleted.current = true;
       backendReady.current = false;
-
-      // Set to waiting-backend state
       setWaitingBackend();
-
-      // Start polling for backend
       startBackendPolling();
     }
   }, [needsBackendRestart, email, setWaitingBackend, startBackendPolling]);
@@ -208,128 +163,13 @@ export const useInstallationSetup = () => {
     if (hasCheckedOnMount.current) {
       return;
     }
-
     hasCheckedOnMount.current = true;
-
-    // Web mode: skip Electron install, poll Brain health directly
-    if (!host?.electronAPI || !host?.ipcRenderer) {
-      console.log('[useInstallationSetup] Web mode: polling Brain health');
-      installationCompleted.current = true;
-      setWaitingBackend();
-      startBackendPolling();
-      return;
-    }
-
-    const checkToolInstalled = async () => {
-      if (!host?.ipcRenderer) return { success: false };
-      try {
-        const result = await host.ipcRenderer.invoke('check-tool-installed');
-
-        if (result.success) {
-          if (result.isInstalled) {
-            console.log(
-              '[useInstallationSetup] Tools already installed, waiting for backend'
-            );
-            installationCompleted.current = true;
-            setWaitingBackend();
-            startBackendPolling();
-          }
-
-          if (initState !== 'done' && !result.isInstalled) {
-            console.log(
-              '[useInstallationSetup] Tools not installed, ensuring carousel state'
-            );
-            setInitState('carousel');
-          }
-        }
-        return result;
-      } catch (error) {
-        console.error(
-          '[useInstallationSetup] Tool installation check failed:',
-          error
-        );
-        return { success: false, error };
-      }
-    };
-
-    const checkBackendStatus = async (_toolResult?: any) => {
-      if (!host?.electronAPI?.getInstallationStatus) return;
-      try {
-        const installationStatus =
-          await host.electronAPI.getInstallationStatus();
-
-        if (installationStatus.success && installationStatus.isInstalling) {
-          startInstallation();
-        }
-      } catch (err) {
-        console.error(
-          '[useInstallationSetup] Failed to check installation status:',
-          err
-        );
-      }
-    };
-
-    const runInitialChecks = async () => {
-      const toolResult = await checkToolInstalled();
-      await checkBackendStatus(toolResult);
-    };
-
-    runInitialChecks();
+    setWaitingBackend();
+    startBackendPolling();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    const checkAndSetDone = () => {
-      console.log(
-        '[useInstallationSetup] Checking readiness - Installation:',
-        installationCompleted.current,
-        'Backend:',
-        backendReady.current
-      );
-
-      if (installationCompleted.current && backendReady.current) {
-        console.log(
-          '[useInstallationSetup] Both installation and backend are ready, setting initState to done'
-        );
-        setInitState('done');
-      }
-    };
-
-    const handleInstallStart = () => {
-      installationCompleted.current = false;
-      backendReady.current = false;
-      startInstallation();
-    };
-
-    const handleInstallLog = (data: { type: string; data: string }) => {
-      addLog({
-        type: data.type as 'stdout' | 'stderr',
-        data: data.data,
-        timestamp: new Date(),
-      });
-    };
-
-    const handleInstallComplete = (data: {
-      success: boolean;
-      code?: number;
-      error?: string;
-    }) => {
-      console.log(
-        '[useInstallationSetup] Installation complete event received:',
-        data
-      );
-
-      if (data.success) {
-        installationCompleted.current = true;
-        console.log('[useInstallationSetup] Installation marked as completed');
-
-        // setSuccess() will be called in handleBackendReady to prevent premature state change
-        checkAndSetDone();
-      } else {
-        setError(data.error || 'Installation failed');
-      }
-    };
-
     const handleBackendReady = (data: {
       success: boolean;
       port?: number | null;
@@ -338,73 +178,26 @@ export const useInstallationSetup = () => {
     }) => {
       console.log('[useInstallationSetup] Backend ready event received:', data);
 
-      if (data.success && data.remote) {
-        // Remote-backend mode: ready without a localhost endpoint. The aion
-        // boundary gets its transport config via getAionTransportConfig.
-        backendReady.current = true;
-        installationCompleted.current = true;
-        setSuccess();
-        setNeedsBackendRestart(false);
-        checkAndSetDone();
+      if (data.success) {
+        // Ready without a localhost endpoint: the aion boundary gets its
+        // transport config via getAionTransportConfig.
+        markReady();
         return;
       }
 
-      if (data.success && data.port) {
-        // Reset cached baseURL so next getBaseURL fetches fresh port (handles restart)
-        resetBaseURL();
-        resetConnectionConfig();
-        setConnectionConfig({ brainEndpoint: `http://localhost:${data.port}` });
-        console.log(
-          `[useInstallationSetup] Backend is ready on port ${data.port}`
-        );
-        backendReady.current = true;
-        // If backend is ready, installation must be complete (or satisfied enough)
-        // This handles race condition where install-complete event is missed or skipped
-        if (!installationCompleted.current) {
-          console.log(
-            '[useInstallationSetup] Backend ready implies installation complete - setting flag'
-          );
-          installationCompleted.current = true;
-        }
-        console.log('[useInstallationSetup] Backend marked as ready');
-
-        setSuccess();
-        setNeedsBackendRestart(false);
-        void syncSkillsConfigOnOpen();
-        checkAndSetDone();
-      } else {
-        console.error(
-          '[useInstallationSetup] Backend failed to start:',
-          data.error
-        );
-        setBackendError(data.error || 'Backend startup failed');
-      }
+      console.error(
+        '[useInstallationSetup] Backend failed to start:',
+        data.error
+      );
+      setBackendError(data.error || 'Backend startup failed');
     };
 
     if (!host?.electronAPI) return;
 
-    // Install listeners are absent from the thin (release) preload, which
-    // has no local Brain; backend-ready remains in every build.
-    host.electronAPI.onInstallDependenciesStart?.(handleInstallStart);
-    host.electronAPI.onInstallDependenciesLog?.(handleInstallLog);
-    host.electronAPI.onInstallDependenciesComplete?.(handleInstallComplete);
     host.electronAPI.onBackendReady(handleBackendReady);
 
     return () => {
-      host.electronAPI.removeAllListeners('install-dependencies-start');
-      host.electronAPI.removeAllListeners('install-dependencies-log');
-      host.electronAPI.removeAllListeners('install-dependencies-complete');
       host.electronAPI.removeAllListeners('backend-ready');
     };
-  }, [
-    host,
-    startInstallation,
-    addLog,
-    setSuccess,
-    setError,
-    setBackendError,
-    setInitState,
-    setNeedsBackendRestart,
-    syncSkillsConfigOnOpen,
-  ]);
+  }, [host, markReady, setBackendError]);
 };

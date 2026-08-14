@@ -20,52 +20,35 @@ import {
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
-// Define all possible installation states
+// Startup states the readiness screen can be in.
 export type InstallationState =
   | 'idle'
   | 'checking-permissions'
   | 'showing-carousel'
-  | 'installing'
-  | 'waiting-backend' // New state: tools installed, waiting for backend to be ready
+  | 'waiting-backend'
   | 'error'
   | 'completed';
 
-// Installation log entry
-export interface InstallationLog {
-  type: 'stdout' | 'stderr';
-  data: string;
-  timestamp: Date;
-}
-
-// Installation store state
 interface InstallationStoreState {
   // Core state
   state: InstallationState;
   progress: number;
-  logs: InstallationLog[];
-  error?: string;
-  backendError?: string; // Separate error for backend startup failures
+  backendError?: string;
   isVisible: boolean;
   isBackendReady: boolean; // Non-persisted, defaults to false on each app launch
   needsBackendRestart: boolean; // Flag to indicate backend is restarting after logout
 
   // Actions
-  startInstallation: () => void;
-  addLog: (log: InstallationLog) => void;
   setSuccess: () => void;
-  setError: (error: string) => void;
   setBackendError: (error: string) => void;
   setWaitingBackend: () => void;
   setNeedsBackendRestart: (needs: boolean) => void;
-  retryInstallation: () => void;
-  retryBackend: () => Promise<void>;
   completeSetup: () => void;
   updateProgress: (progress: number) => void;
   setVisible: (visible: boolean) => void;
   reset: () => void;
 
   // Async actions
-  performInstallation: () => Promise<void>;
   exportLog: () => Promise<void>;
 }
 
@@ -73,8 +56,6 @@ interface InstallationStoreState {
 const initialState = {
   state: 'idle' as InstallationState,
   progress: 20,
-  logs: [] as InstallationLog[],
-  error: undefined,
   backendError: undefined,
   isVisible: false,
   isBackendReady: false,
@@ -85,29 +66,9 @@ const getElectronAPI = () => createHost().electronAPI;
 
 // Create the installation store
 export const useInstallationStore = create<InstallationStoreState>()(
-  subscribeWithSelector((set, get) => ({
+  subscribeWithSelector((set) => ({
     // Initial state
     ...initialState,
-
-    // Basic actions
-    startInstallation: () =>
-      set({
-        state: 'installing',
-        progress: 20,
-        logs: [],
-        error: undefined,
-        isBackendReady: false,
-        isVisible: true,
-      }),
-
-    addLog: (log: InstallationLog) =>
-      set((state) => {
-        const newProgress = Math.min(state.progress + 5, 90);
-        return {
-          logs: [...state.logs, log],
-          progress: newProgress,
-        };
-      }),
 
     setSuccess: () =>
       set({
@@ -115,20 +76,6 @@ export const useInstallationStore = create<InstallationStoreState>()(
         progress: 100,
         isBackendReady: true,
       }),
-
-    setError: (error: string) =>
-      set((state) => ({
-        state: 'error',
-        error,
-        logs: [
-          ...state.logs,
-          {
-            type: 'stderr',
-            data: error,
-            timestamp: new Date(),
-          },
-        ],
-      })),
 
     setWaitingBackend: () =>
       set({
@@ -150,47 +97,6 @@ export const useInstallationStore = create<InstallationStoreState>()(
         isBackendReady: false,
       }),
 
-    retryInstallation: () => {
-      set({
-        ...initialState,
-        isVisible: true,
-        state: 'installing',
-      });
-      get().performInstallation();
-    },
-
-    retryBackend: async () => {
-      try {
-        const electronAPI = getElectronAPI();
-        // Clear backend error and go back to waiting-backend state
-        set({
-          backendError: undefined,
-          state: 'waiting-backend',
-          progress: 80,
-          isBackendReady: false,
-        });
-
-        // Call restart-backend via electronAPI; absent from the thin
-        // (release) preload, which has no local Brain to restart.
-        const result = await electronAPI?.restartBackend?.();
-
-        if (!result?.success) {
-          set({
-            backendError: result?.error || 'Failed to restart backend',
-            state: 'error',
-            isBackendReady: false,
-          });
-        }
-      } catch (error) {
-        set({
-          backendError:
-            error instanceof Error ? error.message : 'Unknown error',
-          state: 'error',
-          isBackendReady: false,
-        });
-      }
-    },
-
     completeSetup: () =>
       set({
         state: 'completed',
@@ -202,26 +108,6 @@ export const useInstallationStore = create<InstallationStoreState>()(
     setVisible: (visible: boolean) => set({ isVisible: visible }),
 
     reset: () => set(initialState),
-
-    // Async actions
-    performInstallation: async () => {
-      const { startInstallation, setWaitingBackend, setError } = get();
-
-      try {
-        startInstallation();
-        const electronAPI = getElectronAPI();
-        const result = await electronAPI?.checkAndInstallDepsOnUpdate?.();
-
-        if (result?.success) {
-          // Keep waiting state until useInstallationSetup confirms backend readiness.
-          setWaitingBackend();
-        } else {
-          setError('Installation failed');
-        }
-      } catch (error) {
-        setError(error instanceof Error ? error.message : 'Unknown error');
-      }
-    },
 
     exportLog: async () => {
       const electronAPI = getElectronAPI();
@@ -246,82 +132,39 @@ export const useInstallationStore = create<InstallationStoreState>()(
   }))
 );
 
-// Analytics: one subscription tracks the install/setup lifecycle so we don't
-// have to instrument every individual setter. Progress phases feed the
-// onboarding funnel; an `error` phase is also reported as `app_launch_failed`.
+// Analytics: one subscription tracks the startup lifecycle so we don't have to
+// instrument every individual setter. Progress phases feed the onboarding
+// funnel; an `error` phase is also reported as `app_launch_failed`.
 useInstallationStore.subscribe(
   (s) => s.state,
   (state, prevState) => {
     if (state === prevState || state === 'idle') return;
     if (state === 'error') {
-      recordAppLaunchFailed('install_error');
+      recordAppLaunchFailed('startup_error');
       return;
     }
     recordOnboardingStepCompleted({
-      step_id: `install:${state}`,
-      phase: 'installation',
+      step_id: `startup:${state}`,
+      phase: 'startup',
     });
   }
 );
 
-// Computed selectors
-export const useLatestLog = () =>
-  useInstallationStore((state) => state.logs[state.logs.length - 1]);
-
-export const useInstallationActions = () =>
-  useInstallationStore((state) => ({
-    startInstallation: state.startInstallation,
-    retryInstallation: state.retryInstallation,
-    completeSetup: state.completeSetup,
-    performInstallation: state.performInstallation,
-    exportLog: state.exportLog,
-  }));
-
-// Combined hook for components that need multiple pieces of state
-export const useInstallationStatus = () => {
-  const state = useInstallationStore((state) => state.state);
-  const isVisible = useInstallationStore((state) => state.isVisible);
-
-  return {
-    isInstalling: state === 'installing',
-    installationState: state,
-    shouldShowInstallScreen: isVisible && state !== 'completed',
-    isInstallationComplete: state === 'completed',
-    canRetry: state === 'error',
-  };
-};
-
-// Hook for the main installation UI component
+// Hook for the startup/readiness UI
 export const useInstallationUI = () => {
   const state = useInstallationStore((state) => state.state);
   const progress = useInstallationStore((state) => state.progress);
-  const logs = useInstallationStore((state) => state.logs);
-  const error = useInstallationStore((state) => state.error);
   const backendError = useInstallationStore((state) => state.backendError);
   const isVisible = useInstallationStore((state) => state.isVisible);
   const isBackendReady = useInstallationStore((state) => state.isBackendReady);
-  const performInstallation = useInstallationStore(
-    (state) => state.performInstallation
-  );
-  const retryInstallation = useInstallationStore(
-    (state) => state.retryInstallation
-  );
-  const retryBackend = useInstallationStore((state) => state.retryBackend);
   const exportLog = useInstallationStore((state) => state.exportLog);
 
   return {
     installationState: state,
     progress,
-    latestLog: logs[logs.length - 1],
-    error,
     backendError,
-    isInstalling: state === 'installing',
     isBackendReady,
     shouldShowInstallScreen: isVisible && state !== 'completed',
-    canRetry: state === 'error',
-    performInstallation,
-    retryInstallation,
-    retryBackend,
     exportLog,
   };
 };

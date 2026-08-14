@@ -12,8 +12,13 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
+import { BrowserWindow } from 'electron';
 import log from 'electron-log';
-import { getMainWindow } from '../init';
+
+function getMainWindow(): BrowserWindow | null {
+  const windows = BrowserWindow.getAllWindows();
+  return windows.length > 0 ? windows[0] : null;
+}
 
 /**
  * Safely send message to main window if it exists and is not destroyed

@@ -240,11 +240,3 @@ export async function ensureCodexResolverServer(): Promise<CodexResolverRuntime>
   log.info('[CODEX RESOLVER] Local resolver started', { port });
   return runtime;
 }
-
-export async function getCodexResolverEnv(): Promise<Record<string, string>> {
-  const resolver = await ensureCodexResolverServer();
-  return {
-    CODEX_RESOLVER_URL: resolver.url,
-    CODEX_RESOLVER_SECRET: resolver.secret,
-  };
-}
