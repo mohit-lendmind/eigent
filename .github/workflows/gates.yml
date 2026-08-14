@@ -1,0 +1,108 @@
+name: Gates
+
+# The gates CONTRIBUTING.md asks contributors to run, run here too. Every check
+# is the same pnpm script a developer runs locally, so a red run is reproducible
+# with one command rather than by reading this file.
+#
+# SECURITY: `pull_request`, never `pull_request_target` — this job checks out and
+# executes PR code, so it must run with read-only permissions and no secrets.
+# See https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
+#
+# The Bazel targets (//:type_check, //:lint, //:vitest) wrap the same scripts.
+# Invoking pnpm directly keeps the runner free of a cold Bazel cache, and covers
+# the checks no filegroup here declares — check:no-legacy-backend scans
+# git-tracked files, including this workflow.
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# A force-push should not leave two runs racing over the same branch.
+concurrency:
+  group: gates-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    name: Gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Before setup-node, so `cache: pnpm` can find the pnpm binary. The
+      # version comes from package.json's packageManager field.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # --frozen-lockfile also gates pnpm-lock.yaml being in sync with
+      # package.json, which is otherwise easy to forget.
+      - name: Install dependencies
+        id: install
+        run: pnpm install --frozen-lockfile
+
+      # Every gate below runs even after an earlier one fails, so one run
+      # reports every broken gate instead of only the first. They are skipped if
+      # the install failed, where each would fail for the same uninformative
+      # reason.
+      - name: Type check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm type-check
+
+      - name: ESLint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm exec eslint . --no-warn-ignored
+
+      - name: Design tokens
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm check:design-tokens
+
+      # This gate scans git-tracked files, so it also scans this workflow —
+      # which is why the step is named for the script rather than for the
+      # framework and runtime it forbids.
+      - name: Legacy backend source gate
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm check:no-legacy-backend
+
+      - name: Electron access guard
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bash scripts/check-electron-access.sh
+
+      - name: Locale parity
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm check:i18n
+
+      # Compares the suite against test/vitest-baseline.json rather than
+      # demanding green: the inherited failures make a bare `vitest run` useless
+      # as a gate. Fails on movement in either direction.
+      - name: Vitest baseline
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm check:vitest-baseline
+
+      # This runner is where the baseline is authoritative — the failure set
+      # moves with the Node major, so a baseline regenerated on a developer's
+      # machine would encode their runtime. Uploading the raw report is what
+      # makes `--update --report` from a CI run possible.
+      - name: Upload test results
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          if-no-files-found: ignore

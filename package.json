@@ -40,6 +40,7 @@
     "gen:aion-edge": "node scripts/gen-aion-edge-client.mjs",
     "check:design-token-usage": "node scripts/check-design-token-usage.mjs",
     "check:no-legacy-backend": "node scripts/check-no-legacy-backend.mjs",
+    "check:vitest-baseline": "node scripts/check-vitest-baseline.mjs",
     "check:design-tokens": "npm run verify:theme && npm run check:design-token-usage",
     "verify:theme": "vite-node scripts/verify-theme-tokens.ts",
     "type-check": "tsc -p tsconfig.build.json --noEmit",

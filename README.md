@@ -199,11 +199,16 @@ material, a Docker socket client, or an internal (non-edge) service endpoint.
 ## Verifying a change
 
 ```bash
-pnpm type-check       # tsc -p tsconfig.build.json --noEmit
-pnpm lint             # eslint + design tokens + the legacy-backend source gate
-pnpm test             # vitest
-pnpm check:i18n       # key parity across the 11 locales
+pnpm type-check              # tsc -p tsconfig.build.json --noEmit
+pnpm lint                    # eslint + design tokens + the legacy-backend source gate
+pnpm check:i18n              # key parity across the 11 locales
+pnpm check:vitest-baseline   # vitest, compared against its known-failing baseline
+bash scripts/check-electron-access.sh
 ```
+
+`.github/workflows/gates.yml` runs exactly these on every pull request and every
+push to `main`, so a green PR now means something. Each gate runs even if an
+earlier one fails, so one run reports every break.
 
 The same checks run under Bazel, from this repo's root:
 
@@ -238,10 +243,25 @@ allocates its own throwaway Electron profile, so runs do not share state.
 checkout and are not caused by your change — compare against them rather than
 expecting green:
 
-- `pnpm test`: 23 files / 108 tests fail (store and integration suites).
+- `pnpm test`: 11 files / 24 tests fail (store and integration suites). The set
+  is recorded in [test/vitest-baseline.json](./test/vitest-baseline.json), and
+  `pnpm check:vitest-baseline` is the gate — it fails on movement in either
+  direction, so a test you fix means regenerating the baseline.
 - `tsc -p tsconfig.json`: 127 errors. `tsconfig.build.json` — the one the gate
   uses — is clean.
 - `pnpm lint`: 28 warnings, 0 errors.
+
+That vitest set is measured on the Node line `package.json` declares
+(`>=18 <23`) — it is what CI runs, and CI is the authority. On a newer Node the
+suite fails differently: Node's own global `localStorage` shadows jsdom's and
+lacks its methods, so anything touching Web Storage behaves differently. The
+gate says so when it detects the mismatch. To move the baseline, take the numbers
+from a run rather than from your machine: download the `test-results` artifact
+from the Gates workflow and
+
+```bash
+pnpm check:vitest-baseline -- --update --report path/to/vitest-report.json
+```
 
 ## Repository layout
 
