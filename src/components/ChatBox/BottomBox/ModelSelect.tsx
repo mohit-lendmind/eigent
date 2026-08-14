@@ -614,6 +614,7 @@ export function ModelSelect({
           <button
             type="button"
             disabled={disabled}
+            data-testid="aion-model-select"
             title={label}
             aria-label={label}
             aria-haspopup="menu"
