@@ -8,7 +8,13 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * @description The authenticated tenant's Projects, newest first. Each entry is the
+         *     same snapshot getProject serves for a single Project — active run and
+         *     sequence included — so a client renders the list, and resumes any row's
+         *     run, without a follow-up request per row.
+         */
+        get: operations["listProjects"];
         put?: never;
         post: operations["createProject"];
         delete?: never;
@@ -288,6 +294,17 @@ export type components = {
              *     still replays gapless.
              */
             events_pruned_below?: components["schemas"]["Sequence"];
+        } & {
+            [key: string]: unknown;
+        };
+        ProjectList: {
+            projects: components["schemas"]["ProjectSnapshot"][];
+            /**
+             * @description Absent on the last page. When present there are entries behind it —
+             *     the server reads one row past the page to know — so a client may
+             *     offer "load more" without a speculative fetch.
+             */
+            next_page_token?: string;
         } & {
             [key: string]: unknown;
         };
@@ -591,6 +608,42 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
+    listProjects: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Entries per page (default 50). A value outside the documented bounds is
+                 *     refused with `400 invalid_argument` rather than clamped, so a client
+                 *     that asks for 5000 learns it instead of silently receiving 200.
+                 */
+                page_size?: number;
+                /**
+                 * @description Opaque continuation from a prior response's `next_page_token`. It
+                 *     encodes a position only — every page is scoped to the authenticated
+                 *     tenant regardless of the token — and one this server cannot decode
+                 *     is `400 invalid_cursor`.
+                 */
+                page_token?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of Projects, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectList"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+        };
+    };
     createProject: {
         parameters: {
             query?: never;

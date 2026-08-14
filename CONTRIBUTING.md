@@ -30,10 +30,10 @@ pnpm check:vitest-baseline
 bash scripts/check-electron-access.sh
 ```
 
-`pnpm lint` is three checks: eslint, design-token usage, and the legacy-backend
-source gate. The Bazel `//:lint` suite runs only the first two — the source gate
-scans git-tracked files, which no Bazel filegroup here declares. Run `pnpm lint`
-as well, not just the Bazel suite.
+`pnpm lint` is four checks: eslint, design-token usage, the legacy-backend source
+gate, and the non-aion HTTP client ratchet. The Bazel `//:lint` suite runs only
+the first two — the other two scan git-tracked files, which no Bazel filegroup
+here declares. Run `pnpm lint` as well, not just the Bazel suite.
 
 `.github/workflows/gates.yml` runs all of the above on every pull request and
 every push to `main`. Every gate runs even after an earlier one fails, so one run
@@ -66,6 +66,21 @@ These are enforced by gates because they are easy to break by accident:
   Legitimate today: skill payloads under `resources/example-skills/` (they run
   in the aion cell, not on the desktop) and `camel_task_id`, a wire-format field
   of a hosted API this fork does not own.
+- **No new call site on either non-aion HTTP client.**
+  `src/api/http.ts` holds two clients that are not the aion edge. The
+  `getBaseURL()` one resolves the local backend this fork removed, so every
+  `fetchGet`/`fetchPost`/… call fails silently — a screen built on it looks like
+  it worked. The `getProxyBaseURL()` one reads Eigent's hosted cloud, which holds
+  no aion tenant's data. Neither can be deleted in one pass, so
+  `scripts/check-no-dead-brain-calls.mjs` freezes the per-file reference counts
+  in `test/dead-brain-calls-baseline.json` and fails when one grows. Read the
+  data from `src/api/aion/v1/transport.ts` instead. Retiring a call site fails
+  the gate too — that is progress, so record it with
+  `pnpm check:no-dead-brain-calls -- --update` and name the surface that moved.
+- **A screen only one plane can serve is hidden on the other.** Nav registries
+  gate on `useAionMode()` (`src/hooks/useAionMode.ts`), and an unresolved mode
+  counts as aion, so a dead entry can never flash into the nav. Deep links to a
+  hidden section fall back rather than rendering the screen.
 - **The packaged app carries no runtime of its own.**
   `scripts/inspect-package.mjs` runs inside `//:package_pipeline` and rejects an
   embedded interpreter, service payload, local database, provider key material

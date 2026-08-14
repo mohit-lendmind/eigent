@@ -102,26 +102,31 @@ export function getAionModelCatalog(): Promise<ModelAliasCatalog | null> {
 
 /**
  * The alias a new conversation would bind, given the catalog: project pin →
- * global selection → the experience-track fallback chain. Selections that
- * fell out of the catalog — or point at an internal fixture alias the picker
- * no longer offers — are ignored rather than failing the turn. The fallback
- * chain may still land on an internal alias (fixture-only CI stacks have no
- * user-facing rows), which keeps automated flows working keyless.
+ * global selection → the operator's default → the first offered row.
+ * Selections that fell out of the catalog — or point at an internal fixture
+ * alias the picker no longer offers — are ignored rather than failing the turn.
  */
 export function resolveModelAlias(
   catalog: ModelAliasCatalog,
   eigentProjectId?: string
 ): string | null {
   const aliases = catalog.aliases ?? [];
-  const selectable = new Set(
-    aliases.filter((a) => !a.internal).map((a) => a.alias)
-  );
+  const offered = aliases.filter((a) => !a.internal);
+  const selectable = new Set(offered.map((a) => a.alias));
   const { projectAlias, selectedAlias } = useAionModelStore.getState();
   const pinned = eigentProjectId ? projectAlias[eigentProjectId] : undefined;
   if (pinned && selectable.has(pinned)) return pinned;
   if (selectedAlias && selectable.has(selectedAlias)) return selectedAlias;
+  // The operator's own default outranks every other candidate: naming a vendor
+  // alias here would let this build override the catalog it is reading. Beyond
+  // that, catalog order decides, so a stack with no default resolves the same
+  // way on every launch. Falling back only within the OFFERED rows keeps the
+  // submitted alias one the picker would also show.
   const fallback =
-    aliases.find((a) => a.alias === 'kimi-k3') ??
+    offered.find((a) => a.is_default) ??
+    offered[0] ??
+    // An internal-only catalog is a fixture/CI stack: it offers the picker
+    // nothing, so an internal alias is the only way a keyless flow can run.
     aliases.find((a) => a.is_default) ??
     aliases[0];
   return fallback?.alias ?? null;

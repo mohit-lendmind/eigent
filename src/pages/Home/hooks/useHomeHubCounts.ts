@@ -17,7 +17,15 @@ import { isDisposableBlankSpace, useSpaceStore } from '@/store/spaceStore';
 import { ProjectGroup as ProjectGroupType } from '@/types/history';
 import { useMemo } from 'react';
 
-export function useHomeHubCounts(projects: ProjectGroupType[]) {
+/**
+ * `aionProjectsCount` overrides the Projects tab count when the list is served
+ * by aion: the legacy `projects` array is read from the hosted cloud and is
+ * empty there, so leaving it in charge would badge "0" beside a list of N.
+ */
+export function useHomeHubCounts(
+  projects: ProjectGroupType[],
+  aionProjectsCount?: number
+) {
   const activeSpaceId = useSpaceStore((state) => state.activeSpaceId);
   const spacesById = useSpaceStore((state) => state.spaces);
   const projectsBySpaceId = useSpaceStore((state) => state.projectsBySpaceId);
@@ -34,7 +42,7 @@ export function useHomeHubCounts(projects: ProjectGroupType[]) {
     [activeSpaceId, projectsBySpaceId, spacesById]
   );
 
-  const projectsCount = projects.length;
+  const projectsCount = aionProjectsCount ?? projects.length;
 
   const tasksCount = useMemo(
     () =>

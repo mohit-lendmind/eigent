@@ -525,5 +525,12 @@
   "support-download": "Download",
   "support-log-saved": "Log saved to {{path}}",
   "support-log-empty": "No log files found yet.",
-  "support-log-export-failed": "Could not export the log."
+  "support-log-export-failed": "Could not export the log.",
+  "home-list-model": "Модель",
+  "projects-status-idle": "Ожидание",
+  "projects-status-closed": "Закрыт",
+  "projects-status-cancelled": "Отменён",
+  "projects-backend-too-old": "Проекты недоступны: подключённый бэкенд (edge API {{version}}) не поддерживает список проектов. Обновите бэкенд, чтобы увидеть их здесь.",
+  "projects-remote-error": "Не удалось загрузить проекты: {{message}}",
+  "projects-load-more": "Загрузить ещё"
 }

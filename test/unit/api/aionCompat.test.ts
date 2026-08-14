@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   negotiateCompatibility,
+  supportsProjectList,
   supportsSkillUsage,
   supportsSkills,
 } from '@/api/aion/v1/compat';
@@ -135,5 +136,33 @@ describe('supportsSkillUsage', () => {
     expect(supportsSkillUsage(status({ edge_api_version: '2.5.0' }))).toBe(
       false
     );
+  });
+});
+
+describe('supportsProjectList', () => {
+  it('gates on the 1.6 project-list floor', () => {
+    expect(supportsProjectList(status({ edge_api_version: '1.5.9' }))).toBe(
+      false
+    );
+    expect(supportsProjectList(status({ edge_api_version: '1.6.0' }))).toBe(
+      true
+    );
+    expect(supportsProjectList(status({ edge_api_version: '1.7.3' }))).toBe(
+      true
+    );
+  });
+
+  it('fails closed on garbage and on a foreign major', () => {
+    // 2.0.0 clears [1,6] numerically and must still be refused: the full
+    // verdict gates first, so a contract this build cannot read never passes.
+    expect(supportsProjectList(status({ edge_api_version: '2.0.0' }))).toBe(
+      false
+    );
+    expect(supportsProjectList(status({ edge_api_version: '1.six' }))).toBe(
+      false
+    );
+    expect(
+      supportsProjectList(status({ minimum_desktop_version: '999.0.0' }))
+    ).toBe(false);
   });
 });

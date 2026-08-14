@@ -80,6 +80,12 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm check:no-legacy-backend
 
+      # Ratchet, not a ban: both non-aion HTTP clients still have call sites, so
+      # this freezes their blast radius and fails when one grows.
+      - name: Non-aion HTTP client ratchet
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm check:no-dead-brain-calls
+
       - name: Electron access guard
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bash scripts/check-electron-access.sh

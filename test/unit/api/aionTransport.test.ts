@@ -202,6 +202,34 @@ describe('EdgeTransport REST (golden fixtures)', () => {
       'https://edge.local/eigent/v1/projects/prj%2F..%2Fsneaky'
     );
   });
+
+  it('lists projects without a query string when unpaged', async () => {
+    const { transport, fetchImpl } = transportWith(
+      jsonResponse(fixture('project_list_response.json'))
+    );
+    const page = await transport.listProjects();
+    expect(page.projects).toHaveLength(2);
+    expect(page.projects[0].project.project_id).toBe(
+      'prj_01JY0000000000000000000001'
+    );
+    expect(page.next_page_token).toBeTruthy();
+
+    const { url, init } = requestOf(fetchImpl);
+    // A bare '?' would still be a valid URL, but the edge's cursor decoder
+    // treats an empty page_token as a malformed cursor rather than "start".
+    expect(url).toBe('https://edge.local/eigent/v1/projects');
+    expect(init.method).toBe('GET');
+  });
+
+  it('carries the page cursor and size as query parameters', async () => {
+    const { transport, fetchImpl } = transportWith(
+      jsonResponse({ projects: [] })
+    );
+    await transport.listProjects({ pageSize: 2, pageToken: 'page-2' });
+    expect(requestOf(fetchImpl).url).toBe(
+      'https://edge.local/eigent/v1/projects?page_size=2&page_token=page-2'
+    );
+  });
 });
 
 describe('EdgeTransport skills (golden fixtures)', () => {

@@ -525,5 +525,12 @@
   "support-download": "Download",
   "support-log-saved": "Log saved to {{path}}",
   "support-log-empty": "No log files found yet.",
-  "support-log-export-failed": "Could not export the log."
+  "support-log-export-failed": "Could not export the log.",
+  "home-list-model": "النموذج",
+  "projects-status-idle": "خامل",
+  "projects-status-closed": "مغلق",
+  "projects-status-cancelled": "ملغى",
+  "projects-backend-too-old": "المشاريع غير متاحة: الخادم الخلفي المتصل (edge API {{version}}) أقدم من قائمة المشاريع. حدِّث الخادم الخلفي لعرضها هنا.",
+  "projects-remote-error": "تعذّر تحميل المشاريع: {{message}}",
+  "projects-load-more": "تحميل المزيد"
 }
