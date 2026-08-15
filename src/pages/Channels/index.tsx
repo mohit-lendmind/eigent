@@ -70,7 +70,10 @@ export default function Channels() {
               <div className="flex h-16 w-16 items-center justify-center">
                 <MessageSquare className="h-8 w-8 text-ds-icon-neutral-muted-default" />
               </div>
-              <h2 className="mb-2 text-body-md font-bold text-ds-text-neutral-default-default">
+              <h2
+                className="mb-2 text-body-md font-bold text-ds-text-neutral-default-default"
+                data-testid="coming-soon"
+              >
                 {t('layout.coming-soon')}
               </h2>
               <p className="max-w-md text-center text-body-sm text-ds-text-neutral-muted-default">

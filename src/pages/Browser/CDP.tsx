@@ -200,7 +200,10 @@ export default function CDP() {
   }
 
   return (
-    <div className="m-auto flex h-full w-full flex-1 flex-col">
+    <div
+      className="m-auto flex h-full w-full flex-1 flex-col"
+      data-testid="cdp-connections"
+    >
       <AlertDialog
         isOpen={!!browserToRemove}
         onClose={() => setBrowserToRemove(null)}
