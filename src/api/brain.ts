@@ -13,7 +13,7 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 /**
- * Brain REST API - MCP and Skills endpoints.
+ * Brain REST API - Skills endpoints.
  * All calls go through Brain HTTP API (getBaseURL). No IPC fallback.
  */
 
@@ -24,31 +24,6 @@ import {
   fetchPostForm,
   fetchPut,
 } from './http';
-
-export async function mcpList(): Promise<{
-  mcpServers: Record<string, unknown>;
-}> {
-  const res = await fetchGet('/mcp/list');
-  return res && typeof res.mcpServers === 'object' ? res : { mcpServers: {} };
-}
-
-export async function mcpInstall(
-  name: string,
-  mcp: Record<string, unknown>
-): Promise<{ success: boolean }> {
-  return fetchPost('/mcp/install', { name, mcp });
-}
-
-export async function mcpRemove(name: string): Promise<{ success: boolean }> {
-  return fetchDelete(`/mcp/${encodeURIComponent(name)}`);
-}
-
-export async function mcpUpdate(
-  name: string,
-  mcp: Record<string, unknown>
-): Promise<{ success: boolean }> {
-  return fetchPut(`/mcp/${encodeURIComponent(name)}`, mcp);
-}
 
 export async function skillsScan(): Promise<{
   success: boolean;

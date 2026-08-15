@@ -60,7 +60,6 @@ import {
   updateEnvBlock,
 } from './utils/envUtil';
 import { createDiagnosticsZip, zipFolder } from './utils/log';
-import { addMcp, readMcpConfig, removeMcp, updateMcp } from './utils/mcpConfig';
 import { WebViewManager } from './webview';
 
 // ==================== constants ====================
@@ -1457,50 +1456,6 @@ function registerIpcHandlers() {
       }
     }
   );
-
-  // ==================== MCP manage handler ====================
-  ipcMain.handle('mcp-install', async (event, name, mcp) => {
-    // Convert args from JSON string to array if needed
-    if (mcp.args && typeof mcp.args === 'string') {
-      try {
-        mcp.args = JSON.parse(mcp.args);
-      } catch (_error) {
-        // If parsing fails, split by comma as fallback
-        mcp.args = mcp.args
-          .split(',')
-          .map((arg: string) => arg.trim())
-          .filter((arg: string) => arg !== '');
-      }
-    }
-    addMcp(name, mcp);
-    return { success: true };
-  });
-
-  ipcMain.handle('mcp-remove', async (event, name) => {
-    removeMcp(name);
-    return { success: true };
-  });
-
-  ipcMain.handle('mcp-update', async (event, name, mcp) => {
-    // Convert args from JSON string to array if needed
-    if (mcp.args && typeof mcp.args === 'string') {
-      try {
-        mcp.args = JSON.parse(mcp.args);
-      } catch (_error) {
-        // If parsing fails, split by comma as fallback
-        mcp.args = mcp.args
-          .split(',')
-          .map((arg: string) => arg.trim())
-          .filter((arg: string) => arg !== '');
-      }
-    }
-    updateMcp(name, mcp);
-    return { success: true };
-  });
-
-  ipcMain.handle('mcp-list', async () => {
-    return readMcpConfig();
-  });
 
   // ==================== browser related handler ====================
   // TODO: next version implement

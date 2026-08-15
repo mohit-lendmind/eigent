@@ -92,9 +92,10 @@ declare global {
     workerInfo?: {
       name: string;
       description: string;
-      tools: any;
-      mcp_tools: any;
-      selectedTools: any;
+      // Set only by the retired local-workforce path; nothing writes them now.
+      tools?: any;
+      mcp_tools?: any;
+      selectedTools?: any;
       model_provider_id?: number;
     };
   }
