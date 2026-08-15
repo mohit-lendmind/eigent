@@ -473,13 +473,9 @@ for (const [index, evalCase] of CASES.entries()) {
         window.location.hash = '#/';
       });
       await page.reload();
-      await page.getByText('Legacy Space', { exact: true }).first().click();
+      await page.locator('#active-space-title-btn').click();
       await page
         .getByText('Create a new space', { exact: true })
-        .first()
-        .click();
-      await page
-        .getByText('Start from scratch', { exact: true })
         .first()
         .click();
       const composer = page

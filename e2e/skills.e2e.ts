@@ -366,9 +366,8 @@ test('save-as-skill: scripted echo reply → saved to the store → # picker nex
     await page.reload();
 
     // A fresh profile boots into the read-only legacy Space; create a real one.
-    await page.getByText('Legacy Space', { exact: true }).first().click();
+    await page.locator('#active-space-title-btn').click();
     await page.getByText('Create a new space', { exact: true }).first().click();
-    await page.getByText('Start from scratch', { exact: true }).first().click();
     const composer = page
       .locator('[role="textbox"][contenteditable="true"]')
       .first();
