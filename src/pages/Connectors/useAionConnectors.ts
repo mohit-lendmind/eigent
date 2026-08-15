@@ -108,6 +108,10 @@ export function useAionConnectors(
   useEffect(() => {
     if (!awaitingId) return;
     let active = true;
+    // One read at a time. The interval is a floor on spacing, not a promise
+    // that the previous read finished — against a slow edge an unguarded tick
+    // would stack a fresh request every two seconds for the whole window.
+    let reading = false;
     const deadline = Date.now() + AWAIT_TIMEOUT_MS;
     const timer = setInterval(() => {
       if (Date.now() >= deadline) {
@@ -118,6 +122,8 @@ export function useAionConnectors(
         }
         return;
       }
+      if (reading) return;
+      reading = true;
       void refresh()
         .then((rows) => {
           if (!active) return;
@@ -126,7 +132,10 @@ export function useAionConnectors(
         })
         // A transient read failure mid-flow is not the flow failing: keep
         // polling and let the deadline decide.
-        .catch(() => undefined);
+        .catch(() => undefined)
+        .finally(() => {
+          reading = false;
+        });
     }, AWAIT_POLL_INTERVAL_MS);
     return () => {
       active = false;
