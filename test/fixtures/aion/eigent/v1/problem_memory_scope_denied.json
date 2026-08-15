@@ -1,0 +1,13 @@
+{
+  "type": "https://api.eternly.example/problems/memory-scope-denied",
+  "title": "Memory scope not available",
+  "status": 422,
+  "detail": "Query parameter scope names a memory scope this server does not expose.",
+  "code": "memory_scope_denied",
+  "trace_id": "trc_01JY0000000000000000000008",
+  "retryable": false,
+  "scopes": [
+    "profile:eigent-managed",
+    "profile:eigent-worker"
+  ]
+}

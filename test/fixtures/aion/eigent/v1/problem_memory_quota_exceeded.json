@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/memory-quota-exceeded",
+  "title": "Memory quota exceeded",
+  "status": 429,
+  "detail": "memory: scope byte quota exceeded",
+  "code": "memory_quota_exceeded",
+  "trace_id": "trc_01JY0000000000000000000010",
+  "retryable": false
+}

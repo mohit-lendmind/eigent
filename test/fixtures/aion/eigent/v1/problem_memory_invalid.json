@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/memory-invalid",
+  "title": "Memory validation failed",
+  "status": 422,
+  "detail": "memory: content must not be empty",
+  "code": "memory_invalid",
+  "trace_id": "trc_01JY0000000000000000000011",
+  "retryable": false
+}

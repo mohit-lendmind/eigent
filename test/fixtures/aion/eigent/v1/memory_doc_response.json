@@ -1,0 +1,9 @@
+{
+  "scope": "profile:eigent-managed",
+  "key": "deploy-runbook",
+  "bytes": "1841",
+  "content": "Deploys go out behind the digest-only gate. Roll back by reversing the cutover, never by editing a live Project's generation.",
+  "created_at": "2026-08-02T09:14:07.221Z",
+  "updated_at": "2026-08-12T16:02:44.918Z",
+  "updated_by_session": "ses_01JY0000000000000000000021"
+}

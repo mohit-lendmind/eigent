@@ -51,6 +51,14 @@ export type APIKeyList = Schemas['APIKeyList'];
 export type APIKeySummary = Schemas['APIKeySummary'];
 export type CreateKeyRequest = Schemas['CreateKeyRequest'];
 export type CreatedKey = Schemas['CreatedKey'];
+export type MemoryCatalog = Schemas['MemoryCatalog'];
+export type MemoryDoc = Schemas['MemoryDoc'];
+export type MemoryUsage = Schemas['MemoryUsage'];
+export type MemorySearchResult = Schemas['MemorySearchResult'];
+export type MemorySearchHit = Schemas['MemorySearchHit'];
+export type MemoryWriteRequest = Schemas['MemoryWriteRequest'];
+export type MemoryWriteResult = Schemas['MemoryWriteResult'];
+export type MemoryCleared = Schemas['MemoryCleared'];
 
 export interface EdgeTransportConfig {
   /** Base URL of the mounted contract, e.g. `https://edge.example/eigent/v1`. */
@@ -74,6 +82,16 @@ export interface SubscribeOptions {
  */
 export function newIdempotencyKey(): string {
   return `idk_${crypto.randomUUID().replaceAll('-', '')}`;
+}
+
+/**
+ * `?scope=` when the caller named one, nothing when it did not. Omitting it is
+ * how a client asks for the deployment's default scope; sending an empty string
+ * would instead name a scope the deployment does not serve, and the memory
+ * routes refuse that rather than falling back.
+ */
+function memoryScopeQuery(scope: string | undefined): string {
+  return scope === undefined ? '' : `?scope=${encodeURIComponent(scope)}`;
 }
 
 /** One decoded SSE frame: the event plus its `id:` line (the cursor). */
@@ -389,6 +407,80 @@ export class EdgeTransport {
     return this.json(
       'GET',
       `/schedules/${encodeURIComponent(scheduleId)}/events${suffix}`
+    );
+  }
+
+  /**
+   * What the agent remembers between sessions, plus how full the scope is. The
+   * rows carry NO `content` — a scope is bounded per document, so a listing
+   * that returned every document would cost the whole scope to draw an index;
+   * read one with getMemory or search for the ones that matter.
+   *
+   * `scope` is a served name, not a free-form one: the deployment publishes the
+   * set it answers for on every catalog it returns, and one outside that set is
+   * the typed `memory_scope_denied` refusal rather than an empty listing.
+   */
+  listMemory(options: { scope?: string } = {}): Promise<MemoryCatalog> {
+    return this.json('GET', `/memory${memoryScopeQuery(options.scope)}`);
+  }
+
+  /**
+   * Ranked documents for a query, most relevant first, each WITH its content —
+   * a result the caller has to fetch again to read is a link to nowhere. The
+   * server decides the ranking; render the order it returned rather than
+   * re-sorting on `score`, which is not comparable across queries.
+   */
+  searchMemory(
+    query: string,
+    options: { scope?: string; k?: number } = {}
+  ): Promise<MemorySearchResult> {
+    const params = new URLSearchParams({ q: query });
+    if (options.scope !== undefined) params.set('scope', options.scope);
+    if (options.k !== undefined) params.set('k', String(options.k));
+    return this.json('GET', `/memory/search?${params.toString()}`);
+  }
+
+  getMemory(key: string, options: { scope?: string } = {}): Promise<MemoryDoc> {
+    return this.json(
+      'GET',
+      `/memory/${encodeURIComponent(key)}${memoryScopeQuery(options.scope)}`
+    );
+  }
+
+  /**
+   * Writes a document whole, creating or replacing it. PUT is naturally
+   * idempotent, so no Idempotency-Key. The result carries usage when the server
+   * reported it: the moment to tell someone a scope is nearly full is the
+   * moment they just added to it. An ABSENT usage is a missing reading, never a
+   * full scope.
+   */
+  putMemory(
+    key: string,
+    content: string,
+    options: { scope?: string } = {}
+  ): Promise<MemoryWriteResult> {
+    return this.json(
+      'PUT',
+      `/memory/${encodeURIComponent(key)}${memoryScopeQuery(options.scope)}`,
+      { body: { content } satisfies MemoryWriteRequest }
+    );
+  }
+
+  deleteMemory(key: string, options: { scope?: string } = {}): Promise<void> {
+    // Idempotent server-side: deleting what is already gone is the state the
+    // caller asked for, so it answers 204 either way.
+    return this.json(
+      'DELETE',
+      `/memory/${encodeURIComponent(key)}${memoryScopeQuery(options.scope)}`
+    );
+  }
+
+  /** Forgets every document in the scope, reporting how many it removed. */
+  clearMemory(options: { scope?: string } = {}): Promise<MemoryCleared> {
+    return this.json(
+      'POST',
+      `/memory/clear${memoryScopeQuery(options.scope)}`,
+      { headers: { 'Idempotency-Key': newIdempotencyKey() } }
     );
   }
 

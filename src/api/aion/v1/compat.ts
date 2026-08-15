@@ -161,6 +161,13 @@ const SCHEDULES_MINIMUM_EDGE = [1, 10];
 // render a key manager whose every action 404s.
 const ACCOUNT_MINIMUM_EDGE = [1, 11];
 
+// The memory routes shipped in edge API 1.12.0. Below the floor the agent still
+// remembers across sessions — the cell has served these RPCs all along — and
+// nothing above it can read or forget any of it. An empty list would claim the
+// agent remembers nothing about you, which is the one answer a memory screen
+// must never give when it simply cannot see.
+const MEMORY_MINIMUM_EDGE = [1, 12];
+
 function meetsEdgeFloor(status: IntegrationStatus, floor: number[]): boolean {
   if (!negotiateCompatibility(status).compatible) {
     return false;
@@ -199,4 +206,8 @@ export function supportsSchedules(status: IntegrationStatus): boolean {
 
 export function supportsAccount(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, ACCOUNT_MINIMUM_EDGE);
+}
+
+export function supportsMemory(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, MEMORY_MINIMUM_EDGE);
 }

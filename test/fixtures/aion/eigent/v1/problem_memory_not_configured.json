@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/memory-not-configured",
+  "title": "Memory not configured",
+  "status": 501,
+  "detail": "This server exposes no memory scope on the product API.",
+  "code": "memory_not_configured",
+  "trace_id": "trc_01JY0000000000000000000009",
+  "retryable": false
+}

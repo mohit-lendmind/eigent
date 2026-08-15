@@ -626,6 +626,162 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/memory": {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description What the agent remembers in one scope: every document's metadata, plus
+         *     the scope's live usage against its caps. Content is omitted from the
+         *     rows — a list is a table of contents, and returning every document's
+         *     text would make opening the screen the most expensive request in the
+         *     API. Read one document with getMemory.
+         *
+         *     Usage rides this response rather than a route of its own, because a
+         *     client that renders what is stored also has to say whether another
+         *     write would fit, and splitting that would draw the list before it knew.
+         *
+         *     `scopes` names every scope this server exposes, most-default first.
+         *     The `scope` query parameter selects one; omitted, it is the first
+         *     entry. Like skills and connectors, memory is served only by an edge
+         *     connected to a cell.
+         */
+        get: operations["listMemory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/memory/search": {
+        parameters: {
+            query: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+                q: components["parameters"]["MemoryQuery"];
+                /**
+                 * @description How many hits to return. A scope holds at most a few hundred documents,
+                 *     so a larger number could not return more — it would only misreport the
+                 *     ceiling.
+                 */
+                k?: components["parameters"]["MemorySearchK"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Rank the scope's documents against a query and return the top hits with
+         *     content, most relevant first. This is the same ranking the agent's own
+         *     memory search uses, so what a user finds here is what the agent finds.
+         *
+         *     The score is comparable only WITHIN one response: it is lexical (BM25)
+         *     when the server has no embedder and a fused hybrid score when it does,
+         *     so a client renders order, never a percentage.
+         */
+        get: operations["searchMemory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/memory/clear": {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Forget everything in the scope, and report how many documents were
+         *     removed. A named action rather than a DELETE on the collection:
+         *     forgetting everything is a different act from forgetting one thing, and
+         *     a bare collection DELETE is one missing path segment away from a client
+         *     that meant the other.
+         *
+         *     There is no undo — the agent's memory of this scope is gone.
+         */
+        post: operations["clearMemory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/memory/{key}": {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path: {
+                key: components["parameters"]["MemoryKey"];
+            };
+            cookie?: never;
+        };
+        /** @description One document, with its content. */
+        get: operations["getMemory"];
+        /**
+         * @description Write a document, creating it or replacing it whole. Memory is
+         *     overwrite-in-place by key, so the body carries the new text rather than
+         *     a patch, and an empty body is refused rather than treated as a delete —
+         *     a caller that means "forget this" has deleteMemory.
+         *
+         *     The response carries the scope's usage after the write when the server
+         *     reports it, because the moment a client most needs to know a scope is
+         *     nearly full is the moment it just added to it. An absent `usage` is a
+         *     missing reading, never a full scope.
+         */
+        put: operations["putMemory"];
+        post?: never;
+        /**
+         * @description Forget one document. Idempotent: a key that was never stored answers
+         *     204 exactly like one that was just removed, because deleting what is
+         *     already gone is the state the caller asked for.
+         */
+        delete: operations["deleteMemory"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 };
 export type webhooks = Record<string, never>;
 export type components = {
@@ -1247,6 +1403,110 @@ export type components = {
         } & {
             [key: string]: unknown;
         };
+        MemoryCatalog: {
+            /** @description The scope these documents belong to. */
+            scope: string;
+            /**
+             * @description Every scope this server exposes, most-default first. A client
+             *     renders a switcher from this rather than hardcoding names.
+             */
+            scopes: string[];
+            /**
+             * @description Metadata only — `content` is absent on every row here. An empty
+             *     array is a scope the agent has stored nothing in.
+             */
+            docs: components["schemas"]["MemoryDoc"][];
+            usage: components["schemas"]["MemoryUsage"];
+        } & {
+            [key: string]: unknown;
+        };
+        MemoryDoc: {
+            scope: string;
+            key: string;
+            /**
+             * @description Size of the stored content. A decimal string like every other
+             *     64-bit quantity on this contract.
+             */
+            bytes: string;
+            /**
+             * @description The document text. ABSENT on listMemory rows, present on
+             *     getMemory, putMemory and search hits. Absent is "not returned by
+             *     this route", never "the document is empty" — an empty document
+             *     cannot be stored.
+             */
+            content?: string;
+            /** Format: date-time */
+            created_at?: string;
+            /**
+             * Format: date-time
+             * @description Absent on a document that has never been rewritten, rather than
+             *     repeating `created_at`, so a client can show what actually changed.
+             */
+            updated_at?: string;
+            /**
+             * @description The session that last wrote this document, when the server recorded
+             *     one. Absent for a document written outside a session.
+             */
+            updated_by_session?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * @description A scope's live usage and the caps enforced on it. Every field is
+         *     present even at zero: an empty scope really has stored nothing, and the
+         *     caps are what a client needs to render how much room is left. A zero
+         *     cap means that dimension is uncapped, matching the store's convention.
+         */
+        MemoryUsage: {
+            doc_count: string;
+            total_bytes: string;
+            cap_doc_bytes: string;
+            cap_docs_per_scope: string;
+            cap_scope_bytes: string;
+        } & {
+            [key: string]: unknown;
+        };
+        MemorySearchResult: {
+            scope: string;
+            hits: components["schemas"]["MemorySearchHit"][];
+        } & {
+            [key: string]: unknown;
+        };
+        MemorySearchHit: {
+            doc: components["schemas"]["MemoryDoc"];
+            /**
+             * @description Relevance, higher is better. Comparable only within one response —
+             *     the scale differs between lexical and hybrid ranking, so render
+             *     order, not a percentage.
+             */
+            score: number;
+        } & {
+            [key: string]: unknown;
+        };
+        MemoryWriteRequest: {
+            /**
+             * @description The whole document. A write replaces what was stored; an empty
+             *     string is refused rather than treated as a delete.
+             */
+            content: string;
+        };
+        MemoryWriteResult: {
+            doc: components["schemas"]["MemoryDoc"];
+            usage?: components["schemas"]["MemoryUsage"];
+        } & {
+            [key: string]: unknown;
+        };
+        MemoryCleared: {
+            scope: string;
+            /**
+             * @description How many documents were removed. A JSON number rather than a
+             *     decimal string: unlike a byte total this is a 32-bit count, bounded
+             *     by the scope's document cap.
+             */
+            deleted: number;
+        } & {
+            [key: string]: unknown;
+        };
     };
     responses: {
         /** @description RFC 9457 problem detail */
@@ -1301,6 +1561,35 @@ export type components = {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /**
+         * @description The `scope` parameter names a memory scope this server does not expose
+         *     (`code: memory_scope_denied`). The problem carries the served set in
+         *     `scopes`; retrying the same value never succeeds.
+         */
+        MemoryScopeDenied: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /**
+         * @description Two shapes share this status, told apart by the problem `code`:
+         *     `not_implemented` — this edge serves no memory plane at all;
+         *     `memory_not_configured` — the plane is there but this deployment
+         *     exposes no memory scope on the product API (or the configured scope
+         *     does not resolve on its cell). Both are operator configuration states:
+         *     retrying changes nothing.
+         */
+        MemoryUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
     };
     parameters: {
         IdempotencyKey: string;
@@ -1326,6 +1615,21 @@ export type components = {
          *     unconditional write.
          */
         SkillIfMatch: string;
+        /**
+         * @description Which memory scope to address. Omitted = the server's first configured
+         *     scope, which is what an ordinary client sends. A scope outside the
+         *     served set is refused with `memory_scope_denied` carrying the set, so a
+         *     client never has to guess; the served set is also on listMemory.
+         */
+        MemoryScope: string;
+        MemoryKey: string;
+        MemoryQuery: string;
+        /**
+         * @description How many hits to return. A scope holds at most a few hundred documents,
+         *     so a larger number could not return more — it would only misreport the
+         *     ceiling.
+         */
+        MemorySearchK: number;
     };
     requestBodies: never;
     headers: {
@@ -2348,6 +2652,240 @@ export interface operations {
             400: components["responses"]["Problem"];
             401: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
+        };
+    };
+    listMemory: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The scope's documents and its usage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryCatalog"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            422: components["responses"]["MemoryScopeDenied"];
+            501: components["responses"]["MemoryUnavailable"];
+        };
+    };
+    searchMemory: {
+        parameters: {
+            query: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+                q: components["parameters"]["MemoryQuery"];
+                /**
+                 * @description How many hits to return. A scope holds at most a few hundred documents,
+                 *     so a larger number could not return more — it would only misreport the
+                 *     ceiling.
+                 */
+                k?: components["parameters"]["MemorySearchK"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ranked hits, most relevant first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemorySearchResult"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            422: components["responses"]["MemoryScopeDenied"];
+            501: components["responses"]["MemoryUnavailable"];
+        };
+    };
+    clearMemory: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The scope is empty */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryCleared"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            422: components["responses"]["MemoryScopeDenied"];
+            501: components["responses"]["MemoryUnavailable"];
+        };
+    };
+    getMemory: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path: {
+                key: components["parameters"]["MemoryKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The document */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryDoc"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            422: components["responses"]["MemoryScopeDenied"];
+            501: components["responses"]["MemoryUnavailable"];
+        };
+    };
+    putMemory: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path: {
+                key: components["parameters"]["MemoryKey"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemoryWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description The stored document */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryWriteResult"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            /**
+             * @description Two shapes share this status, told apart by the problem `code`:
+             *     `memory_scope_denied` — the `scope` parameter names a scope this
+             *     server does not expose; `memory_invalid` — the document itself is
+             *     refused (empty content, an illegal key, or a document past the
+             *     server's per-document cap).
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description The scope is full (`code: memory_quota_exceeded`). A DURABLE quota,
+             *     not a rate limit — retrying never succeeds until something is
+             *     deleted. The caps are on the usage object.
+             */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            501: components["responses"]["MemoryUnavailable"];
+        };
+    };
+    deleteMemory: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path: {
+                key: components["parameters"]["MemoryKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The key is not stored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            422: components["responses"]["MemoryScopeDenied"];
+            501: components["responses"]["MemoryUnavailable"];
         };
     };
 }
