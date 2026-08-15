@@ -321,7 +321,7 @@ test('the Home project list is the edge\'s list', async () => {
   }
 });
 
-test('aion mode hides the sections only the local backend could serve', async () => {
+test('the sections only the local backend could serve are gone', async () => {
   test.skip(
     !bootstrap || !edgeReady || !APP_BUILT,
     'eigent-local stack not running or app not built'
@@ -346,8 +346,8 @@ test('aion mode hides the sections only the local backend could serve', async ()
     summary.agents_dead_nav_absent = true;
     await screenshot(page, 'nav-agents');
 
-    // A deep link to a hidden section falls back rather than rendering a
-    // screen whose every write goes nowhere.
+    // A link kept from before those screens were retired still lands on one
+    // that exists rather than on a blank pane.
     await openSection(page, 'tab=agents&section=models');
     await expect(byId(page, 'skills-add')).toBeVisible({ timeout: 60_000 });
     await expect(navTab('Skills')).toHaveAttribute('aria-selected', 'true');
