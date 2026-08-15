@@ -57,6 +57,7 @@
   "save-skill": "Guardar habilidad",
   "compose-skill-hint": "Edita SKILL.md (se requiere frontmatter YAML con nombre y descripción) y luego guarda.",
   "skills-backend-too-old": "Las habilidades no están disponibles: el backend conectado (edge API {{version}}) es anterior a la superficie de habilidades. Actualiza el backend para gestionar habilidades.",
+  "skills-no-backend": "Las habilidades no están disponibles: esta compilación no tiene conexión con el backend, por lo que un archivo subido no tiene dónde guardarse.",
   "skills-remote-error": "Las habilidades no están disponibles: {{message}}",
   "skill-never-used": "Nunca usada",
   "skill-usage-activations": "Auto: {{count}}",

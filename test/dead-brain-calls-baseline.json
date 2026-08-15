@@ -1,7 +1,6 @@
 {
   "_comment": "Ceiling for references to the two non-aion HTTP clients, per file. Regenerate with `node scripts/check-no-dead-brain-calls.mjs --update` when a milestone re-points a surface at the aion edge, and say which surface moved in the PR. Both tables empty is the goal.",
   "dead": {
-    "src/api/brain.ts": 18,
     "src/components/BrowserAgentWorkspace/index.tsx": 3,
     "src/components/ChatBox/index.tsx": 8,
     "src/components/Folder/index.tsx": 3,

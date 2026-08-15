@@ -57,6 +57,7 @@
   "save-skill": "Enregistrer la compétence",
   "compose-skill-hint": "Modifiez SKILL.md (un en-tête YAML avec nom et description est requis), puis enregistrez.",
   "skills-backend-too-old": "Les compétences sont indisponibles : le backend connecté (edge API {{version}}) est antérieur à la surface des compétences. Mettez à jour le backend pour gérer les compétences.",
+  "skills-no-backend": "Les compétences sont indisponibles : cette version n'a aucune connexion au backend, donc une archive téléversée n'a nulle part où aller.",
   "skills-remote-error": "Les compétences sont indisponibles : {{message}}",
   "skill-never-used": "Jamais utilisé",
   "skill-usage-activations": "Auto : {{count}}",

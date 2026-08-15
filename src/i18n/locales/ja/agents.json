@@ -57,6 +57,7 @@
   "save-skill": "スキルを保存",
   "compose-skill-hint": "SKILL.md を編集（名前と説明の YAML フロントマターが必須）してから保存してください。",
   "skills-backend-too-old": "スキルは利用できません: 接続中のバックエンド (edge API {{version}}) はスキル機能に対応していません。スキルを管理するにはバックエンドを更新してください。",
+  "skills-no-backend": "スキルは利用できません: このビルドにはバックエンド接続がないため、アップロードしたアーカイブの保存先がありません。",
   "skills-remote-error": "スキルは利用できません: {{message}}",
   "skill-never-used": "未使用",
   "skill-usage-activations": "自動: {{count}}",

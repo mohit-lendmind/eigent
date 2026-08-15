@@ -15,7 +15,6 @@
 import { checkBackendHealth } from '@/api/http';
 import { useHost } from '@/host';
 import { useAuthStore } from '@/store/authStore';
-import { getConnectionConfig } from '@/store/connectionStore';
 import { useInstallationStore } from '@/store/installationStore';
 import { getSkillsStore } from '@/store/skillsStore';
 import { useCallback, useEffect, useRef } from 'react';
@@ -31,7 +30,7 @@ export const useInstallationSetup = () => {
 
   const hasCheckedOnMount = useRef(false);
   const backendReady = useRef(false);
-  const syncedSkillsConfigKey = useRef<string | null>(null);
+  const syncedSkillsKey = useRef<string | null>(null);
   const setSuccess = useInstallationStore((state) => state.setSuccess);
   const setBackendError = useInstallationStore(
     (state) => state.setBackendError
@@ -46,27 +45,23 @@ export const useInstallationSetup = () => {
     (state) => state.setNeedsBackendRestart
   );
 
-  const syncSkillsConfigOnOpen = useCallback(async () => {
+  // Warm the skills list once per signed-in user, so the first visit to the
+  // Skills screen — or a composer picker opened before it — already has rows.
+  const syncSkillsOnOpen = useCallback(async () => {
     const currentAuth = useAuthStore.getState();
     if (currentAuth.user_id === null || currentAuth.user_id === undefined) {
       return;
     }
 
-    const endpoint = getConnectionConfig().brainEndpoint;
-    if (!endpoint) return;
-
-    const syncKey = `${currentAuth.user_id}:${endpoint}`;
-    if (syncedSkillsConfigKey.current === syncKey) return;
+    const syncKey = String(currentAuth.user_id);
+    if (syncedSkillsKey.current === syncKey) return;
 
     try {
-      await getSkillsStore().syncFromDisk();
-      syncedSkillsConfigKey.current = syncKey;
-      console.log(
-        `[useInstallationSetup] Skills config synced for user ${currentAuth.user_id}`
-      );
+      await getSkillsStore().refresh();
+      syncedSkillsKey.current = syncKey;
     } catch (error) {
       console.warn(
-        '[useInstallationSetup] Failed to sync skills config on open:',
+        '[useInstallationSetup] Failed to load skills on open:',
         error
       );
     }
@@ -88,7 +83,7 @@ export const useInstallationSetup = () => {
         const ok = await checkBackendHealth();
         if (ok) {
           markReady();
-          void syncSkillsConfigOnOpen();
+          void syncSkillsOnOpen();
           return true;
         }
       } catch (e) {
@@ -138,7 +133,7 @@ export const useInstallationSetup = () => {
       }, 2000);
       setTimeout(() => clearInterval(pollInterval), 30000);
     });
-  }, [markReady, host, syncSkillsConfigOnOpen]);
+  }, [markReady, host, syncSkillsOnOpen]);
 
   // Monitor for backend restart after logout
   useEffect(() => {
@@ -155,9 +150,9 @@ export const useInstallationSetup = () => {
 
   useEffect(() => {
     if (backendReady.current && user_id !== null && user_id !== undefined) {
-      void syncSkillsConfigOnOpen();
+      void syncSkillsOnOpen();
     }
-  }, [user_id, syncSkillsConfigOnOpen]);
+  }, [user_id, syncSkillsOnOpen]);
 
   useEffect(() => {
     if (hasCheckedOnMount.current) {

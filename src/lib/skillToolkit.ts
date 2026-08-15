@@ -12,27 +12,16 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { getConnectionConfig } from '@/store/connectionStore';
-
 /**
- * Skills are stored as SKILL.md files with YAML frontmatter (name, description)
- * and a markdown body. Locally they live under ~/.eigent/skills, one folder per
- * skill; the aion SkillStore is the durable source of truth.
+ * A skill is a SKILL.md document: YAML frontmatter (name, description) over a
+ * markdown body. The aion SkillStore holds them; this module is only the
+ * parse/serialise pair the renderer needs to read one and write one back.
  */
 
 export interface SkillMeta {
   name: string;
   description: string;
   body: string;
-}
-
-export interface ScannedSkill {
-  name: string;
-  description: string;
-  path: string;
-  scope: 'repo' | 'user' | 'system';
-  /** Folder name under skills dir (e.g. "my-skill") */
-  skillDirName: string;
 }
 
 const FRONTMATTER_DELIM = '---';
@@ -171,12 +160,6 @@ export function skillNameToDirName(name: string): string {
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
   return cleaned || 'skill';
-}
-
-/** Check if skills API is available (Brain REST only, no IPC). */
-export function hasSkillsFsApi(): boolean {
-  if (typeof window === 'undefined') return false;
-  return !!getConnectionConfig?.()?.brainEndpoint;
 }
 
 // ---------------------------------------------------------------------------

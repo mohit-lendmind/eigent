@@ -13,7 +13,6 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import { EdgeProblemError } from '@/api/aion/v1/problems';
-import { skillImportZip } from '@/api/brain';
 import ConfirmModal from '@/components/ui/alertDialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,7 +25,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { recordFeatureUsed } from '@/lib/events/appEvents';
 import { buildSkillMd, parseSkillMd } from '@/lib/skillToolkit';
 import { extractSkillsFromZip, type ZipSkill } from '@/lib/skillZip';
-import { getAionSkillsMode, putAionSkill } from '@/store/aionSkillsStore';
+import {
+  getAionSkillsMode,
+  putAionSkill,
+  type AionSkillsMode,
+} from '@/store/aionSkillsStore';
 import { useSkillsStore } from '@/store/skillsStore';
 
 import { AlertCircle, File, Upload, X } from 'lucide-react';
@@ -45,7 +48,25 @@ function remoteErrorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Guard renderer memory when sending zip bytes to the main process. */
+/**
+ * Why the SkillStore cannot take a document, in its own words where it has
+ * any: a stack too old names its version, an unreachable one names its
+ * failure, and no transport at all means an upload has nowhere to land.
+ */
+function skillStoreUnavailableText(
+  mode: AionSkillsMode,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  if (mode.kind === 'error') return mode.message;
+  if (mode.kind === 'unsupported') {
+    return t('agents.skills-backend-too-old', {
+      version: mode.edgeApiVersion,
+    });
+  }
+  return t('agents.skills-no-backend');
+}
+
+/** Guard renderer memory while the archive is held for unpacking. */
 const MAX_SKILL_ZIP_IMPORT_BYTES = 50 * 1024 * 1024;
 
 interface SkillUploadDialogProps {
@@ -61,7 +82,7 @@ export default function SkillUploadDialog({
   mode = 'upload',
 }: SkillUploadDialogProps) {
   const { t } = useTranslation();
-  const { addSkill, syncFromDisk } = useSkillsStore();
+  const { addSkill, refresh } = useSkillsStore();
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileContent, setFileContent] = useState<string>('');
@@ -80,8 +101,6 @@ export default function SkillUploadDialog({
   const [confirmedReplacements, setConfirmedReplacements] = useState<
     Set<string>
   >(new Set());
-  const [pendingFileBuffer, setPendingFileBuffer] =
-    useState<ArrayBuffer | null>(null);
   const [composeContent, setComposeContent] = useState('');
   const [savingCompose, setSavingCompose] = useState(false);
   // Remote (aion SkillStore) path: the unpacked archive awaiting conflict
@@ -111,7 +130,6 @@ export default function SkillUploadDialog({
     setConflictDialog(null);
     setPendingConflicts([]);
     setConfirmedReplacements(new Set());
-    setPendingFileBuffer(null);
     setPendingRemoteZip(null);
     setRemoteNotice(null);
     setComposeContent('');
@@ -147,14 +165,9 @@ export default function SkillUploadDialog({
       recordFeatureUsed('skills', { action: 'create' });
       handleClose();
     } catch (error) {
-      // Remote validation findings stay inline so the author can fix the
-      // document in place; the local path keeps its generic toast.
-      const remote = await getAionSkillsMode();
-      if (remote.kind !== 'local') {
-        setRemoteNotice(remoteErrorText(error));
-      } else {
-        toast.error(t('agents.skill-add-error'));
-      }
+      // Validation findings stay inline so the author can fix the document
+      // in place rather than chase a toast that has already gone.
+      setRemoteNotice(remoteErrorText(error));
     } finally {
       setSavingCompose(false);
     }
@@ -190,7 +203,7 @@ export default function SkillUploadDialog({
           failures.push(`${zipSkill.meta.name}: ${remoteErrorText(error)}`);
         }
       }
-      await syncFromDisk();
+      await refresh();
       if (imported > 0) {
         toast.success(t('agents.skill-added-success'));
         recordFeatureUsed('skills', { action: 'upload', format: 'zip' });
@@ -206,14 +219,13 @@ export default function SkillUploadDialog({
         toast.error(failures.join('\n'));
       }
     },
-    [syncFromDisk, t]
+    [refresh, t]
   );
 
   const resetConflictState = useCallback(() => {
     setConflictDialog(null);
     setPendingConflicts([]);
     setConfirmedReplacements(new Set());
-    setPendingFileBuffer(null);
     setPendingRemoteZip(null);
   }, []);
 
@@ -243,36 +255,6 @@ export default function SkillUploadDialog({
       setConflictDialog(null);
       if (pendingRemoteZip) {
         await importRemoteZip(pendingRemoteZip, newConfirmed);
-        resetConflictState();
-        return;
-      }
-      if (!pendingFileBuffer) {
-        resetConflictState();
-        return;
-      }
-
-      if (pendingFileBuffer.byteLength > MAX_SKILL_ZIP_IMPORT_BYTES) {
-        toast.error(t('agents.zip-import-too-large'));
-        resetConflictState();
-        return;
-      }
-
-      try {
-        const result = await skillImportZip(
-          pendingFileBuffer,
-          Array.from(newConfirmed)
-        );
-
-        if (!result?.success) {
-          toast.error(result?.error || t('agents.skill-add-error'));
-          resetConflictState();
-          return;
-        }
-
-        await syncFromDisk();
-        toast.success(t('agents.skill-added-success'));
-      } catch {
-        toast.error(t('agents.skill-add-error'));
       }
       resetConflictState();
     }
@@ -281,11 +263,8 @@ export default function SkillUploadDialog({
     confirmedReplacements,
     importRemoteZip,
     pendingConflicts,
-    pendingFileBuffer,
     pendingRemoteZip,
     resetConflictState,
-    syncFromDisk,
-    t,
   ]);
 
   const handleConflictCancel = useCallback(async () => {
@@ -311,36 +290,6 @@ export default function SkillUploadDialog({
         // Unconfirmed conflicts are skipped inside the import; fresh names
         // in the archive still land.
         await importRemoteZip(pendingRemoteZip, confirmedReplacements);
-        resetConflictState();
-        return;
-      }
-      if (!pendingFileBuffer || confirmedReplacements.size === 0) {
-        resetConflictState();
-        return;
-      }
-
-      if (pendingFileBuffer.byteLength > MAX_SKILL_ZIP_IMPORT_BYTES) {
-        toast.error(t('agents.zip-import-too-large'));
-        resetConflictState();
-        return;
-      }
-
-      try {
-        const result = await skillImportZip(
-          pendingFileBuffer,
-          Array.from(confirmedReplacements)
-        );
-
-        if (!result?.success) {
-          toast.error(result?.error || t('agents.skill-add-error'));
-          resetConflictState();
-          return;
-        }
-
-        await syncFromDisk();
-        toast.success(t('agents.skill-added-success'));
-      } catch {
-        toast.error(t('agents.skill-add-error'));
       }
       resetConflictState();
     }
@@ -349,11 +298,8 @@ export default function SkillUploadDialog({
     confirmedReplacements,
     importRemoteZip,
     pendingConflicts,
-    pendingFileBuffer,
     pendingRemoteZip,
     resetConflictState,
-    syncFromDisk,
-    t,
   ]);
 
   const handleUpload = useCallback(
@@ -384,82 +330,43 @@ export default function SkillUploadDialog({
             return;
           }
 
-          // Remote mode: the archive is unpacked client-side and fed to the
-          // aion SkillStore as one PUT per skill — it never reaches the
-          // local brain. Conflicts reuse the same confirmation flow.
+          // The archive is unpacked here in the renderer and fed to the
+          // SkillStore as one PUT per skill, so a name already taken is a
+          // conflict this dialog resolves before any of them are sent.
           const remote = await getAionSkillsMode();
-          if (remote.kind !== 'local') {
-            if (remote.kind !== 'remote') {
-              setRemoteNotice(
-                remote.kind === 'error'
-                  ? remote.message
-                  : t('agents.skills-backend-too-old', {
-                      version: remote.edgeApiVersion,
-                    })
-              );
-              return;
-            }
-            const zipSkills = await extractSkillsFromZip(buffer);
-            if (zipSkills.length === 0) {
-              setUploadError('invalid_format');
-              return;
-            }
-            const existing = new Set(
-              useSkillsStore.getState().skills.map((s) => s.name)
-            );
-            const conflicts = zipSkills
-              .filter((z) => existing.has(z.meta.name))
-              .map((z) => ({
-                folderName: z.folderName || z.meta.name,
-                skillName: z.meta.name,
-              }));
-            if (conflicts.length > 0) {
-              setPendingConflicts(conflicts);
-              setPendingRemoteZip(zipSkills);
-              setConflictDialog({
-                open: true,
-                folderName: conflicts[0].folderName,
-                skillName: conflicts[0].skillName,
-              });
-              setSelectedFile(null);
-              setFileContent('');
-              if (fileInputRef.current) fileInputRef.current.value = '';
-              onClose();
-              return;
-            }
-            await importRemoteZip(zipSkills, new Set());
-            handleClose();
+          if (remote.kind !== 'remote') {
+            setRemoteNotice(skillStoreUnavailableText(remote, t));
             return;
           }
-
-          // First, check for conflicts
-          const result = await skillImportZip(buffer);
-
-          if (result?.conflicts && result.conflicts.length > 0) {
-            // Store conflicts and show dialog for first conflict
-            setPendingConflicts(result.conflicts);
-            setPendingFileBuffer(buffer);
+          const zipSkills = await extractSkillsFromZip(buffer);
+          if (zipSkills.length === 0) {
+            setUploadError('invalid_format');
+            return;
+          }
+          const existing = new Set(
+            useSkillsStore.getState().skills.map((s) => s.name)
+          );
+          const conflicts = zipSkills
+            .filter((z) => existing.has(z.meta.name))
+            .map((z) => ({
+              folderName: z.folderName || z.meta.name,
+              skillName: z.meta.name,
+            }));
+          if (conflicts.length > 0) {
+            setPendingConflicts(conflicts);
+            setPendingRemoteZip(zipSkills);
             setConflictDialog({
               open: true,
-              folderName: result.conflicts[0].folderName,
-              skillName: result.conflicts[0].skillName,
+              folderName: conflicts[0].folderName,
+              skillName: conflicts[0].skillName,
             });
-            // Reset file state and close the main upload dialog
             setSelectedFile(null);
             setFileContent('');
             if (fileInputRef.current) fileInputRef.current.value = '';
             onClose();
             return;
           }
-
-          if (!result?.success) {
-            toast.error(result?.error || t('agents.skill-add-error'));
-            return;
-          }
-
-          await syncFromDisk();
-          toast.success(t('agents.skill-added-success'));
-          recordFeatureUsed('skills', { action: 'upload', format: 'zip' });
+          await importRemoteZip(zipSkills, new Set());
           handleClose();
           return;
         }
@@ -507,12 +414,7 @@ export default function SkillUploadDialog({
         recordFeatureUsed('skills', { action: 'upload', format: 'md' });
         handleClose();
       } catch (error) {
-        const remote = await getAionSkillsMode();
-        if (remote.kind !== 'local') {
-          setRemoteNotice(remoteErrorText(error));
-        } else {
-          toast.error(t('agents.skill-add-error'));
-        }
+        setRemoteNotice(remoteErrorText(error));
       } finally {
         setIsUploading(false);
       }
@@ -525,7 +427,6 @@ export default function SkillUploadDialog({
       isZip,
       onClose,
       selectedFile,
-      syncFromDisk,
       t,
     ]
   );

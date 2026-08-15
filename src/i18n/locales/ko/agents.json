@@ -57,6 +57,7 @@
   "save-skill": "스킬 저장",
   "compose-skill-hint": "SKILL.md를 편집(YAML 프론트매터에 이름과 설명 필요)한 뒤 저장하세요.",
   "skills-backend-too-old": "스킬을 사용할 수 없습니다: 연결된 백엔드(edge API {{version}})가 스킬 기능을 지원하지 않습니다. 스킬을 관리하려면 백엔드를 업데이트하세요.",
+  "skills-no-backend": "스킬을 사용할 수 없습니다: 이 빌드에는 백엔드 연결이 없어 업로드한 아카이브를 저장할 곳이 없습니다.",
   "skills-remote-error": "스킬을 사용할 수 없습니다: {{message}}",
   "skill-never-used": "사용된 적 없음",
   "skill-usage-activations": "자동: {{count}}",

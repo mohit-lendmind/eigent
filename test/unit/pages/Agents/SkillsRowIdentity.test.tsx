@@ -37,7 +37,7 @@ vi.mock('react-i18next', async () => {
 const mocks = vi.hoisted(() => ({
   skillsState: {
     skills: [] as Skill[],
-    syncFromDisk: vi.fn(),
+    refresh: vi.fn(),
     remoteMode: { kind: 'remote', usage: true } as AionSkillsMode,
     updateSkill: vi.fn(),
     toggleSkill: vi.fn(),
@@ -106,7 +106,7 @@ describe('Skills list row identity', () => {
     // The sync is held open so the popover can be opened while the list is
     // still in its pre-sync render, then released underneath it.
     let settleSync = () => {};
-    mocks.skillsState.syncFromDisk.mockReturnValue(
+    mocks.skillsState.refresh.mockReturnValue(
       new Promise<void>((resolve) => {
         settleSync = resolve;
       })

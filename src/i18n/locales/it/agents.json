@@ -57,6 +57,7 @@
   "save-skill": "Salva abilità",
   "compose-skill-hint": "Modifica SKILL.md (è richiesto il frontmatter YAML con nome e descrizione), poi salva.",
   "skills-backend-too-old": "Le competenze non sono disponibili: il backend connesso (edge API {{version}}) è precedente alla superficie delle competenze. Aggiorna il backend per gestire le competenze.",
+  "skills-no-backend": "Le competenze non sono disponibili: questa build non ha una connessione al backend, quindi un archivio caricato non ha dove essere salvato.",
   "skills-remote-error": "Le competenze non sono disponibili: {{message}}",
   "skill-never-used": "Mai usata",
   "skill-usage-activations": "Auto: {{count}}",

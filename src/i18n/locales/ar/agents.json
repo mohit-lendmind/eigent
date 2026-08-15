@@ -57,6 +57,7 @@
   "save-skill": "حفظ المهارة",
   "compose-skill-hint": "عدّل SKILL.md (مطلوب ترويسة YAML بالاسم والوصف)، ثم احفظ.",
   "skills-backend-too-old": "المهارات غير متاحة: الخادم الخلفي المتصل (edge API {{version}}) أقدم من واجهة المهارات. حدِّث الخادم الخلفي لإدارة المهارات.",
+  "skills-no-backend": "المهارات غير متاحة: لا يوجد اتصال بالخادم الخلفي في هذه النسخة، لذا لا مكان لحفظ الأرشيف المرفوع.",
   "skills-remote-error": "المهارات غير متاحة: {{message}}",
   "skill-never-used": "لم تُستخدم قط",
   "skill-usage-activations": "تلقائي: {{count}}",

@@ -57,6 +57,7 @@
   "save-skill": "Fähigkeit speichern",
   "compose-skill-hint": "Bearbeiten Sie SKILL.md (YAML-Frontmatter mit Name und Beschreibung ist erforderlich), dann speichern.",
   "skills-backend-too-old": "Fähigkeiten sind nicht verfügbar: Das verbundene Backend (Edge-API {{version}}) unterstützt die Fähigkeiten-Oberfläche noch nicht. Aktualisieren Sie das Backend, um Fähigkeiten zu verwalten.",
+  "skills-no-backend": "Fähigkeiten sind nicht verfügbar: Dieser Build hat keine Backend-Verbindung, daher kann ein hochgeladenes Archiv nirgends gespeichert werden.",
   "skills-remote-error": "Fähigkeiten sind nicht verfügbar: {{message}}",
   "skill-never-used": "Nie verwendet",
   "skill-usage-activations": "Automatisch: {{count}}",

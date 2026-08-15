@@ -57,6 +57,7 @@
   "save-skill": "儲存技能",
   "compose-skill-hint": "編輯 SKILL.md（需要含名稱與描述的 YAML 前言），然後儲存。",
   "skills-backend-too-old": "技能無法使用：已連線的後端（edge API {{version}}）尚不支援技能功能。請更新後端以管理技能。",
+  "skills-no-backend": "技能無法使用：目前版本沒有後端連線，上傳的壓縮檔無處儲存。",
   "skills-remote-error": "技能無法使用：{{message}}",
   "skill-never-used": "從未使用",
   "skill-usage-activations": "自動：{{count}}",

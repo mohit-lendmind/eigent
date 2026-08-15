@@ -68,7 +68,7 @@ export default function SaveSkillDialog({
             : '')
       );
       recordFeatureUsed('skills', { action: 'save-from-chat' });
-      void getSkillsStore().syncFromDisk();
+      void getSkillsStore().refresh();
       onClose();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));

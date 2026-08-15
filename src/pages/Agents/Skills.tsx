@@ -43,7 +43,7 @@ export default function Skills() {
   const { t } = useTranslation();
   const shouldReduceMotion = useReducedMotion();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { skills, syncFromDisk, remoteMode } = useSkillsStore();
+  const { skills, refresh, remoteMode } = useSkillsStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [hasCompletedInitialSync, setHasCompletedInitialSync] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -54,13 +54,11 @@ export default function Skills() {
   const [skillToDelete, setSkillToDelete] = useState<Skill | null>(null);
   const [syncUpOpen, setSyncUpOpen] = useState(false);
 
-  // On first mount, sync skills from the backing provider (the remote
-  // SkillStore in aion remote mode, else local SKILL.md files)
+  // On first mount, read the list from the SkillStore.
   useEffect(() => {
     let isActive = true;
 
-    // No-op on web; in Electron this will scan ~/.eigent/skills
-    void syncFromDisk().finally(() => {
+    void refresh().finally(() => {
       if (isActive) {
         setHasCompletedInitialSync(true);
       }
@@ -69,7 +67,7 @@ export default function Skills() {
     return () => {
       isActive = false;
     };
-  }, [syncFromDisk]);
+  }, [refresh]);
 
   // One-time sync-up offer once the first remote list has landed
   useEffect(() => {
@@ -89,8 +87,8 @@ export default function Skills() {
     setSyncUpOpen(false);
   };
 
-  // Remote mode that cannot serve skills renders a visible state — never a
-  // silent fallback to the local list (which does not apply remotely).
+  // A stack that cannot serve skills renders a visible state — never an
+  // empty list that reads as "you have no skills".
   const remoteUnavailable =
     remoteMode.kind === 'unsupported' || remoteMode.kind === 'error';
 

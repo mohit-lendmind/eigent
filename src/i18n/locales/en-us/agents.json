@@ -57,6 +57,7 @@
   "save-skill": "Save skill",
   "compose-skill-hint": "Edit SKILL.md (YAML frontmatter with name and description is required), then save.",
   "skills-backend-too-old": "Skills are unavailable: the connected backend (edge API {{version}}) predates the skills surface. Update the backend to manage skills.",
+  "skills-no-backend": "Skills are unavailable: this build has no backend connection, so an uploaded archive has nowhere to go.",
   "skills-remote-error": "Skills are unavailable: {{message}}",
   "skill-never-used": "Never used",
   "skill-usage-activations": "Auto: {{count}}",
