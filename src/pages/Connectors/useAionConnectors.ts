@@ -21,7 +21,7 @@ import {
   type AionConnector,
   type AionConnectorsMode,
 } from '@/store/aionConnectorsStore';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 // The consent flow completes in the user's browser and lands on the cell, so
 // the only way this renderer learns the outcome is by re-reading the catalog.
@@ -70,12 +70,6 @@ export function useAionConnectors(
   const [awaitingId, setAwaitingId] = useState<string | null>(null);
   const [awaitTimedOut, setAwaitTimedOut] = useState(false);
   const [reloadCount, setReloadCount] = useState(0);
-
-  // Read by the poll loop, which must see the CURRENT rows without restarting
-  // on every catalog refresh — an interval keyed on `connectors` would reset
-  // its clock each tick and never reach the timeout.
-  const connectorsRef = useRef<AionConnector[]>([]);
-  connectorsRef.current = connectors;
 
   useEffect(() => {
     let active = true;
