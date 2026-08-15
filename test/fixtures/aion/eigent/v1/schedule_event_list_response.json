@@ -1,0 +1,59 @@
+{
+  "events": [
+    {
+      "event_id": "8801",
+      "schedule_id": "sch_01JY0000000000000000000003",
+      "project_id": "prj_01JY0000000000000000000002",
+      "action": "created",
+      "payload": {
+        "cron": "*/15 * * * *",
+        "single_shot": false
+      },
+      "occurred_at": "2026-08-03T08:20:00.004Z"
+    },
+    {
+      "event_id": "8802",
+      "schedule_id": "sch_01JY0000000000000000000003",
+      "project_id": "prj_01JY0000000000000000000002",
+      "action": "fired",
+      "payload": {
+        "tick": "2026-08-12T21:45:00Z",
+        "run_id": "run_01JY0000000000000000000019",
+        "admission_key": "trg-sch_01JY0000000000000000000003-1786585500"
+      },
+      "occurred_at": "2026-08-12T21:45:00.271Z"
+    },
+    {
+      "event_id": "8803",
+      "schedule_id": "sch_01JY0000000000000000000003",
+      "project_id": "prj_01JY0000000000000000000002",
+      "action": "skipped_busy",
+      "payload": {
+        "tick": "2026-08-12T22:00:00Z"
+      },
+      "occurred_at": "2026-08-12T22:00:00.118Z"
+    },
+    {
+      "event_id": "8804",
+      "schedule_id": "sch_01JY0000000000000000000003",
+      "project_id": "prj_01JY0000000000000000000002",
+      "action": "fire_failed",
+      "payload": {
+        "tick": "2026-08-12T22:15:00Z",
+        "attempts": 5,
+        "error": "ops store: submit command: context deadline exceeded"
+      },
+      "occurred_at": "2026-08-12T22:15:30.902Z"
+    },
+    {
+      "event_id": "8805",
+      "schedule_id": "sch_01JY0000000000000000000003",
+      "project_id": "prj_01JY0000000000000000000002",
+      "action": "dead_lettered",
+      "payload": {
+        "attempts": 5
+      },
+      "occurred_at": "2026-08-12T22:15:31.006Z"
+    }
+  ]
+}

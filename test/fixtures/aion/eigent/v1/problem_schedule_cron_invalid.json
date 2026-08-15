@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/schedule-cron-invalid",
+  "title": "Cadence is not valid",
+  "status": 422,
+  "detail": "cron must have five fields (minute hour day-of-month month day-of-week).",
+  "code": "schedule_cron_invalid",
+  "trace_id": "trc_01JY0000000000000000000008",
+  "retryable": false
+}

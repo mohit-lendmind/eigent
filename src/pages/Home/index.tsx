@@ -29,6 +29,7 @@ import {
   type HomeViewMode,
 } from './context';
 import { useAionProjects } from './hooks/useAionProjects';
+import { useAionSchedules } from './hooks/useAionSchedules';
 import { useHomeHubCounts } from './hooks/useHomeHubCounts';
 import { useHomeHubProjects } from './hooks/useHomeHubProjects';
 import { useHomeHubTriggers } from './hooks/useHomeHubTriggers';
@@ -75,12 +76,16 @@ export default function HomeHub() {
   } = useHomeHubProjects();
   const { triggers, triggersLoading, reloadTriggers } = useHomeHubTriggers();
   const aionProjects = useAionProjects();
+  const aionSchedules = useAionSchedules();
   const sectionCounts = useHomeHubCounts(
     projects,
     // Only aion mode owns the count. A mode that cannot serve the list at all
     // (too old, or erroring) contributes no number rather than a misleading 0.
     aionProjects.mode?.kind === 'remote'
       ? aionProjects.projects.length
+      : undefined,
+    aionSchedules.mode?.kind === 'remote'
+      ? aionSchedules.schedules.length
       : undefined
   );
 
@@ -227,6 +232,7 @@ export default function HomeHub() {
       projects,
       projectsLoading,
       aionProjects,
+      aionSchedules,
       triggers,
       triggersLoading,
       reloadTriggers,
@@ -248,6 +254,7 @@ export default function HomeHub() {
       projects,
       projectsLoading,
       aionProjects,
+      aionSchedules,
       triggers,
       triggersLoading,
       reloadTriggers,

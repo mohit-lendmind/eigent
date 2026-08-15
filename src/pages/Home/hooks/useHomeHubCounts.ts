@@ -18,13 +18,15 @@ import { ProjectGroup as ProjectGroupType } from '@/types/history';
 import { useMemo } from 'react';
 
 /**
- * `aionProjectsCount` overrides the Projects tab count when the list is served
- * by aion: the legacy `projects` array is read from the hosted cloud and is
- * empty there, so leaving it in charge would badge "0" beside a list of N.
+ * `aionProjectsCount` and `aionTriggersCount` override their tab counts when
+ * the lists are served by aion: the legacy arrays are read from the hosted
+ * cloud and are empty there, so leaving them in charge would badge "0" beside a
+ * list of N.
  */
 export function useHomeHubCounts(
   projects: ProjectGroupType[],
-  aionProjectsCount?: number
+  aionProjectsCount?: number,
+  aionTriggersCount?: number
 ) {
   const activeSpaceId = useSpaceStore((state) => state.activeSpaceId);
   const spacesById = useSpaceStore((state) => state.spaces);
@@ -58,6 +60,6 @@ export function useHomeHubCounts(
     spaces: spacesCount,
     projects: projectsCount,
     tasks: tasksCount,
-    triggers: triggersCount,
+    triggers: aionTriggersCount ?? triggersCount,
   };
 }

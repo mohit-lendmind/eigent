@@ -10,6 +10,7 @@ import {
   supportsSkills,
   supportsWorkforceEvents,
   supportsConnectors,
+  supportsSchedules,
 } from '@/api/aion/v1/compat';
 import {
   DESKTOP_CLIENT_VERSION,
@@ -210,5 +211,23 @@ describe('supportsConnectors', () => {
     expect(supportsConnectors(status({ edge_api_version: '1.nine' }))).toBe(
       false
     );
+  });
+});
+
+describe('supportsSchedules', () => {
+  it('gates on the 1.10 schedules floor', () => {
+    // 1.9 is below 1.10 despite sorting after it as a string — the floor is
+    // compared numerically per field, or every 1.9.x edge would be told it can
+    // serve triggers and then 404.
+    expect(supportsSchedules(status({ edge_api_version: '1.9.9' }))).toBe(false);
+    expect(supportsSchedules(status({ edge_api_version: '1.10.0' }))).toBe(true);
+    expect(supportsSchedules(status({ edge_api_version: '1.11.0' }))).toBe(true);
+  });
+
+  it('fails closed on garbage and on a foreign major', () => {
+    expect(supportsSchedules(status({ edge_api_version: '2.10.0' }))).toBe(
+      false
+    );
+    expect(supportsSchedules(status({ edge_api_version: '1.ten' }))).toBe(false);
   });
 });

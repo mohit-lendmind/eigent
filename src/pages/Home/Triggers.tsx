@@ -21,6 +21,7 @@ import { Trigger, TriggerStatus, TriggerType } from '@/types';
 import { Zap } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import AionTriggers from './AionTriggers';
 import HomeHubBoard from './components/HomeHubBoard';
 import HomeHubBoardCard from './components/HomeHubBoardCard';
 import HomeHubCard from './components/HomeHubCard';
@@ -81,7 +82,33 @@ function TriggerRow({
   );
 }
 
+/**
+ * Which plane owns this tenant's triggers. The legacy screen reads Eigent's
+ * hosted trigger service, which an aion desktop is not attached to; aion serves
+ * its own schedules from the edge. Rendering nothing while the mode is still
+ * unknown keeps the hosted screen from flashing on an aion stack.
+ */
 export default function Triggers() {
+  const { aionSchedules } = useHomeHub();
+  const { t } = useTranslation();
+
+  if (aionSchedules.mode === null) {
+    return (
+      <div className="flex w-full min-w-0 flex-col">
+        <div className="pb-12 text-body-sm text-ds-text-neutral-muted-default">
+          {t('layout.loading')}
+        </div>
+      </div>
+    );
+  }
+  return aionSchedules.mode.kind === 'local' ? (
+    <LegacyTriggers />
+  ) : (
+    <AionTriggers />
+  );
+}
+
+function LegacyTriggers() {
   const { t } = useTranslation();
   const {
     viewMode,

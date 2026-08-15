@@ -366,6 +366,170 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description The caller's own triggers, optionally narrowed to one Project. A
+         *     `project_id` belonging to another tenant lists nothing rather than
+         *     being refused — the narrowing is applied inside the caller's own
+         *     query, so this route never confirms that another tenant's Project
+         *     exists.
+         */
+        get: operations["listSchedules"];
+        put?: never;
+        /**
+         * @description Register a cron trigger on one of the caller's Projects. Every firing
+         *     submits `task` as a command under a deterministic per-tick key, so one
+         *     tick produces exactly one run no matter how delivery is retried.
+         *
+         *     `Idempotency-Key` is required and scoped to the Project. A retried
+         *     create replays the trigger the key already made; reusing a key for a
+         *     different cadence or task is `409 conflict`. The duplicate this
+         *     prevents is not one extra row — it is a second trigger firing beside
+         *     the first, forever.
+         */
+        post: operations["createSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedules/{scheduleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: components["parameters"]["ScheduleId"];
+            };
+            cookie?: never;
+        };
+        get: operations["getSchedule"];
+        /**
+         * @description Replace the editable fields whole and recompute the next fire from
+         *     now. Status is deliberately not editable here: a paused trigger stays
+         *     paused and a dead-lettered one stays disabled, so repairing a broken
+         *     cadence never silently starts it firing. Use resume or requeue for
+         *     that.
+         *
+         *     One bounded window is accepted on purpose: a firing already in flight
+         *     settles with the next fire it computed from the pre-edit expression,
+         *     so the new cadence can be overwritten exactly once and the following
+         *     tick converges.
+         */
+        put: operations["updateSchedule"];
+        post?: never;
+        /**
+         * @description Remove the trigger. Its audit ledger survives the deletion — the
+         *     trigger stops, the record of what it did does not — but it is no
+         *     longer readable through listScheduleEvents, which serves a live
+         *     trigger's history.
+         */
+        delete: operations["deleteSchedule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedules/{scheduleId}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: components["parameters"]["ScheduleId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Stop an active trigger firing. Ticks that elapse while it is paused
+         *     are not made up on resume.
+         */
+        post: operations["pauseSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedules/{scheduleId}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: components["parameters"]["ScheduleId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Return a paused trigger to service. This is the repair for a trigger a
+         *     user stopped; a dead-lettered one needs requeue instead.
+         */
+        post: operations["resumeSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedules/{scheduleId}/requeue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: components["parameters"]["ScheduleId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Return a dead-lettered trigger to service, clearing the consecutive-
+         *     failure count that disabled it. Separate from resume because it is a
+         *     different repair: resume restarts a trigger a user stopped, requeue
+         *     revives one the system disabled after repeated failures. A trigger
+         *     recovers from `dead_letter` only this way, never on its own.
+         */
+        post: operations["requeueSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedules/{scheduleId}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: components["parameters"]["ScheduleId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * @description A bounded, newest-end window of the trigger's audit ledger — the
+         *     answer to "why did this stop producing runs?", which the trigger row
+         *     alone cannot give. A forfeited tick (`skipped_busy`,
+         *     `skipped_generation`) leaves the trigger active with `attempts` at
+         *     zero, so it is visible here and nowhere else.
+         */
+        get: operations["listScheduleEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 };
 export type webhooks = Record<string, never>;
 export type components = {
@@ -781,10 +945,158 @@ export type components = {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * @description One registered cron trigger. Optional members are OMITTED rather than
+         *     zeroed when they do not apply, so a trigger that has never fired is
+         *     distinguishable from one that fired and succeeded.
+         */
+        Schedule: {
+            schedule_id: components["schemas"]["Identifier"];
+            project_id: components["schemas"]["Identifier"];
+            cron: components["schemas"]["CronExpression"];
+            /** @description The command text submitted on every firing. */
+            task: string;
+            /**
+             * @description Fire once and finish (`status: completed`) rather than on every
+             *     matching tick.
+             */
+            single_shot: boolean;
+            /**
+             * @description `active` = firing on its cadence. `paused` = stopped by the user,
+             *     resumable. `completed` = a single-shot trigger that has fired;
+             *     terminal. `dead_letter` = disabled by the system after repeated
+             *     failures or an unretryable refusal; recovers only via requeue.
+             */
+            status: string;
+            /**
+             * Format: date-time
+             * @description Omitted for a trigger that will not fire again.
+             */
+            next_fire_at?: string;
+            /**
+             * Format: date-time
+             * @description The tick of the most recent firing. Omitted until the trigger has
+             *     fired at least once — absence means "never fired", which no
+             *     timestamp value could express.
+             */
+            last_fired_tick?: string;
+            /**
+             * @description Consecutive FAILED firings; a successful or forfeited firing
+             *     resets it. The dead-letter cap is the server's, so this is a
+             *     diagnosis rather than a countdown to render.
+             */
+            attempts: number;
+            /**
+             * @description Why the most recent firing failed. Omitted when the last firing
+             *     did not fail.
+             */
+            last_error?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * @description A five-field cron expression: minute, hour, day-of-month, month,
+         *     day-of-week. Six-field (per-second) expressions and `@`-descriptors
+         *     are refused with 422.
+         */
+        CronExpression: string;
+        CreateScheduleRequest: {
+            project_id: components["schemas"]["Identifier"];
+            cron: components["schemas"]["CronExpression"];
+            task: string;
+            /** @default false */
+            single_shot: boolean;
+        };
+        /**
+         * @description A whole replacement of the editable fields, not a patch: omitting
+         *     `single_shot` sets it false.
+         */
+        UpdateScheduleRequest: {
+            cron: components["schemas"]["CronExpression"];
+            task: string;
+            /** @default false */
+            single_shot: boolean;
+        };
+        ScheduleList: {
+            schedules: components["schemas"]["Schedule"][];
+        } & {
+            [key: string]: unknown;
+        };
+        ScheduleEvent: {
+            /**
+             * @description Ledger row identifier as a decimal STRING — a JS Number caps at
+             *     2^53 and a ledger cursor must never pass through a float.
+             */
+            event_id: string;
+            schedule_id: components["schemas"]["Identifier"];
+            project_id: components["schemas"]["Identifier"];
+            /**
+             * @description Lifecycle mutations and firing outcomes share one vocabulary
+             *     because the question this ledger answers — what has this trigger
+             *     been doing? — does not separate them. `skipped_busy` = the tick
+             *     was forfeited because the Project already had a run in flight;
+             *     `skipped_generation` = forfeited because another harness
+             *     generation owns the Project. Neither is a failure and neither
+             *     increments `attempts`.
+             */
+            action: string;
+            /**
+             * @description Free-form detail for the action (the tick, a missed-tick count,
+             *     the admitted run, failure text). Deliberately unclosed: the
+             *     closed part of this ledger is `action`, and a reader that does
+             *     not understand a payload still reads a true history.
+             */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            occurred_at: string;
+        } & {
+            [key: string]: unknown;
+        };
+        ScheduleEventList: {
+            events: components["schemas"]["ScheduleEvent"][];
+        } & {
+            [key: string]: unknown;
+        };
     };
     responses: {
         /** @description RFC 9457 problem detail */
         Problem: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /**
+         * @description The cadence cannot be scheduled. Two shapes share this status, told
+         *     apart by the problem `code`: `schedule_cron_invalid` — the expression
+         *     is not a five-field cron this server can parse; `schedule_cron_denied`
+         *     — the expression is well-formed but names a cadence this API will not
+         *     accept (a six-field expression schedules by the second). Neither is
+         *     fixable by retrying the same body.
+         */
+        ScheduleCadenceRefused: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /**
+         * @description The trigger is not in a status this transition applies to (`code:
+         *     failed_precondition`) — pausing a paused trigger, resuming one that is
+         *     dead-lettered, requeueing one that is merely paused. The current
+         *     status is on the trigger; read it and offer the transition that fits.
+         */
+        ScheduleWrongStatus: {
             headers: {
                 [name: string]: unknown;
             };
@@ -808,6 +1120,7 @@ export type components = {
          */
         SkillUsageFlag: boolean;
         ConnectorId: components["schemas"]["ConnectorId"];
+        ScheduleId: components["schemas"]["Identifier"];
         /**
          * @description Optimistic-concurrency fence: the decimal skill version this write is
          *     conditioned on. The write succeeds only while that is still the
@@ -1492,6 +1805,245 @@ export interface operations {
             401: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
+        };
+    };
+    listSchedules: {
+        parameters: {
+            query?: {
+                project_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tenant's triggers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleList"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+        };
+    };
+    createSchedule: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description The registered trigger */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Schedule"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            422: components["responses"]["ScheduleCadenceRefused"];
+        };
+    };
+    getSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: components["parameters"]["ScheduleId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The trigger */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Schedule"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    updateSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: components["parameters"]["ScheduleId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description The edited trigger */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Schedule"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            422: components["responses"]["ScheduleCadenceRefused"];
+        };
+    };
+    deleteSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: components["parameters"]["ScheduleId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The trigger no longer exists */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    pauseSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: components["parameters"]["ScheduleId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The trigger as it stands after the transition */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Schedule"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["ScheduleWrongStatus"];
+        };
+    };
+    resumeSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: components["parameters"]["ScheduleId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The trigger as it stands after the transition */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Schedule"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["ScheduleWrongStatus"];
+        };
+    };
+    requeueSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduleId: components["parameters"]["ScheduleId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The trigger as it stands after the transition */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Schedule"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["ScheduleWrongStatus"];
+        };
+    };
+    listScheduleEvents: {
+        parameters: {
+            query?: {
+                /** @description Newest entries to return (default 50). */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                scheduleId: components["parameters"]["ScheduleId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The newest window of the trigger's ledger */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleEventList"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
         };
     };
 }

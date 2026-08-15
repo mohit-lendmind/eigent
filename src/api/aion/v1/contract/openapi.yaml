@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Eigent Desktop Edge API
-  version: 1.9.0
+  version: 1.10.0
   description: |
     Public, additive-only API used by the Eigent desktop application. The edge
     authenticates the device/user, enforces tenant policy, and projects private
@@ -26,6 +26,7 @@ tags:
   - name: catalog
   - name: skills
   - name: connectors
+  - name: schedules
 paths:
   /projects:
     get:
@@ -536,6 +537,204 @@ paths:
         '401': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
         '501': {$ref: '#/components/responses/Problem'}
+  /schedules:
+    get:
+      operationId: listSchedules
+      tags: [schedules]
+      description: |
+        The caller's own triggers, optionally narrowed to one Project. A
+        `project_id` belonging to another tenant lists nothing rather than
+        being refused — the narrowing is applied inside the caller's own
+        query, so this route never confirms that another tenant's Project
+        exists.
+      parameters:
+        - name: project_id
+          in: query
+          required: false
+          schema: {type: string, maxLength: 128}
+      responses:
+        '200':
+          description: The tenant's triggers
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ScheduleList'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createSchedule
+      tags: [schedules]
+      description: |
+        Register a cron trigger on one of the caller's Projects. Every firing
+        submits `task` as a command under a deterministic per-tick key, so one
+        tick produces exactly one run no matter how delivery is retried.
+
+        `Idempotency-Key` is required and scoped to the Project. A retried
+        create replays the trigger the key already made; reusing a key for a
+        different cadence or task is `409 conflict`. The duplicate this
+        prevents is not one extra row — it is a second trigger firing beside
+        the first, forever.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateScheduleRequest'}
+      responses:
+        '201':
+          description: The registered trigger
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Schedule'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/ScheduleCadenceRefused'}
+  /schedules/{scheduleId}:
+    parameters:
+      - $ref: '#/components/parameters/ScheduleId'
+    get:
+      operationId: getSchedule
+      tags: [schedules]
+      responses:
+        '200':
+          description: The trigger
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Schedule'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: updateSchedule
+      tags: [schedules]
+      description: |
+        Replace the editable fields whole and recompute the next fire from
+        now. Status is deliberately not editable here: a paused trigger stays
+        paused and a dead-lettered one stays disabled, so repairing a broken
+        cadence never silently starts it firing. Use resume or requeue for
+        that.
+
+        One bounded window is accepted on purpose: a firing already in flight
+        settles with the next fire it computed from the pre-edit expression,
+        so the new cadence can be overwritten exactly once and the following
+        tick converges.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateScheduleRequest'}
+      responses:
+        '200':
+          description: The edited trigger
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Schedule'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/ScheduleCadenceRefused'}
+    delete:
+      operationId: deleteSchedule
+      tags: [schedules]
+      description: |
+        Remove the trigger. Its audit ledger survives the deletion — the
+        trigger stops, the record of what it did does not — but it is no
+        longer readable through listScheduleEvents, which serves a live
+        trigger's history.
+      responses:
+        '204': {description: The trigger no longer exists}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /schedules/{scheduleId}/pause:
+    parameters:
+      - $ref: '#/components/parameters/ScheduleId'
+    post:
+      operationId: pauseSchedule
+      tags: [schedules]
+      description: |
+        Stop an active trigger firing. Ticks that elapse while it is paused
+        are not made up on resume.
+      responses:
+        '200':
+          description: The trigger as it stands after the transition
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Schedule'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/ScheduleWrongStatus'}
+  /schedules/{scheduleId}/resume:
+    parameters:
+      - $ref: '#/components/parameters/ScheduleId'
+    post:
+      operationId: resumeSchedule
+      tags: [schedules]
+      description: |
+        Return a paused trigger to service. This is the repair for a trigger a
+        user stopped; a dead-lettered one needs requeue instead.
+      responses:
+        '200':
+          description: The trigger as it stands after the transition
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Schedule'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/ScheduleWrongStatus'}
+  /schedules/{scheduleId}/requeue:
+    parameters:
+      - $ref: '#/components/parameters/ScheduleId'
+    post:
+      operationId: requeueSchedule
+      tags: [schedules]
+      description: |
+        Return a dead-lettered trigger to service, clearing the consecutive-
+        failure count that disabled it. Separate from resume because it is a
+        different repair: resume restarts a trigger a user stopped, requeue
+        revives one the system disabled after repeated failures. A trigger
+        recovers from `dead_letter` only this way, never on its own.
+      responses:
+        '200':
+          description: The trigger as it stands after the transition
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Schedule'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/ScheduleWrongStatus'}
+  /schedules/{scheduleId}/events:
+    parameters:
+      - $ref: '#/components/parameters/ScheduleId'
+    get:
+      operationId: listScheduleEvents
+      tags: [schedules]
+      description: |
+        A bounded, newest-end window of the trigger's audit ledger — the
+        answer to "why did this stop producing runs?", which the trigger row
+        alone cannot give. A forfeited tick (`skipped_busy`,
+        `skipped_generation`) leaves the trigger active with `attempts` at
+        zero, so it is visible here and nowhere else.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Newest entries to return (default 50).
+          schema: {type: integer, minimum: 1, maximum: 200}
+      responses:
+        '200':
+          description: The newest window of the trigger's ledger
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ScheduleEventList'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
 components:
   securitySchemes:
     bearerAuth:
@@ -588,6 +787,11 @@ components:
       in: path
       required: true
       schema: {$ref: '#/components/schemas/ConnectorId'}
+    ScheduleId:
+      name: scheduleId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Identifier'}
     SkillIfMatch:
       name: If-Match
       in: header
@@ -608,6 +812,26 @@ components:
   responses:
     Problem:
       description: RFC 9457 problem detail
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    ScheduleCadenceRefused:
+      description: |
+        The cadence cannot be scheduled. Two shapes share this status, told
+        apart by the problem `code`: `schedule_cron_invalid` — the expression
+        is not a five-field cron this server can parse; `schedule_cron_denied`
+        — the expression is well-formed but names a cadence this API will not
+        accept (a six-field expression schedules by the second). Neither is
+        fixable by retrying the same body.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    ScheduleWrongStatus:
+      description: |
+        The trigger is not in a status this transition applies to (`code:
+        failed_precondition`) — pausing a paused trigger, resuming one that is
+        dead-lettered, requeueing one that is merely paused. The current
+        status is on the trigger; read it and offer the transition that fits.
       content:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problem'}
@@ -1104,3 +1328,141 @@ components:
             carries the flow state that redeems this attempt, so it is never
             cached or shared between users.
       additionalProperties: true
+    Schedule:
+      type: object
+      required: [schedule_id, project_id, cron, task, single_shot, status, attempts, created_at, updated_at]
+      additionalProperties: true
+      description: |
+        One registered cron trigger. Optional members are OMITTED rather than
+        zeroed when they do not apply, so a trigger that has never fired is
+        distinguishable from one that fired and succeeded.
+      properties:
+        schedule_id: {$ref: '#/components/schemas/Identifier'}
+        project_id: {$ref: '#/components/schemas/Identifier'}
+        cron: {$ref: '#/components/schemas/CronExpression'}
+        task:
+          type: string
+          description: The command text submitted on every firing.
+        single_shot:
+          type: boolean
+          description: |
+            Fire once and finish (`status: completed`) rather than on every
+            matching tick.
+        # status is an OPEN string set (additive-only); x-aion-known-values
+        # documents what this contract version emits. Render an unknown value
+        # as NOT firing — this surface exists so a trigger that quietly
+        # stopped is visible, and treating an unknown status as healthy is
+        # the one rendering that would hide exactly that.
+        status:
+          type: string
+          x-aion-known-values: [active, paused, completed, dead_letter, unknown]
+          description: |
+            `active` = firing on its cadence. `paused` = stopped by the user,
+            resumable. `completed` = a single-shot trigger that has fired;
+            terminal. `dead_letter` = disabled by the system after repeated
+            failures or an unretryable refusal; recovers only via requeue.
+        next_fire_at:
+          type: string
+          format: date-time
+          description: Omitted for a trigger that will not fire again.
+        last_fired_tick:
+          type: string
+          format: date-time
+          description: |
+            The tick of the most recent firing. Omitted until the trigger has
+            fired at least once — absence means "never fired", which no
+            timestamp value could express.
+        attempts:
+          type: integer
+          minimum: 0
+          description: |
+            Consecutive FAILED firings; a successful or forfeited firing
+            resets it. The dead-letter cap is the server's, so this is a
+            diagnosis rather than a countdown to render.
+        last_error:
+          type: string
+          description: |
+            Why the most recent firing failed. Omitted when the last firing
+            did not fail.
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    CronExpression:
+      type: string
+      minLength: 1
+      maxLength: 256
+      description: |
+        A five-field cron expression: minute, hour, day-of-month, month,
+        day-of-week. Six-field (per-second) expressions and `@`-descriptors
+        are refused with 422.
+    CreateScheduleRequest:
+      type: object
+      additionalProperties: false
+      required: [project_id, cron, task]
+      properties:
+        project_id: {$ref: '#/components/schemas/Identifier'}
+        cron: {$ref: '#/components/schemas/CronExpression'}
+        task: {type: string, minLength: 1, maxLength: 200000}
+        single_shot: {type: boolean, default: false}
+    UpdateScheduleRequest:
+      type: object
+      additionalProperties: false
+      required: [cron, task]
+      description: |
+        A whole replacement of the editable fields, not a patch: omitting
+        `single_shot` sets it false.
+      properties:
+        cron: {$ref: '#/components/schemas/CronExpression'}
+        task: {type: string, minLength: 1, maxLength: 200000}
+        single_shot: {type: boolean, default: false}
+    ScheduleList:
+      type: object
+      required: [schedules]
+      additionalProperties: true
+      properties:
+        schedules:
+          type: array
+          items: {$ref: '#/components/schemas/Schedule'}
+    ScheduleEvent:
+      type: object
+      required: [event_id, schedule_id, project_id, action, occurred_at]
+      additionalProperties: true
+      properties:
+        event_id:
+          type: string
+          pattern: '^[0-9]+$'
+          description: |
+            Ledger row identifier as a decimal STRING — a JS Number caps at
+            2^53 and a ledger cursor must never pass through a float.
+        schedule_id: {$ref: '#/components/schemas/Identifier'}
+        project_id: {$ref: '#/components/schemas/Identifier'}
+        # action is an OPEN string set (additive-only); x-aion-known-values
+        # documents what this contract version emits. An unrecognized action
+        # is still a true ledger row: render it as-is rather than dropping it.
+        action:
+          type: string
+          x-aion-known-values: [created, updated, paused, resumed, deleted, fired, skipped_busy, skipped_generation, fire_failed, dead_lettered, requeued, unknown]
+          description: |
+            Lifecycle mutations and firing outcomes share one vocabulary
+            because the question this ledger answers — what has this trigger
+            been doing? — does not separate them. `skipped_busy` = the tick
+            was forfeited because the Project already had a run in flight;
+            `skipped_generation` = forfeited because another harness
+            generation owns the Project. Neither is a failure and neither
+            increments `attempts`.
+        payload:
+          type: object
+          additionalProperties: true
+          description: |
+            Free-form detail for the action (the tick, a missed-tick count,
+            the admitted run, failure text). Deliberately unclosed: the
+            closed part of this ledger is `action`, and a reader that does
+            not understand a payload still reads a true history.
+        occurred_at: {type: string, format: date-time}
+    ScheduleEventList:
+      type: object
+      required: [events]
+      additionalProperties: true
+      properties:
+        events:
+          type: array
+          items: {$ref: '#/components/schemas/ScheduleEvent'}

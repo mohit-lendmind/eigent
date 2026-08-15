@@ -7,7 +7,9 @@
     "cancel_run_request.json",
     "approval_response.json",
     "put_skill_request.json",
-    "set_skill_status_request.json"
+    "set_skill_status_request.json",
+    "create_schedule_request.json",
+    "update_schedule_request.json"
   ],
   "responses": [
     "create_project_response.json",
@@ -21,7 +23,10 @@
     "put_skill_response.json",
     "usage_response.json",
     "connector_catalog_response.json",
-    "connector_auth_response.json"
+    "connector_auth_response.json",
+    "schedule_response.json",
+    "schedule_list_response.json",
+    "schedule_event_list_response.json"
   ],
   "events": [
     "event_run_accepted.json",
@@ -44,6 +49,8 @@
     "problem_skill_invalid.json",
     "problem_skill_quota_exceeded.json",
     "problem_connectors_not_configured.json",
-    "problem_connector_not_ready.json"
+    "problem_connector_not_ready.json",
+    "problem_schedule_cron_invalid.json",
+    "problem_schedule_cron_denied.json"
   ]
 }

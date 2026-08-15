@@ -40,6 +40,12 @@ export type SetSkillStatusRequest = Schemas['SetSkillStatusRequest'];
 export type Connector = Schemas['Connector'];
 export type ConnectorCatalog = Schemas['ConnectorCatalog'];
 export type ConnectorAuthorization = Schemas['ConnectorAuthorization'];
+export type Schedule = Schemas['Schedule'];
+export type ScheduleList = Schemas['ScheduleList'];
+export type CreateScheduleRequest = Schemas['CreateScheduleRequest'];
+export type UpdateScheduleRequest = Schemas['UpdateScheduleRequest'];
+export type ScheduleEvent = Schemas['ScheduleEvent'];
+export type ScheduleEventList = Schemas['ScheduleEventList'];
 
 export interface EdgeTransportConfig {
   /** Base URL of the mounted contract, e.g. `https://edge.example/eigent/v1`. */
@@ -287,6 +293,97 @@ export class EdgeTransport {
     return this.json(
       'DELETE',
       `/connectors/${encodeURIComponent(connectorId)}/grant`
+    );
+  }
+
+  /**
+   * The tenant's triggers. `projectId` narrows to one Project; the tenant fence
+   * is the caller's identity either way, so an omitted narrowing is the whole
+   * tenant rather than an unfenced read.
+   */
+  listSchedules(options: { projectId?: string } = {}): Promise<ScheduleList> {
+    const suffix = options.projectId
+      ? `?project_id=${encodeURIComponent(options.projectId)}`
+      : '';
+    return this.json('GET', `/schedules${suffix}`);
+  }
+
+  /**
+   * Registers a trigger. The edge requires an Idempotency-Key here because a
+   * retried create would otherwise register a second trigger firing the same
+   * task on the same cadence — a duplicate no later read could tell apart.
+   */
+  createSchedule(request: CreateScheduleRequest): Promise<Schedule> {
+    return this.json('POST', '/schedules', {
+      body: request,
+      headers: { 'Idempotency-Key': newIdempotencyKey() },
+    });
+  }
+
+  getSchedule(scheduleId: string): Promise<Schedule> {
+    return this.json('GET', `/schedules/${encodeURIComponent(scheduleId)}`);
+  }
+
+  /**
+   * Replaces the editable fields whole — omitting `single_shot` sets it false.
+   * PUT is naturally idempotent, so no Idempotency-Key.
+   */
+  updateSchedule(
+    scheduleId: string,
+    request: UpdateScheduleRequest
+  ): Promise<Schedule> {
+    return this.json('PUT', `/schedules/${encodeURIComponent(scheduleId)}`, {
+      body: request,
+    });
+  }
+
+  deleteSchedule(scheduleId: string): Promise<void> {
+    return this.json('DELETE', `/schedules/${encodeURIComponent(scheduleId)}`);
+  }
+
+  /**
+   * Stops the cadence. Not idempotent server-side: pausing an already-paused
+   * trigger is the typed `schedule_wrong_status` conflict rather than a
+   * silent success, so the caller learns the state it acted on had moved.
+   */
+  pauseSchedule(scheduleId: string): Promise<Schedule> {
+    return this.json(
+      'POST',
+      `/schedules/${encodeURIComponent(scheduleId)}/pause`
+    );
+  }
+
+  resumeSchedule(scheduleId: string): Promise<Schedule> {
+    return this.json(
+      'POST',
+      `/schedules/${encodeURIComponent(scheduleId)}/resume`
+    );
+  }
+
+  /** Returns a dead-lettered trigger to the cadence, clearing its attempts. */
+  requeueSchedule(scheduleId: string): Promise<Schedule> {
+    return this.json(
+      'POST',
+      `/schedules/${encodeURIComponent(scheduleId)}/requeue`
+    );
+  }
+
+  /**
+   * The newest window of the trigger's ledger, oldest entry of that window
+   * first. This is the only place a forfeited tick (`skipped_busy`,
+   * `skipped_generation`) is observable: neither changes the trigger row, so a
+   * screen reading only the row cannot tell a healthy trigger from one that
+   * has not actually run in weeks.
+   */
+  listScheduleEvents(
+    scheduleId: string,
+    options: { limit?: number } = {}
+  ): Promise<ScheduleEventList> {
+    const suffix =
+      options.limit !== undefined ? `?limit=${String(options.limit)}` : '';
+    return this.json(
+      'GET',
+      `/schedules/${encodeURIComponent(scheduleId)}/events${suffix}`
     );
   }
 
