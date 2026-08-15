@@ -24,6 +24,7 @@
     "skill_catalog_usage_response.json",
     "put_skill_response.json",
     "usage_response.json",
+    "artifact_list_response.json",
     "connector_catalog_response.json",
     "connector_auth_response.json",
     "schedule_response.json",

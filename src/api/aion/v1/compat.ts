@@ -168,6 +168,13 @@ const ACCOUNT_MINIMUM_EDGE = [1, 11];
 // must never give when it simply cannot see.
 const MEMORY_MINIMUM_EDGE = [1, 12];
 
+// The artifact listing shipped in edge API 1.13.0. Below the floor an artifact
+// is reachable only by the client that watched its artifact_created event go
+// by, so a session reopened later can download nothing it produced earlier.
+// The single-artifact fetch predates this floor and stays available, which is
+// why this gates the listing rather than the whole artifact surface.
+const ARTIFACT_LIST_MINIMUM_EDGE = [1, 13];
+
 function meetsEdgeFloor(status: IntegrationStatus, floor: number[]): boolean {
   if (!negotiateCompatibility(status).compatible) {
     return false;
@@ -210,4 +217,8 @@ export function supportsAccount(status: IntegrationStatus): boolean {
 
 export function supportsMemory(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, MEMORY_MINIMUM_EDGE);
+}
+
+export function supportsArtifactList(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, ARTIFACT_LIST_MINIMUM_EDGE);
 }

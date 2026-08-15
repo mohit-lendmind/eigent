@@ -18,11 +18,13 @@
 // would render three empty columns as if the data were missing.
 
 import { Button } from '@/components/ui/button';
+import { useHost } from '@/host';
 import { cn } from '@/lib/utils';
 import type { AionProject, AionProjectsMode } from '@/store/aionProjectsStore';
-import { AlertCircle, FolderOpen } from 'lucide-react';
-import { useMemo } from 'react';
+import { AlertCircle, ChevronDown, ChevronRight, FolderOpen } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import AionProjectArtifacts from './components/AionProjectArtifacts';
 import { HomeHubToneTag } from './components/HomeHubItemShared';
 import { useHomeHub } from './context';
 import {
@@ -33,7 +35,7 @@ import {
 } from './utils';
 
 const GRID_CLASS =
-  'grid-cols-[minmax(0,2fr)_minmax(0,1fr)_120px_96px] gap-x-4 px-3';
+  'grid-cols-[20px_minmax(0,2fr)_minmax(0,1fr)_120px_96px] gap-x-4 px-3';
 
 type StatusTone = 'success' | 'error' | 'neutral' | 'information';
 
@@ -92,9 +94,28 @@ function Banner({ message }: { message: string }) {
 
 export default function AionProjects({ mode }: { mode: AionProjectsMode }) {
   const { t } = useTranslation();
+  const host = useHost();
+  const electronAPI = host?.electronAPI;
   const { searchQuery, sortBy, sortDirection, aionProjects } = useHomeHub();
   const { projects, nextPageToken, loading, loadingMore, error, loadMore } =
     aionProjects;
+  const [openProjectId, setOpenProjectId] = useState<string | null>(null);
+
+  // A download grant is a plain URL against the artifact bucket, so it opens in
+  // the user's own browser where their download directory and progress UI live.
+  const openExternal = useCallback(
+    async (url: string) => {
+      if (electronAPI?.openExternal) {
+        const result = await electronAPI.openExternal(url);
+        if (result && result.success === false) {
+          throw new Error(result.error || t('layout.artifacts-open-failed'));
+        }
+        return;
+      }
+      window.open(url, '_blank', 'noopener,noreferrer');
+    },
+    [electronAPI, t]
+  );
 
   const visible = useMemo(() => {
     const filtered = projects.filter((project) =>
@@ -164,6 +185,7 @@ export default function AionProjects({ mode }: { mode: AionProjectsMode }) {
         ) : (
           <>
             <div className={cn('grid items-center py-2.5', GRID_CLASS)}>
+              <span aria-hidden />
               {[
                 'layout.home-list-name',
                 'layout.home-list-model',
@@ -184,25 +206,55 @@ export default function AionProjects({ mode }: { mode: AionProjectsMode }) {
             <div className="flex flex-col gap-1">
               {visible.map((project) => {
                 const status = statusLabel(project, t);
+                const expanded = openProjectId === project.projectId;
                 return (
                   <div
                     key={project.projectId}
-                    data-testid="aion-project-row"
-                    className={cn(
-                      'grid w-full items-center rounded-xl border border-solid border-transparent bg-ds-bg-neutral-default-default py-2.5',
-                      GRID_CLASS
-                    )}
+                    className="rounded-xl border border-solid border-transparent bg-ds-bg-neutral-default-default"
                   >
-                    <span className="truncate text-body-sm text-ds-text-neutral-default-default">
-                      {project.title}
-                    </span>
-                    <span className="truncate text-body-xs text-ds-text-neutral-muted-default">
-                      {project.modelAlias}
-                    </span>
-                    <HomeHubToneTag label={status.label} tone={status.tone} />
-                    <span className="truncate text-right text-body-xs tabular-nums text-ds-text-neutral-muted-default">
-                      {formatHubRelativeAgo(project.updatedAt, t)}
-                    </span>
+                    <button
+                      type="button"
+                      data-testid="aion-project-row"
+                      aria-expanded={expanded}
+                      aria-label={t('layout.artifacts-toggle', {
+                        name: project.title,
+                      })}
+                      onClick={() =>
+                        setOpenProjectId(expanded ? null : project.projectId)
+                      }
+                      className={cn(
+                        'grid w-full cursor-pointer items-center rounded-xl py-2.5 text-left outline-none hover:bg-ds-bg-neutral-subtle-default focus-visible:ring-2 focus-visible:ring-ds-ring-neutral-subtle-default',
+                        GRID_CLASS
+                      )}
+                    >
+                      {expanded ? (
+                        <ChevronDown
+                          className="h-4 w-4 shrink-0 text-ds-icon-neutral-muted-default"
+                          aria-hidden
+                        />
+                      ) : (
+                        <ChevronRight
+                          className="h-4 w-4 shrink-0 text-ds-icon-neutral-muted-default"
+                          aria-hidden
+                        />
+                      )}
+                      <span className="truncate text-body-sm text-ds-text-neutral-default-default">
+                        {project.title}
+                      </span>
+                      <span className="truncate text-body-xs text-ds-text-neutral-muted-default">
+                        {project.modelAlias}
+                      </span>
+                      <HomeHubToneTag label={status.label} tone={status.tone} />
+                      <span className="truncate text-right text-body-xs tabular-nums text-ds-text-neutral-muted-default">
+                        {formatHubRelativeAgo(project.updatedAt, t)}
+                      </span>
+                    </button>
+                    {expanded ? (
+                      <AionProjectArtifacts
+                        projectId={project.projectId}
+                        openExternal={openExternal}
+                      />
+                    ) : null}
                   </div>
                 );
               })}

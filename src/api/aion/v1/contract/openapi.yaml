@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Eigent Desktop Edge API
-  version: 1.12.0
+  version: 1.13.0
   description: |
     Public, additive-only API used by the Eigent desktop application. The edge
     authenticates the device/user, enforces tenant policy, and projects private
@@ -302,6 +302,52 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/UsageSummary'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /projects/{projectId}/artifacts:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      operationId: listArtifacts
+      tags: [artifacts]
+      description: |
+        The Project's published artifacts, most recently published first.
+
+        Published is the whole set: publication and the `artifact_created`
+        event commit together, so this listing answers with exactly the
+        artifacts the event stream named — re-readable by a client that was
+        not watching when they were produced. A reserved-but-unpublished half
+        is not listed; its size and hash are not yet verified, and it may
+        never become an artifact at all.
+
+        Entries carry no download URL. A URL is a short-lived grant against a
+        default-deny bucket, so one is minted by getArtifact when a person
+        asks for the bytes, not once per row to draw a list.
+      parameters:
+        - name: page_size
+          in: query
+          required: false
+          description: |
+            Entries per page (default 50). A value outside the documented bounds is
+            refused with `400 invalid_argument` rather than clamped, so a client
+            that asks for 5000 learns it instead of silently receiving 200.
+          schema: {type: integer, minimum: 1, maximum: 200}
+        - name: page_token
+          in: query
+          required: false
+          description: |
+            Opaque continuation from a prior response's `next_page_token`. It
+            encodes a position only — every page is scoped to the Project in
+            the path and the authenticated tenant regardless of the token — and
+            one this server cannot decode is `400 invalid_cursor`.
+          schema: {type: string, maxLength: 512}
+      responses:
+        '200':
+          description: One page of published artifacts, newest first
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactList'}
         '400': {$ref: '#/components/responses/Problem'}
         '401': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
@@ -1352,15 +1398,47 @@ components:
           additionalProperties: true
     Artifact:
       type: object
-      required: [artifact_id, project_id, name, media_type, size_bytes, sha256, created_at]
+      required: [artifact_id, project_id, name, version, media_type, size_bytes, sha256, created_at]
       properties:
         artifact_id: {$ref: '#/components/schemas/Identifier'}
         project_id: {$ref: '#/components/schemas/Identifier'}
         name: {type: string}
+        version:
+          type: integer
+          description: |
+            Which version of this name the artifact is, counting from 1. Names
+            repeat within a Project by design — a run that writes report.md
+            twice produces two artifacts — so name alone does not identify one.
+            A number, like a skill version; the 64-bit size is a string.
         media_type: {type: string}
         size_bytes: {type: string, pattern: '^[0-9]+$'}
         sha256: {type: string, pattern: '^[a-f0-9]{64}$'}
-        created_at: {type: string, format: date-time}
+        created_at:
+          type: string
+          format: date-time
+          description: When the metadata half was reserved, before the bytes were durable.
+        published_at:
+          type: string
+          format: date-time
+          description: |
+            When the artifact became downloadable, and the order listArtifacts
+            serves. ABSENT on an artifact_created event, where the event's own
+            arrival is the publication; absent never means the epoch. For a
+            half a reconciler completed this can be far later than created_at.
+      additionalProperties: true
+    ArtifactList:
+      type: object
+      required: [artifacts]
+      properties:
+        artifacts:
+          type: array
+          items: {$ref: '#/components/schemas/Artifact'}
+        next_page_token:
+          type: string
+          description: |
+            Absent on the last page. When present there are entries behind it —
+            the server reads one row past the page to know — so a client may
+            offer "load more" without a speculative fetch.
       additionalProperties: true
     ArtifactAccess:
       type: object

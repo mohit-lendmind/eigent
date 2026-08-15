@@ -26,26 +26,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
-import { formatRelativeTime } from '@/lib/utils';
+import { formatBytes, formatRelativeTime } from '@/lib/utils';
 import type { AionMemoryDoc, AionMemoryUsage } from '@/store/aionMemoryStore';
 import { AlertCircle, Brain, Loader2, Plus, RefreshCw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAionMemory } from './useAionMemory';
-
-const BYTE_UNITS = ['B', 'KB', 'MB', 'GB'];
-
-function formatBytes(bytes: number): string {
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1024 && unit < BYTE_UNITS.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return unit === 0
-    ? `${value} ${BYTE_UNITS[unit]}`
-    : `${value.toFixed(1)} ${BYTE_UNITS[unit]}`;
-}
 
 function percentOf(used: number, cap: number): number {
   if (cap <= 0) return 0;

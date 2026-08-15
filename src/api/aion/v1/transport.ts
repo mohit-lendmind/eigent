@@ -28,6 +28,8 @@ export type CancelRunRequest = Schemas['CancelRunRequest'];
 export type ApprovalResponse = Schemas['ApprovalResponse'];
 export type ModelAliasCatalog = Schemas['ModelAliasCatalog'];
 export type IntegrationStatus = Schemas['IntegrationStatus'];
+export type Artifact = Schemas['Artifact'];
+export type ArtifactList = Schemas['ArtifactList'];
 export type ArtifactAccess = Schemas['ArtifactAccess'];
 export type UsageSummary = Schemas['UsageSummary'];
 export type UsageTotals = Schemas['UsageTotals'];
@@ -218,6 +220,29 @@ export class EdgeTransport {
 
   getIntegrationStatus(): Promise<IntegrationStatus> {
     return this.json('GET', '/status');
+  }
+
+  /**
+   * One page of a Project's published artifacts, newest first. A row carries
+   * no download URL — the URL is a time-boxed grant, so it is minted by
+   * getArtifact when someone actually opens the row rather than N at a time
+   * for a page nobody clicks. An artifact still being written is absent
+   * rather than listed as a broken download.
+   */
+  listArtifacts(
+    projectId: string,
+    options: { pageSize?: number; pageToken?: string } = {}
+  ): Promise<ArtifactList> {
+    const query = new URLSearchParams();
+    if (options.pageSize !== undefined) {
+      query.set('page_size', String(options.pageSize));
+    }
+    if (options.pageToken) query.set('page_token', options.pageToken);
+    const suffix = query.size > 0 ? `?${query}` : '';
+    return this.json(
+      'GET',
+      `/projects/${encodeURIComponent(projectId)}/artifacts${suffix}`
+    );
   }
 
   getArtifact(projectId: string, artifactId: string): Promise<ArtifactAccess> {

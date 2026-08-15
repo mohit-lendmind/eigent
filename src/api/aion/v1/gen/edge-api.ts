@@ -199,6 +199,38 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * @description The Project's published artifacts, most recently published first.
+         *
+         *     Published is the whole set: publication and the `artifact_created`
+         *     event commit together, so this listing answers with exactly the
+         *     artifacts the event stream named — re-readable by a client that was
+         *     not watching when they were produced. A reserved-but-unpublished half
+         *     is not listed; its size and hash are not yet verified, and it may
+         *     never become an artifact at all.
+         *
+         *     Entries carry no download URL. A URL is a short-lived grant against a
+         *     default-deny bucket, so one is minted by getArtifact when a person
+         *     asks for the bytes, not once per row to draw a list.
+         */
+        get: operations["listArtifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/artifacts/{artifactId}": {
         parameters: {
             query?: never;
@@ -933,11 +965,40 @@ export type components = {
             artifact_id: components["schemas"]["Identifier"];
             project_id: components["schemas"]["Identifier"];
             name: string;
+            /**
+             * @description Which version of this name the artifact is, counting from 1. Names
+             *     repeat within a Project by design — a run that writes report.md
+             *     twice produces two artifacts — so name alone does not identify one.
+             *     A number, like a skill version; the 64-bit size is a string.
+             */
+            version: number;
             media_type: string;
             size_bytes: string;
             sha256: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the metadata half was reserved, before the bytes were durable.
+             */
             created_at: string;
+            /**
+             * Format: date-time
+             * @description When the artifact became downloadable, and the order listArtifacts
+             *     serves. ABSENT on an artifact_created event, where the event's own
+             *     arrival is the publication; absent never means the epoch. For a
+             *     half a reconciler completed this can be far later than created_at.
+             */
+            published_at?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        ArtifactList: {
+            artifacts: components["schemas"]["Artifact"][];
+            /**
+             * @description Absent on the last page. When present there are entries behind it —
+             *     the server reads one row past the page to know — so a client may
+             *     offer "load more" without a speculative fetch.
+             */
+            next_page_token?: string;
         } & {
             [key: string]: unknown;
         };
@@ -1958,6 +2019,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UsageSummary"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    listArtifacts: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Entries per page (default 50). A value outside the documented bounds is
+                 *     refused with `400 invalid_argument` rather than clamped, so a client
+                 *     that asks for 5000 learns it instead of silently receiving 200.
+                 */
+                page_size?: number;
+                /**
+                 * @description Opaque continuation from a prior response's `next_page_token`. It
+                 *     encodes a position only — every page is scoped to the Project in
+                 *     the path and the authenticated tenant regardless of the token — and
+                 *     one this server cannot decode is `400 invalid_cursor`.
+                 */
+                page_token?: string;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of published artifacts, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactList"];
                 };
             };
             400: components["responses"]["Problem"];
