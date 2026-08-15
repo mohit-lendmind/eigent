@@ -241,6 +241,22 @@ video and logs into a directory, and `EIGENT_E2E_PACKAGED_APP` pointed at an
 unsigned package to drive the packaged build instead of the dev one. Each suite
 allocates its own throwaway Electron profile, so runs do not share state.
 
+### Recorded evaluations
+
+`e2e/*.eval.ts` are the real-model counterpart: one long run through the product
+UI against a stack holding real provider keys, recorded to video. They are not
+part of any CI gate — a run costs provider tokens and takes minutes — so they
+run by hand:
+
+```bash
+EIGENT_EVAL_DIR=/abs/path/to/output npx playwright test --config e2e/eval.config.ts parity
+```
+
+Set `EIGENT_E2E_PACKAGED_APP=release` to record the shipping artifact rather
+than dev Electron. Playwright's `recordVideo` works through
+`executablePath`, so the packaged bundle records exactly like the dev build; the
+video only flushes on `app.close()`, so resolve `video.path()` after teardown.
+
 **Known-failing baselines inherited from upstream.** These fail on a clean
 checkout and are not caused by your change — compare against them rather than
 expecting green:

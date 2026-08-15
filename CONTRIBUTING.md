@@ -85,7 +85,10 @@ These are enforced by gates because they are easy to break by accident:
 - **The packaged app carries no runtime of its own.**
   `scripts/inspect-package.mjs` runs inside `//:package_pipeline` and rejects an
   embedded interpreter, service payload, local database, provider key material
-  or internal service endpoint.
+  or internal service endpoint. A dependency that vendors its own build-time
+  scripts (koffi's C generators, node-pty's winpty tooling) is excluded in
+  `electron-builder.json`'s `files` rather than exempted in the gate — the
+  scripts never run in the app, so the fix is to stop shipping them.
 - **`src/api/aion/v1/gen/` is generated.** Never hand-edit it. Change the
   contract mirror and run `pnpm gen:aion-edge`; see
   [The aion contract](./README.md#the-aion-contract).
