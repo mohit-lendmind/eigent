@@ -12,7 +12,6 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { proxyFetchGet } from '@/api/http';
 import giftWhiteIcon from '@/assets/custom/gift-white.svg';
 import giftIcon from '@/assets/custom/gift.svg';
 import eigentAppIconBlack from '@/assets/logo/icon_black.svg';
@@ -27,11 +26,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TooltipSimple } from '@/components/ui/tooltip';
 import { useHost } from '@/host';
-import {
-  buildTaskQuestionsById,
-  computeProjectFreshnessAnchor,
-} from '@/lib/replay';
-import { getSessionNavLeadFromHistoryProject } from '@/lib/sessionNavLead';
 import {
   getActiveSpaceTriggerLabel,
   getDefaultNewSpaceName,
@@ -249,74 +243,15 @@ function HeaderWin() {
     [navigate, projectStore]
   );
 
+  /**
+   * Give a Project a chat store to render into. The conversation itself is
+   * replayed by the aion chat bridge off the Project's own event stream, so
+   * there is nothing to fetch here — only the empty shell to open.
+   */
   const ensureProjectLoaded = useCallback(
     async (projectId: string) => {
-      const project = projectStore.getProjectById(projectId);
-      const needsRemoteHistoryHydration =
-        project?.metadata?.remoteHistoryHydrationPending === true;
-      if (
-        projectStore.peekActiveChatStore(projectId) &&
-        !needsRemoteHistoryHydration
-      ) {
-        return;
-      }
-
-      try {
-        const historyProject = await proxyFetchGet(
-          `/api/v1/chat/histories/grouped/${projectId}`,
-          { include_tasks: true }
-        );
-        const taskIdsList = (historyProject?.tasks ?? [])
-          .map((task: { task_id?: string | null }) => task.task_id)
-          .filter((taskId: string | null | undefined): taskId is string =>
-            Boolean(taskId)
-          );
-
-        if (taskIdsList.length === 0) {
-          if (needsRemoteHistoryHydration) {
-            projectStore.updateProject(projectId, {
-              metadata: { remoteHistoryHydrationPending: false },
-            });
-            return;
-          }
-          projectStore.appendInitChatStore(projectId);
-          return;
-        }
-
-        projectStore.setProjectNavLead(
-          projectId,
-          getSessionNavLeadFromHistoryProject(historyProject)
-        );
-
-        const firstTask = historyProject.tasks[0];
-        const taskQuestionsById = buildTaskQuestionsById(historyProject?.tasks);
-        if (needsRemoteHistoryHydration) {
-          await projectStore.mergeProjectHistory(
-            projectId,
-            historyProject.tasks,
-            firstTask?.question || historyProject.last_prompt || ''
-          );
-          return;
-        }
-        await projectStore.loadProjectFromHistory(
-          taskIdsList,
-          firstTask?.question || historyProject.last_prompt || '',
-          projectId,
-          firstTask?.id != null ? String(firstTask.id) : undefined,
-          historyProject.project_name,
-          undefined,
-          taskQuestionsById,
-          computeProjectFreshnessAnchor(historyProject)
-        );
-      } catch (error) {
-        console.error(
-          `Failed to load Project ${projectId} from history:`,
-          error
-        );
-        if (!projectStore.peekActiveChatStore(projectId)) {
-          projectStore.appendInitChatStore(projectId);
-        }
-      }
+      if (projectStore.peekActiveChatStore(projectId)) return;
+      projectStore.appendInitChatStore(projectId);
     },
     [projectStore]
   );

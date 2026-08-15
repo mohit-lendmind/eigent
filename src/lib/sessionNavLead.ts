@@ -34,7 +34,7 @@ import {
   TaskStatus,
   type TaskStatusType,
 } from '@/types/constants';
-import type { HistoryTask, ProjectGroup } from '@/types/history';
+import type { HistoryTask } from '@/types/history';
 import type { LucideIcon } from 'lucide-react';
 import {
   AlertTriangle,
@@ -64,7 +64,7 @@ export type SessionNavLeadPresentation = {
   spin?: boolean;
 };
 
-/** Chat history API: ongoing = 1, done = 2 (see `historyApi.ts`). */
+/** Chat history task status wire values: ongoing = 1, done = 2. */
 export const HISTORY_TASK_STATUS_ONGOING = 1;
 export const HISTORY_TASK_STATUS_DONE = 2;
 
@@ -161,43 +161,20 @@ export function getSessionNavLeadFromHistoryTask(
   return SESSION_NAV_IDLE_LEAD;
 }
 
-/** Best-effort lead for a grouped history project before runtime hydration. */
-export function getSessionNavLeadFromHistoryProject(
-  project: Pick<
-    ProjectGroup,
-    'tasks' | 'total_ongoing_tasks' | 'total_completed_tasks'
-  >
-): SessionNavLeadPresentation {
-  const latestTask = project.tasks?.[0];
-  if (latestTask) {
-    return getSessionNavLeadFromHistoryTask(latestTask);
-  }
-  if (project.total_ongoing_tasks > 0) {
-    return SESSION_NAV_IDLE_LEAD;
-  }
-  if (project.total_completed_tasks > 0) {
-    return presentationForKind('finished');
-  }
-  return SESSION_NAV_IDLE_LEAD;
-}
-
 /**
- * Sidebar project rows: prefer cached/history lead while hydrating; otherwise live task state.
+ * Sidebar project rows: live task state when the project has one, otherwise
+ * the cached lead carried over from the last time it did.
  */
 export function resolveProjectNavLeadPresentation(options: {
   activeTask?: TaskRow;
   cachedLead?: SessionNavLeadPresentation;
-  isHistoryLoading?: boolean;
   isAchieved?: boolean;
 }): SessionNavLeadPresentation {
-  const { activeTask, cachedLead, isHistoryLoading, isAchieved } = options;
+  const { activeTask, cachedLead, isAchieved } = options;
   if (isAchieved) {
     return SESSION_NAV_IDLE_LEAD;
   }
-  if (isHistoryLoading && cachedLead) {
-    return cachedLead;
-  }
-  if (activeTask && !isHistoryLoading) {
+  if (activeTask) {
     return getSessionNavLeadPresentation(activeTask);
   }
   if (cachedLead) {

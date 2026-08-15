@@ -24,8 +24,8 @@ import { getSpaceStatusLabel } from '@/lib/spaceLabel';
 import { cn } from '@/lib/utils';
 import type { Space } from '@/store/spaceStore';
 import { Trigger } from '@/types';
-import { HistoryTask, ProjectGroup as ProjectGroupType } from '@/types/history';
-import { Folder, ListChecks, MoreHorizontal, Zap } from 'lucide-react';
+import { ProjectGroup as ProjectGroupType } from '@/types/history';
+import { Folder, MoreHorizontal, Zap } from 'lucide-react';
 import {
   Fragment,
   useState,
@@ -36,12 +36,11 @@ import {
 import { useTranslation } from 'react-i18next';
 import { formatHubRelativeAgo } from '../utils';
 
-export type HomeHubItemKind = 'space' | 'project' | 'task' | 'trigger';
+export type HomeHubItemKind = 'space' | 'project' | 'trigger';
 
 export const HOME_HUB_LIST_GRID_CLASS: Record<HomeHubItemKind, string> = {
   space: 'grid-cols-[minmax(0,2fr)_112px_72px_72px_72px_96px]',
   project: 'grid-cols-[minmax(0,2fr)_112px_72px_72px_80px_96px]',
-  task: 'grid-cols-[minmax(0,2fr)_112px_80px_96px]',
   trigger: 'grid-cols-[minmax(0,2fr)_112px_100px_96px_96px]',
 };
 
@@ -609,72 +608,6 @@ export function HomeHubProjectBoardCardBody({
   );
 }
 
-type HomeHubTaskCardBodyProps = {
-  title: string;
-  tokenCount: number;
-  projectName?: string;
-  spaceLabel: string;
-  updatedAt?: string | number | null;
-  menuItems: HomeHubMenuItem[];
-};
-
-export function HomeHubTaskCardBody({
-  title,
-  tokenCount,
-  projectName,
-  spaceLabel,
-  updatedAt,
-  menuItems,
-}: HomeHubTaskCardBodyProps) {
-  const { t } = useTranslation();
-  const statItems = [...(projectName?.trim() ? [projectName.trim()] : [])];
-
-  return (
-    <HomeHubHubCardBody
-      title={title}
-      icon={<ListChecks />}
-      menuItems={menuItems}
-      statItems={statItems}
-      updatedAt={updatedAt}
-      footerTags={<HomeHubHeaderTag label={spaceLabel} />}
-    />
-  );
-}
-
-export function HomeHubTaskBoardCardBody({
-  title,
-  tokenCount,
-  projectName,
-  spaceLabel,
-  menuItems,
-}: Omit<HomeHubTaskCardBodyProps, 'updatedAt'>) {
-  const { t } = useTranslation();
-  const statRows: HomeHubBoardStatRow[] = [];
-
-  if (projectName?.trim()) {
-    statRows.push({
-      label: t('layout.projects'),
-      value: projectName.trim(),
-    });
-  }
-
-  return (
-    <HomeHubBoardCardBody
-      title={title}
-      icon={<ListChecks />}
-      menuItems={menuItems}
-      statRows={statRows}
-      otherContent={
-        <HomeHubHeaderTag
-          label={spaceLabel}
-          emphasis="default"
-          tone="default"
-        />
-      }
-    />
-  );
-}
-
 type HomeHubTriggerCardBodyProps = {
   title: string;
   triggerTypeLabel: string;
@@ -871,15 +804,6 @@ export type HomeHubProjectItemProps = {
   spaceLabel: string;
   onProjectDelete?: (projectId: string) => void;
   onProjectRename?: (projectId: string, newName: string) => void;
-};
-
-export type HomeHubTaskItemProps = {
-  layout: 'card' | 'list' | 'board';
-  task: HistoryTask;
-  spaceLabel: string;
-  project?: ProjectGroupType;
-  onDelete: () => void;
-  onShare: () => void;
 };
 
 export type HomeHubTriggerItemProps = {

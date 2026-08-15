@@ -47,20 +47,9 @@ export function useHomeHubCounts(
 
   const projectsCount = aionProjectsCount ?? projects.length;
 
-  const tasksCount = useMemo(
-    () =>
-      projects.reduce(
-        (total, project) =>
-          total + (project.tasks?.length ?? project.task_count ?? 0),
-        0
-      ),
-    [projects]
-  );
-
   return {
     spaces: aionSpacesCount ?? spacesCount,
     projects: projectsCount,
-    tasks: tasksCount,
     triggers: aionTriggersCount ?? triggersCount,
   };
 }

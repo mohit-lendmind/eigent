@@ -178,7 +178,6 @@ export default function Workspace({
             : t('layout.new-project'),
         sessionLead: resolveProjectNavLeadPresentation({
           cachedLead: navLeadByProjectId[project.id],
-          isHistoryLoading: false,
         }),
       }));
   }, [activeSpaceId, navLeadByProjectId, projectsBySpaceId, t]);

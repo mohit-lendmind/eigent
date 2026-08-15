@@ -33,7 +33,6 @@ export type HomeHubContextValue = {
   sortDirection: HomeSortDirection;
   setSortDirection: (direction: HomeSortDirection) => void;
   projects: ProjectGroupType[];
-  projectsLoading: boolean;
   /** The aion-served list. Read once per hub mount so the Projects tab count
    *  and the Projects list can never disagree about how many there are. */
   aionProjects: AionProjectsView;
@@ -48,8 +47,6 @@ export type HomeHubContextValue = {
   triggersLoading: boolean;
   reloadTriggers: () => Promise<void>;
   chatTasks?: ChatStore['tasks'];
-  onTaskDelete: (historyId: string, callback?: () => void) => void;
-  onTaskShare: (taskId: string) => void;
   onProjectDelete: (projectId: string) => void;
   onProjectRename: (projectId: string, newName: string) => void;
   activeTaskId?: string;

@@ -24,7 +24,6 @@ describe('useSelectedProjectTurn', () => {
       activeProjectId: null,
       projects: {},
       navLeadByProjectId: {},
-      historyLoadingProjectIds: {},
     });
     usePageTabStore.setState({
       sidePanelSelectedTurnByProject: {},

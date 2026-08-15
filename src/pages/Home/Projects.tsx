@@ -107,7 +107,6 @@ function LegacyProjects() {
     sortBy,
     sortDirection,
     projects,
-    projectsLoading,
     onProjectDelete,
     onProjectRename,
     chatTasks,
@@ -183,16 +182,6 @@ function LegacyProjects() {
       )),
     };
   }, [chatTasks, filteredProjects, onProjectDelete, onProjectRename]);
-
-  if (projectsLoading) {
-    return (
-      <div className="min-w-0 flex w-full flex-col">
-        <div className="pb-12 text-body-sm text-ds-text-neutral-muted-default">
-          {t('layout.loading')}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-w-0 flex w-full flex-col">

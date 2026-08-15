@@ -31,7 +31,6 @@ describe('project achievement', () => {
       activeProjectId: null,
       projects: {},
       navLeadByProjectId: {},
-      historyLoadingProjectIds: {},
     });
     useSpaceStore.setState({
       activeSpaceId: 'space-1',

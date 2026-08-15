@@ -19,11 +19,9 @@ import { TriggerStatus } from '@/types';
 import {
   Folder,
   FolderKanban,
-  ListChecks,
   Loader2,
   Pencil,
   Power,
-  Share2,
   Trash2,
   Zap,
 } from 'lucide-react';
@@ -42,22 +40,18 @@ import {
   HomeHubProjectCardBody,
   HomeHubSpaceBoardCardBody,
   HomeHubSpaceCardBody,
-  HomeHubTaskBoardCardBody,
-  HomeHubTaskCardBody,
   HomeHubTriggerBoardCardBody,
   HomeHubTriggerCardBody,
   resolveProjectTokenCount,
   type HomeHubItemKind,
   type HomeHubProjectItemProps,
   type HomeHubSpaceItemProps,
-  type HomeHubTaskItemProps,
   type HomeHubTriggerItemProps,
 } from './HomeHubItemShared';
 
 export type HomeHubCardProps = (
   | ({ kind: 'space' } & Omit<HomeHubSpaceItemProps, 'layout'>)
   | ({ kind: 'project' } & Omit<HomeHubProjectItemProps, 'layout'>)
-  | ({ kind: 'task' } & Omit<HomeHubTaskItemProps, 'layout'>)
   | ({ kind: 'trigger' } & Omit<HomeHubTriggerItemProps, 'layout'>)
 ) & { kind: HomeHubItemKind };
 
@@ -380,84 +374,6 @@ function ProjectItemContent({
   );
 }
 
-function TaskItemContent({
-  task,
-  spaceLabel,
-  project,
-  onDelete,
-  onShare,
-  layout,
-}: HomeHubTaskItemProps) {
-  const { t } = useTranslation();
-  const { openTask, loadingProjectId } = useHomeHubNavigation();
-  const loading = loadingProjectId === task.project_id;
-  const title = task.question?.trim() || t('layout.new-project');
-  const projectName =
-    project?.project_name?.trim() || task.project_name?.trim() || '';
-  const menuItems = [
-    {
-      label: t('layout.share', { defaultValue: 'Share' }),
-      icon: <Share2 className="h-4 w-4" aria-hidden />,
-      onSelect: onShare,
-    },
-    {
-      label: t('layout.delete'),
-      icon: <Trash2 className="h-4 w-4 text-ds-icon-error-default-default" />,
-      onSelect: onDelete,
-      destructive: true,
-    },
-  ];
-
-  return (
-    <HomeHubItemShell
-      onClick={() => void openTask(task, project)}
-      layout={layout}
-      kind="task"
-      menuItems={menuItems}
-      className={loading ? 'relative' : undefined}
-    >
-      {loading ? (
-        <div className="inset-0 absolute z-10 flex items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-ds-icon-neutral-default-default" />
-        </div>
-      ) : null}
-      {layout === 'list' ? (
-        <HomeHubItemBody
-          title={title}
-          nameIcon={<ListChecks className="h-4 w-4" />}
-          listCells={[
-            { id: 'space', content: spaceLabel || '—' },
-            {
-              id: 'created',
-              content:
-                formatHubCreatedTime(task.created_at || task.updated_at) || '—',
-              align: 'right',
-              textSize: 'xs',
-            },
-          ]}
-        />
-      ) : layout === 'board' ? (
-        <HomeHubTaskBoardCardBody
-          title={title}
-          tokenCount={task.tokens || 0}
-          projectName={projectName}
-          spaceLabel={spaceLabel}
-          menuItems={menuItems}
-        />
-      ) : (
-        <HomeHubTaskCardBody
-          title={title}
-          tokenCount={task.tokens || 0}
-          projectName={projectName}
-          spaceLabel={spaceLabel}
-          updatedAt={task.created_at || task.updated_at}
-          menuItems={menuItems}
-        />
-      )}
-    </HomeHubItemShell>
-  );
-}
-
 function TriggerItemContent({
   trigger,
   spaceLabel,
@@ -554,8 +470,6 @@ export function HomeHubBoardCard(props: HomeHubCardProps) {
       return <SpaceItemContent {...props} layout="board" />;
     case 'project':
       return <ProjectItemContent {...props} layout="board" />;
-    case 'task':
-      return <TaskItemContent {...props} layout="board" />;
     case 'trigger':
       return <TriggerItemContent {...props} layout="board" />;
     default:
@@ -569,8 +483,6 @@ export default function HomeHubCard(props: HomeHubCardProps) {
       return <SpaceItemContent {...props} layout="card" />;
     case 'project':
       return <ProjectItemContent {...props} layout="card" />;
-    case 'task':
-      return <TaskItemContent {...props} layout="card" />;
     case 'trigger':
       return <TriggerItemContent {...props} layout="card" />;
     default:
@@ -582,7 +494,6 @@ export function HomeHubListItem(
   props:
     | ({ kind: 'space' } & Omit<HomeHubSpaceItemProps, 'layout'>)
     | ({ kind: 'project' } & Omit<HomeHubProjectItemProps, 'layout'>)
-    | ({ kind: 'task' } & Omit<HomeHubTaskItemProps, 'layout'>)
     | ({ kind: 'trigger' } & Omit<HomeHubTriggerItemProps, 'layout'>)
 ) {
   switch (props.kind) {
@@ -590,8 +501,6 @@ export function HomeHubListItem(
       return <SpaceItemContent {...props} layout="list" />;
     case 'project':
       return <ProjectItemContent {...props} layout="list" />;
-    case 'task':
-      return <TaskItemContent {...props} layout="list" />;
     case 'trigger':
       return <TriggerItemContent {...props} layout="list" />;
     default:
