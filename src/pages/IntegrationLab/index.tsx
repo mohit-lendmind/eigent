@@ -32,6 +32,7 @@ import { buildLabEvidence } from './evidence';
 type TransportConfig =
   | { mode: 'local' }
   | { mode: 'remote'; edgeBaseUrl: string; apiKey: string }
+  | { mode: 'remote'; edgeBaseUrl: string; needsKey: true }
   | { mode: 'remote'; error: string };
 
 /** The full transport surface the Lab exercises (narrow for tests). */
@@ -68,6 +69,11 @@ type ConfigState =
   | { phase: 'loading' }
   | { phase: 'local' }
   | { phase: 'invalid'; error: string }
+  // A configured endpoint with no credential yet. Kept apart from 'invalid'
+  // because nothing here is wrong — and apart from 'remote' because a lab
+  // built to diagnose the edge must not present a working-looking panel to
+  // someone whose every request will come back 401.
+  | { phase: 'needs-key'; edgeBaseUrl: string }
   | { phase: 'remote'; edgeBaseUrl: string; transport: LabTransport };
 
 function errorText(error: unknown): string {
@@ -113,6 +119,8 @@ export default function IntegrationLab({
           setConfig({ phase: 'local' });
         } else if ('error' in resolved) {
           setConfig({ phase: 'invalid', error: resolved.error });
+        } else if ('needsKey' in resolved) {
+          setConfig({ phase: 'needs-key', edgeBaseUrl: resolved.edgeBaseUrl });
         } else {
           setConfig({
             phase: 'remote',
@@ -311,6 +319,14 @@ export default function IntegrationLab({
     return (
       <div className="p-6" data-testid="lab-config-error">
         Remote backend configuration is invalid: {config.error}
+      </div>
+    );
+  }
+  if (config.phase === 'needs-key') {
+    return (
+      <div className="p-6" data-testid="lab-needs-key">
+        No API key yet for {config.edgeBaseUrl}. Add one from onboarding, then
+        reopen this lab.
       </div>
     );
   }

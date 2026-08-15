@@ -112,12 +112,26 @@ async function resolveContext(): Promise<RemoteContext> {
       baseUrl: state.edgeBaseUrl,
       apiKey: state.apiKey,
     });
-    const status = await transport.getIntegrationStatus();
-    if (!supportsAccount(status)) {
-      return {
-        mode: { kind: 'unsupported', edgeApiVersion: status.edge_api_version },
-        transport: null,
-      };
+    // Whether the backend is too old is a different question from whether the
+    // key still works, and only the first one may blank this panel. A probe
+    // that fails — the edge refuses a revoked credential even here — must
+    // still leave the account surface standing, because clearing a key the
+    // backend has stopped accepting is the one repair available from inside
+    // the app. The failure is not swallowed: the account read that follows
+    // hits the same wall and reports it in the panel.
+    try {
+      const status = await transport.getIntegrationStatus();
+      if (!supportsAccount(status)) {
+        return {
+          mode: {
+            kind: 'unsupported',
+            edgeApiVersion: status.edge_api_version,
+          },
+          transport: null,
+        };
+      }
+    } catch {
+      // Unknown version, which is not the same as known-too-old.
     }
     return {
       mode: {

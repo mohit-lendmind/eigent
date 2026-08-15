@@ -127,6 +127,30 @@ describe('aionAccountStore mode negotiation', () => {
     });
   });
 
+  it('stays on the account surface when the version probe is refused', async () => {
+    setRemoteConfig();
+    // The edge verifies a credential presented to /status and refuses a
+    // revoked one, so the probe fails exactly when the user most needs this
+    // panel — it is the only place in the app that can clear the dead key.
+    getIntegrationStatus.mockRejectedValue(
+      new Error('401 invalid_credentials: Authentication failed')
+    );
+    getAccount.mockRejectedValue(
+      new Error('401 invalid_credentials: Authentication failed')
+    );
+    const store = await freshModule();
+    expect(await store.getAionAccountMode()).toEqual({
+      kind: 'remote',
+      edgeBaseUrl: 'http://edge.test/eigent/v1',
+      keySource: 'file',
+    });
+    // An unreadable version is not a version known to be too old, and the
+    // refusal still reaches the user — through the read that follows.
+    await expect(store.loadAionAccount()).rejects.toThrow(
+      /invalid_credentials/
+    );
+  });
+
   it('surfaces a misconfigured remote mode as an error, never local', async () => {
     setHost({
       getAionTransportConfig: async () => ({
