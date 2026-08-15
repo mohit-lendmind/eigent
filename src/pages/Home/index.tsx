@@ -30,6 +30,7 @@ import {
 } from './context';
 import { useAionProjects } from './hooks/useAionProjects';
 import { useAionSchedules } from './hooks/useAionSchedules';
+import { useAionSpaces } from './hooks/useAionSpaces';
 import { useHomeHubCounts } from './hooks/useHomeHubCounts';
 import { useHomeHubProjects } from './hooks/useHomeHubProjects';
 import { useHomeHubTriggers } from './hooks/useHomeHubTriggers';
@@ -77,6 +78,7 @@ export default function HomeHub() {
   const { triggers, triggersLoading, reloadTriggers } = useHomeHubTriggers();
   const aionProjects = useAionProjects();
   const aionSchedules = useAionSchedules();
+  const aionSpaces = useAionSpaces();
   const sectionCounts = useHomeHubCounts(
     projects,
     // Only aion mode owns the count. A mode that cannot serve the list at all
@@ -86,7 +88,8 @@ export default function HomeHub() {
       : undefined,
     aionSchedules.mode?.kind === 'remote'
       ? aionSchedules.schedules.length
-      : undefined
+      : undefined,
+    aionSpaces.mode?.kind === 'remote' ? aionSpaces.spaces.length : undefined
   );
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -233,6 +236,7 @@ export default function HomeHub() {
       projectsLoading,
       aionProjects,
       aionSchedules,
+      aionSpaces,
       triggers,
       triggersLoading,
       reloadTriggers,
@@ -255,6 +259,7 @@ export default function HomeHub() {
       projectsLoading,
       aionProjects,
       aionSchedules,
+      aionSpaces,
       triggers,
       triggersLoading,
       reloadTriggers,

@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/space-in-use",
+  "title": "Conflicting state",
+  "status": 409,
+  "detail": "This Space still holds Projects. Move them out, or archive the Space instead of deleting it.",
+  "code": "space_in_use",
+  "trace_id": "trc_01JY0000000000000000000012",
+  "retryable": false
+}

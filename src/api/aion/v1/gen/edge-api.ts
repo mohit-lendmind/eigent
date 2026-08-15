@@ -814,6 +814,136 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/spaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description The caller's own Spaces, newest first, each with how many Projects it
+         *     holds. The count includes CLOSED Projects: a Space whose work is
+         *     finished still holds it, and rendering that Space as empty would
+         *     invite deleting the only thing grouping it.
+         */
+        get: operations["listSpaces"];
+        put?: never;
+        /**
+         * @description Create a Space. `Idempotency-Key` is required and scoped to the
+         *     tenant: a retried create replays the Space the key already made, and
+         *     reusing a key with a different name or description is `409 conflict`.
+         */
+        post: operations["createSpace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/spaces/{spaceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        get: operations["getSpace"];
+        /**
+         * @description Replace the editable fields whole. Status is deliberately not among
+         *     them: archiving is its own transition, so renaming a shelved Space
+         *     can never quietly return it to the sidebar.
+         */
+        put: operations["updateSpace"];
+        post?: never;
+        /**
+         * @description Remove an EMPTY Space. One that still holds Projects is refused with
+         *     `409 space_in_use` rather than deleted: the Projects would keep
+         *     working while losing the only thing grouping them, silently and in one
+         *     unrecoverable step. Archive the Space to put it away, or move its
+         *     Projects out first.
+         */
+        delete: operations["deleteSpace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/spaces/{spaceId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Put a Space away without touching what it holds. Its Projects stay
+         *     filed under it and stay listable through listProjects; only the Space
+         *     itself is shelved. Archiving something already archived answers with
+         *     the same Space rather than failing.
+         */
+        post: operations["archiveSpace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/spaces/{spaceId}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Return an archived Space to service. */
+        post: operations["unarchiveSpace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/space": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * @description File this Project under a Space. Filing changes what a listing shows,
+         *     never what a run does — no run, epoch or event is touched. A Space
+         *     belonging to another tenant is `404`, exactly like one that does not
+         *     exist.
+         */
+        put: operations["setProjectSpace"];
+        post?: never;
+        /**
+         * @description Unfile this Project. A separate verb rather than a PUT carrying an
+         *     empty `space_id`, so each request means exactly one thing and an
+         *     accidentally blank field cannot read as "unfile". Idempotent: a
+         *     Project that was already unfiled answers the same way.
+         */
+        delete: operations["clearProjectSpace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 };
 export type webhooks = Record<string, never>;
 export type components = {
@@ -831,6 +961,12 @@ export type components = {
             model_alias: components["schemas"]["ModelAlias"];
             /** @enum {string} */
             status: "active" | "closed";
+            /**
+             * @description The Space this Project is filed under. OMITTED when it is filed
+             *     nowhere, which is the default state of a Project rather than a
+             *     group anyone put it in.
+             */
+            space_id?: components["schemas"]["Identifier"];
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -1464,6 +1600,62 @@ export type components = {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * @description A grouping a Project is filed under. A Space carries no execution:
+         *     filing changes what a listing shows, never what a run does.
+         */
+        Space: {
+            space_id: components["schemas"]["Identifier"];
+            name: string;
+            /** @description Omitted when the Space has none. */
+            description?: string;
+            /**
+             * @description `active` = in the sidebar. `archived` = put away; the Projects it
+             *     holds are untouched and still listable. An unrecognized value
+             *     renders as `unknown` rather than as `active`, so a Space this
+             *     client predates is never drawn as though it were in service.
+             */
+            status: string;
+            /**
+             * @description How many Projects are filed here, CLOSED ones included. A Space
+             *     whose work is finished still holds it, and reporting zero would
+             *     invite deleting the only thing grouping it.
+             */
+            project_count: number;
+            /**
+             * @description Who created the Space. Omitted rather than emitted empty on a
+             *     deployment that records no subject.
+             */
+            user_id?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        } & {
+            [key: string]: unknown;
+        };
+        SpaceList: {
+            spaces: components["schemas"]["Space"][];
+            /** @description Absent on the last page. */
+            next_page_token?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        CreateSpaceRequest: {
+            name: string;
+            description?: string;
+        };
+        /**
+         * @description A whole replacement of the editable fields, not a patch: omitting
+         *     `description` clears it.
+         */
+        UpdateSpaceRequest: {
+            name: string;
+            description?: string;
+        };
+        SetProjectSpaceRequest: {
+            space_id: components["schemas"]["Identifier"];
+        };
         MemoryCatalog: {
             /** @description The scope these documents belong to. */
             scope: string;
@@ -1596,6 +1788,19 @@ export type components = {
             };
         };
         /**
+         * @description The Space still holds Projects (`code: space_in_use`). Not fixable by
+         *     retrying the same request: move the Projects out, or archive the Space
+         *     instead of deleting it.
+         */
+        SpaceInUse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /**
          * @description The trigger is not in a status this transition applies to (`code:
          *     failed_precondition`) — pausing a paused trigger, resuming one that is
          *     dead-lettered, requeueing one that is merely paused. The current
@@ -1668,6 +1873,7 @@ export type components = {
         SkillUsageFlag: boolean;
         ConnectorId: components["schemas"]["ConnectorId"];
         ScheduleId: components["schemas"]["Identifier"];
+        SpaceId: components["schemas"]["Identifier"];
         KeyId: string;
         /**
          * @description Optimistic-concurrency fence: the decimal skill version this write is
@@ -1719,6 +1925,16 @@ export interface operations {
                  *     is `400 invalid_cursor`.
                  */
                 page_token?: string;
+                /**
+                 * @description Narrow the page to one Space. There is deliberately no way to ask
+                 *     for the UNFILED Projects alone: no Space is the default state of a
+                 *     Project rather than a group anyone put it in. Repeat the parameter
+                 *     on every page — `page_token` encodes a position, not the filter
+                 *     that produced it. A Space belonging to another tenant lists
+                 *     nothing rather than being refused, because the narrowing is
+                 *     applied inside the caller's own query.
+                 */
+                space_id?: components["schemas"]["Identifier"];
             };
             header?: never;
             path?: never;
@@ -2986,6 +3202,242 @@ export interface operations {
             401: components["responses"]["Problem"];
             422: components["responses"]["MemoryScopeDenied"];
             501: components["responses"]["MemoryUnavailable"];
+        };
+    };
+    listSpaces: {
+        parameters: {
+            query?: {
+                page_size?: number;
+                page_token?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of Spaces, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpaceList"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+        };
+    };
+    createSpace: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSpaceRequest"];
+            };
+        };
+        responses: {
+            /** @description The created Space */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Space"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    getSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Space */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Space"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    updateSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSpaceRequest"];
+            };
+        };
+        responses: {
+            /** @description The edited Space */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Space"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    deleteSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Space no longer exists */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["SpaceInUse"];
+        };
+    };
+    archiveSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Space as it stands after the transition */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Space"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    unarchiveSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Space as it stands after the transition */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Space"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    setProjectSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetProjectSpaceRequest"];
+            };
+        };
+        responses: {
+            /** @description The Project as it stands after the write */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    clearProjectSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Project as it stands after the write */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
         };
     };
 }

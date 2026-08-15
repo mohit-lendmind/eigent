@@ -22,6 +22,7 @@ import {
 import { FolderKanban } from 'lucide-react';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import AionSpaces from './AionSpaces';
 import HomeHubBoard from './components/HomeHubBoard';
 import HomeHubBoardCard from './components/HomeHubBoardCard';
 import HomeHubCard from './components/HomeHubCard';
@@ -43,7 +44,30 @@ const pathBasename = (path?: string | null) => {
   return parts[parts.length - 1] || value;
 };
 
+/**
+ * In aion mode Spaces are rows on the edge; the legacy body below keeps them in
+ * renderer storage and on Eigent's hosted cloud and cannot see them. The switch
+ * is on the mode rather than a merge of the two, because a Space exists in
+ * exactly one of the planes.
+ */
 export default function Spaces() {
+  const { aionSpaces } = useHomeHub();
+  const mode = aionSpaces.mode;
+  const { t } = useTranslation();
+
+  if (mode === null) {
+    return (
+      <div className="flex w-full min-w-0 flex-col">
+        <div className="pb-12 text-body-sm text-ds-text-neutral-muted-default">
+          {t('layout.loading')}
+        </div>
+      </div>
+    );
+  }
+  return mode.kind === 'local' ? <LegacySpaces /> : <AionSpaces mode={mode} />;
+}
+
+function LegacySpaces() {
   const { t } = useTranslation();
   const {
     viewMode,

@@ -175,6 +175,13 @@ const MEMORY_MINIMUM_EDGE = [1, 12];
 // why this gates the listing rather than the whole artifact surface.
 const ARTIFACT_LIST_MINIMUM_EDGE = [1, 13];
 
+// The Space routes shipped in edge API 1.14.0. Below the floor `space_id` is a
+// tag this backend stores and cannot resolve: there is no list of Spaces to
+// read, no name to render, and filing a Project would write a reference to
+// nothing. An empty list would claim the tenant has organized nothing, so the
+// switcher must say the backend cannot report Spaces instead.
+const SPACES_MINIMUM_EDGE = [1, 14];
+
 function meetsEdgeFloor(status: IntegrationStatus, floor: number[]): boolean {
   if (!negotiateCompatibility(status).compatible) {
     return false;
@@ -221,4 +228,8 @@ export function supportsMemory(status: IntegrationStatus): boolean {
 
 export function supportsArtifactList(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, ARTIFACT_LIST_MINIMUM_EDGE);
+}
+
+export function supportsSpaces(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, SPACES_MINIMUM_EDGE);
 }

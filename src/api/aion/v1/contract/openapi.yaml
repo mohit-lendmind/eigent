@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Eigent Desktop Edge API
-  version: 1.13.0
+  version: 1.14.0
   description: |
     Public, additive-only API used by the Eigent desktop application. The edge
     authenticates the device/user, enforces tenant policy, and projects private
@@ -29,6 +29,7 @@ tags:
   - name: schedules
   - name: account
   - name: memory
+  - name: spaces
 paths:
   /projects:
     get:
@@ -57,6 +58,18 @@ paths:
             tenant regardless of the token — and one this server cannot decode
             is `400 invalid_cursor`.
           schema: {type: string, maxLength: 512}
+        - name: space_id
+          in: query
+          required: false
+          description: |
+            Narrow the page to one Space. There is deliberately no way to ask
+            for the UNFILED Projects alone: no Space is the default state of a
+            Project rather than a group anyone put it in. Repeat the parameter
+            on every page — `page_token` encodes a position, not the filter
+            that produced it. A Space belonging to another tenant lists
+            nothing rather than being refused, because the narrowing is
+            applied inside the caller's own query.
+          schema: {$ref: '#/components/schemas/Identifier'}
       responses:
         '200':
           description: One page of Projects, newest first
@@ -1043,6 +1056,184 @@ paths:
         '401': {$ref: '#/components/responses/Problem'}
         '422': {$ref: '#/components/responses/MemoryScopeDenied'}
         '501': {$ref: '#/components/responses/MemoryUnavailable'}
+  /spaces:
+    get:
+      operationId: listSpaces
+      tags: [spaces]
+      description: |
+        The caller's own Spaces, newest first, each with how many Projects it
+        holds. The count includes CLOSED Projects: a Space whose work is
+        finished still holds it, and rendering that Space as empty would
+        invite deleting the only thing grouping it.
+      parameters:
+        - name: page_size
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 200}
+        - name: page_token
+          in: query
+          required: false
+          schema: {type: string, maxLength: 512}
+      responses:
+        '200':
+          description: One page of Spaces, newest first
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SpaceList'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createSpace
+      tags: [spaces]
+      description: |
+        Create a Space. `Idempotency-Key` is required and scoped to the
+        tenant: a retried create replays the Space the key already made, and
+        reusing a key with a different name or description is `409 conflict`.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateSpaceRequest'}
+      responses:
+        '201':
+          description: The created Space
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Space'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /spaces/{spaceId}:
+    parameters:
+      - $ref: '#/components/parameters/SpaceId'
+    get:
+      operationId: getSpace
+      tags: [spaces]
+      responses:
+        '200':
+          description: The Space
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Space'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: updateSpace
+      tags: [spaces]
+      description: |
+        Replace the editable fields whole. Status is deliberately not among
+        them: archiving is its own transition, so renaming a shelved Space
+        can never quietly return it to the sidebar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateSpaceRequest'}
+      responses:
+        '200':
+          description: The edited Space
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Space'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteSpace
+      tags: [spaces]
+      description: |
+        Remove an EMPTY Space. One that still holds Projects is refused with
+        `409 space_in_use` rather than deleted: the Projects would keep
+        working while losing the only thing grouping them, silently and in one
+        unrecoverable step. Archive the Space to put it away, or move its
+        Projects out first.
+      responses:
+        '204': {description: The Space no longer exists}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/SpaceInUse'}
+  /spaces/{spaceId}/archive:
+    parameters:
+      - $ref: '#/components/parameters/SpaceId'
+    post:
+      operationId: archiveSpace
+      tags: [spaces]
+      description: |
+        Put a Space away without touching what it holds. Its Projects stay
+        filed under it and stay listable through listProjects; only the Space
+        itself is shelved. Archiving something already archived answers with
+        the same Space rather than failing.
+      responses:
+        '200':
+          description: The Space as it stands after the transition
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Space'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /spaces/{spaceId}/unarchive:
+    parameters:
+      - $ref: '#/components/parameters/SpaceId'
+    post:
+      operationId: unarchiveSpace
+      tags: [spaces]
+      description: Return an archived Space to service.
+      responses:
+        '200':
+          description: The Space as it stands after the transition
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Space'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /projects/{projectId}/space:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    put:
+      operationId: setProjectSpace
+      tags: [spaces]
+      description: |
+        File this Project under a Space. Filing changes what a listing shows,
+        never what a run does — no run, epoch or event is touched. A Space
+        belonging to another tenant is `404`, exactly like one that does not
+        exist.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SetProjectSpaceRequest'}
+      responses:
+        '200':
+          description: The Project as it stands after the write
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Project'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: clearProjectSpace
+      tags: [spaces]
+      description: |
+        Unfile this Project. A separate verb rather than a PUT carrying an
+        empty `space_id`, so each request means exactly one thing and an
+        accidentally blank field cannot read as "unfile". Idempotent: a
+        Project that was already unfiled answers the same way.
+      responses:
+        '200':
+          description: The Project as it stands after the write
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Project'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
 components:
   securitySchemes:
     bearerAuth:
@@ -1097,6 +1288,11 @@ components:
       schema: {$ref: '#/components/schemas/ConnectorId'}
     ScheduleId:
       name: scheduleId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Identifier'}
+    SpaceId:
+      name: spaceId
       in: path
       required: true
       schema: {$ref: '#/components/schemas/Identifier'}
@@ -1170,6 +1366,14 @@ components:
       content:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problem'}
+    SpaceInUse:
+      description: |
+        The Space still holds Projects (`code: space_in_use`). Not fixable by
+        retrying the same request: move the Projects out, or archive the Space
+        instead of deleting it.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
     ScheduleWrongStatus:
       description: |
         The trigger is not in a status this transition applies to (`code:
@@ -1227,6 +1431,12 @@ components:
         title: {type: string}
         model_alias: {$ref: '#/components/schemas/ModelAlias'}
         status: {type: string, enum: [active, closed]}
+        space_id:
+          $ref: '#/components/schemas/Identifier'
+          description: |
+            The Space this Project is filed under. OMITTED when it is filed
+            nowhere, which is the default state of a Project rather than a
+            group anyone put it in.
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
       additionalProperties: true
@@ -1972,6 +2182,77 @@ components:
         events:
           type: array
           items: {$ref: '#/components/schemas/ScheduleEvent'}
+    Space:
+      type: object
+      required: [space_id, name, status, project_count, created_at, updated_at]
+      additionalProperties: true
+      description: |
+        A grouping a Project is filed under. A Space carries no execution:
+        filing changes what a listing shows, never what a run does.
+      properties:
+        space_id: {$ref: '#/components/schemas/Identifier'}
+        name: {type: string, minLength: 1, maxLength: 200}
+        description:
+          type: string
+          description: Omitted when the Space has none.
+        # status is an OPEN string set (additive-only); x-aion-known-values
+        # documents what this contract version emits.
+        status:
+          type: string
+          x-aion-known-values: [active, archived, unknown]
+          description: |
+            `active` = in the sidebar. `archived` = put away; the Projects it
+            holds are untouched and still listable. An unrecognized value
+            renders as `unknown` rather than as `active`, so a Space this
+            client predates is never drawn as though it were in service.
+        project_count:
+          type: integer
+          minimum: 0
+          description: |
+            How many Projects are filed here, CLOSED ones included. A Space
+            whose work is finished still holds it, and reporting zero would
+            invite deleting the only thing grouping it.
+        user_id:
+          type: string
+          description: |
+            Who created the Space. Omitted rather than emitted empty on a
+            deployment that records no subject.
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    SpaceList:
+      type: object
+      required: [spaces]
+      additionalProperties: true
+      properties:
+        spaces:
+          type: array
+          items: {$ref: '#/components/schemas/Space'}
+        next_page_token:
+          type: string
+          description: Absent on the last page.
+    CreateSpaceRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        description: {type: string, maxLength: 2000}
+    UpdateSpaceRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      description: |
+        A whole replacement of the editable fields, not a patch: omitting
+        `description` clears it.
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        description: {type: string, maxLength: 2000}
+    SetProjectSpaceRequest:
+      type: object
+      additionalProperties: false
+      required: [space_id]
+      properties:
+        space_id: {$ref: '#/components/schemas/Identifier'}
     MemoryCatalog:
       type: object
       required: [scope, scopes, docs, usage]

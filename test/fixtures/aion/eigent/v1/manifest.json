@@ -11,7 +11,10 @@
     "create_schedule_request.json",
     "update_schedule_request.json",
     "create_key_request.json",
-    "put_memory_request.json"
+    "put_memory_request.json",
+    "create_space_request.json",
+    "update_space_request.json",
+    "set_project_space_request.json"
   ],
   "responses": [
     "create_project_response.json",
@@ -38,7 +41,9 @@
     "memory_doc_response.json",
     "memory_search_response.json",
     "put_memory_response.json",
-    "clear_memory_response.json"
+    "clear_memory_response.json",
+    "space_response.json",
+    "space_list_response.json"
   ],
   "events": [
     "event_run_accepted.json",
@@ -69,6 +74,7 @@
     "problem_memory_scope_denied.json",
     "problem_memory_not_configured.json",
     "problem_memory_quota_exceeded.json",
-    "problem_memory_invalid.json"
+    "problem_memory_invalid.json",
+    "problem_space_in_use.json"
   ]
 }

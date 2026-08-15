@@ -61,6 +61,10 @@ export type MemorySearchHit = Schemas['MemorySearchHit'];
 export type MemoryWriteRequest = Schemas['MemoryWriteRequest'];
 export type MemoryWriteResult = Schemas['MemoryWriteResult'];
 export type MemoryCleared = Schemas['MemoryCleared'];
+export type Space = Schemas['Space'];
+export type SpaceList = Schemas['SpaceList'];
+export type CreateSpaceRequest = Schemas['CreateSpaceRequest'];
+export type UpdateSpaceRequest = Schemas['UpdateSpaceRequest'];
 
 export interface EdgeTransportConfig {
   /** Base URL of the mounted contract, e.g. `https://edge.example/eigent/v1`. */
@@ -137,13 +141,16 @@ export class EdgeTransport {
    * `next_page_token`; an absent token means this was the last page.
    */
   listProjects(
-    options: { pageSize?: number; pageToken?: string } = {}
+    options: { pageSize?: number; pageToken?: string; spaceId?: string } = {}
   ): Promise<ProjectList> {
     const query = new URLSearchParams();
     if (options.pageSize !== undefined) {
       query.set('page_size', String(options.pageSize));
     }
     if (options.pageToken) query.set('page_token', options.pageToken);
+    // A Space that names nothing narrows to an empty page rather than 404ing,
+    // so a stale filter renders as "nothing here" and never as a broken list.
+    if (options.spaceId) query.set('space_id', options.spaceId);
     const suffix = query.size > 0 ? `?${query}` : '';
     return this.json('GET', `/projects${suffix}`);
   }
@@ -553,6 +560,85 @@ export class EdgeTransport {
    */
   revokeKey(keyId: string): Promise<void> {
     return this.json('DELETE', `/keys/${encodeURIComponent(keyId)}`);
+  }
+
+  /**
+   * The tenant's Spaces, newest first, each carrying how many Projects it
+   * holds — closed ones included, because a Space whose work is finished still
+   * holds it.
+   */
+  listSpaces(
+    options: { pageSize?: number; pageToken?: string } = {}
+  ): Promise<SpaceList> {
+    const query = new URLSearchParams();
+    if (options.pageSize !== undefined) {
+      query.set('page_size', String(options.pageSize));
+    }
+    if (options.pageToken) query.set('page_token', options.pageToken);
+    const suffix = query.size > 0 ? `?${query}` : '';
+    return this.json('GET', `/spaces${suffix}`);
+  }
+
+  /**
+   * Creates a Space. The key is scoped to the tenant, so a retried create
+   * replays the Space it already made rather than minting a second one under
+   * the same name — a duplicate no later read could tell apart.
+   */
+  createSpace(request: CreateSpaceRequest): Promise<Space> {
+    return this.json('POST', '/spaces', {
+      body: request,
+      headers: { 'Idempotency-Key': newIdempotencyKey() },
+    });
+  }
+
+  getSpace(spaceId: string): Promise<Space> {
+    return this.json('GET', `/spaces/${encodeURIComponent(spaceId)}`);
+  }
+
+  /**
+   * Replaces name and description whole, and answers with the Space AND its
+   * count, so the row the caller just edited renders without a second read.
+   * Status is not editable here: a rename must never un-shelve a Space.
+   */
+  updateSpace(spaceId: string, request: UpdateSpaceRequest): Promise<Space> {
+    return this.json('PUT', `/spaces/${encodeURIComponent(spaceId)}`, {
+      body: request,
+    });
+  }
+
+  /**
+   * Removes an EMPTY Space. One that still holds Projects answers 409
+   * `space_in_use` rather than taking its Projects with it.
+   */
+  deleteSpace(spaceId: string): Promise<void> {
+    return this.json('DELETE', `/spaces/${encodeURIComponent(spaceId)}`);
+  }
+
+  /** Puts a Space away. What it holds stays filed under it and stays listable. */
+  archiveSpace(spaceId: string): Promise<Space> {
+    return this.json('POST', `/spaces/${encodeURIComponent(spaceId)}/archive`);
+  }
+
+  unarchiveSpace(spaceId: string): Promise<Space> {
+    return this.json('POST', `/spaces/${encodeURIComponent(spaceId)}/unarchive`);
+  }
+
+  /**
+   * Files a Project under a Space. Filing changes what a listing shows, never
+   * what a run does. Unfiling is its own verb below rather than this one with
+   * an empty id, so each request means exactly one thing.
+   */
+  setProjectSpace(projectId: string, spaceId: string): Promise<Project> {
+    return this.json('PUT', `/projects/${encodeURIComponent(projectId)}/space`, {
+      body: { space_id: spaceId },
+    });
+  }
+
+  clearProjectSpace(projectId: string): Promise<Project> {
+    return this.json(
+      'DELETE',
+      `/projects/${encodeURIComponent(projectId)}/space`
+    );
   }
 
   /**

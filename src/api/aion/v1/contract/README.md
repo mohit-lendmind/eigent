@@ -10,9 +10,24 @@ sync), record the aion-v1 commit below, then run `pnpm gen:aion-edge` so the
 generated client under `../gen/` matches. `bazel test //:aion_edge_client_gen`
 fails until mirror and generated output agree.
 
-- Contract version: edge_api `1.13.0`
+- Contract version: edge_api `1.14.0`
 - Source path: `aion-v1/api/eigent/v1/`
-- Last synced from: aion-v1 commit `9352bd4`, which adds the artifact listing
+- Last synced from: aion-v1 commit `c45fbc7`, which gives the Project grouping
+  a row of its own: `/spaces` (list, create), `/spaces/{spaceId}` (get, update,
+  delete), the named `archive`/`unarchive` actions, and
+  `PUT|DELETE /projects/{projectId}/space` to file or unfile a Project. Every
+  Space carries a `project_count` taken inside the write that returned it, so a
+  client never re-reads to render the row it just edited; `Project` gains the
+  optional `space_id` it is filed under (OMITTED when filed nowhere, which a
+  client renders differently from a Space named ""), and `/projects` gains a
+  `space_id` filter that answers an unknown id with an empty list rather than a
+  404. Synced together with `test/fixtures/aion/eigent/v1/` (which gains
+  `space_list_response.json`, `space_response.json`,
+  `create_space_request.json`, `update_space_request.json`,
+  `set_project_space_request.json` and `problem_space_in_use.json`, and whose
+  `project_list_response.json`, `integration_status_response.json` and
+  `account_response.json` move with the contract).
+- Previously synced from aion-v1 commit `9352bd4`, which adds the artifact listing
   (`GET /projects/{projectId}/artifacts`, paged and published-only) and the two
   additive `Artifact` fields a listing needs that a single event never did —
   `version`, so two writes of the same report name are two distinguishable

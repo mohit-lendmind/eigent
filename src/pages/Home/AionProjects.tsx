@@ -25,6 +25,7 @@ import { AlertCircle, ChevronDown, ChevronRight, FolderOpen } from 'lucide-react
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import AionProjectArtifacts from './components/AionProjectArtifacts';
+import AionProjectSpace from './components/AionProjectSpace';
 import { HomeHubToneTag } from './components/HomeHubItemShared';
 import { useHomeHub } from './context';
 import {
@@ -250,10 +251,16 @@ export default function AionProjects({ mode }: { mode: AionProjectsMode }) {
                       </span>
                     </button>
                     {expanded ? (
-                      <AionProjectArtifacts
-                        projectId={project.projectId}
-                        openExternal={openExternal}
-                      />
+                      <>
+                        <AionProjectSpace
+                          projectId={project.projectId}
+                          spaceId={project.spaceId}
+                        />
+                        <AionProjectArtifacts
+                          projectId={project.projectId}
+                          openExternal={openExternal}
+                        />
+                      </>
                     ) : null}
                   </div>
                 );

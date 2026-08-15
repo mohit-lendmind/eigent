@@ -18,6 +18,7 @@ import { ProjectGroup as ProjectGroupType } from '@/types/history';
 import { createContext, useContext } from 'react';
 import type { AionProjectsView } from './hooks/useAionProjects';
 import type { AionSchedulesView } from './hooks/useAionSchedules';
+import type { AionSpacesView } from './hooks/useAionSpaces';
 import type { HomeSortBy, HomeSortDirection, HomeViewMode } from './utils';
 
 export type { HomeSortBy, HomeSortDirection, HomeViewMode } from './utils';
@@ -39,6 +40,10 @@ export type HomeHubContextValue = {
   /** The aion-served triggers. Read once per hub mount so the Triggers tab
    *  count and the Triggers list can never disagree about how many there are. */
   aionSchedules: AionSchedulesView;
+  /** The aion-served Spaces. Read once per hub mount: the tab count, the
+   *  Spaces list and the Projects list's Space picker all read this one page,
+   *  so a Space cannot appear in the picker and be missing from the list. */
+  aionSpaces: AionSpacesView;
   triggers: Trigger[];
   triggersLoading: boolean;
   reloadTriggers: () => Promise<void>;

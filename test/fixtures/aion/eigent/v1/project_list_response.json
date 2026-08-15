@@ -6,6 +6,7 @@
         "title": "Investigate the build failure",
         "model_alias": "coding_balanced",
         "status": "active",
+        "space_id": "spc_01JY0000000000000000000001",
         "created_at": "2026-08-08T09:00:00Z",
         "updated_at": "2026-08-08T09:12:31Z"
       },
