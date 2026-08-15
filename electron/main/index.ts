@@ -40,6 +40,7 @@ import { FileReader } from './fileReader';
 import { findAvailablePort } from './utils/port';
 import { setRoundedCorners } from './native/macos-window';
 import {
+  normalizeApiKey,
   rendererTransportConfig,
   resolveRemoteBackend,
   type RemoteBackendResolution,
@@ -80,13 +81,32 @@ let browser_port = 9222;
 let use_external_cdp = false;
 let proxyUrl: string | null = null;
 
-// The aion edge is the only backend, resolved once at startup. A
-// set-but-invalid configuration stays remote and fails visibly — there is no
-// other backend to fall back to.
-const remoteBackend: RemoteBackendResolution = resolveRemoteBackend(
-  process.env,
-  (file) => fs.readFileSync(file, 'utf-8')
-);
+// The aion edge is the only backend. A set-but-invalid configuration stays
+// remote and fails visibly — there is no other backend to fall back to.
+//
+// Resolution is deferred rather than computed at module load, for two reasons
+// that are both about the key file: the stored-key path hangs off `userData`,
+// which the E2E hook below overrides after this module is evaluated, and
+// onboarding re-resolves once it has written a key.
+let remoteBackendCache: RemoteBackendResolution | null = null;
+
+/** Where onboarding writes a pasted key when no operator env names a file. */
+const storedApiKeyPath = (): string =>
+  path.join(app.getPath('userData'), 'aion-edge-api-key');
+
+const resolveBackend = (): RemoteBackendResolution => {
+  remoteBackendCache ??= resolveRemoteBackend(
+    process.env,
+    (file) => fs.readFileSync(file, 'utf-8'),
+    storedApiKeyPath()
+  );
+  return remoteBackendCache;
+};
+
+const reresolveBackend = (): RemoteBackendResolution => {
+  remoteBackendCache = null;
+  return resolveBackend();
+};
 
 const PREVIEW_WEBVIEW_PARTITION = 'persist:session-preview';
 
@@ -1033,8 +1053,65 @@ function registerIpcHandlers() {
   // The minimum authenticated transport configuration for the renderer's
   // aion boundary (src/api/aion/v1).
   ipcMain.handle('get-aion-transport-config', () =>
-    rendererTransportConfig(remoteBackend)
+    rendererTransportConfig(resolveBackend())
   );
+
+  // Onboarding's only write path. The key never lands in renderer storage: it
+  // is written 0600 under the resolution's own key-file path — the same
+  // mechanism EIGENT_REMOTE_BACKEND_API_KEY_FILE names — and reaches the
+  // renderer again only inside the transport config it already receives.
+  //
+  // An empty `keyFilePath` is the refusal, and it is mechanical rather than a
+  // policy guess: it means the key in force came from the environment, so a
+  // file written here would change nothing and the panel would be reporting a
+  // key the next restart silently replaces.
+  const writeStoredApiKey = (
+    contents: string
+  ): { ok: true } | { ok: false; error: string } => {
+    const backend = resolveBackend();
+    if (backend.mode === 'remote-invalid') {
+      return { ok: false, error: backend.error };
+    }
+    if (backend.keyFilePath === '') {
+      return {
+        ok: false,
+        error:
+          'This backend’s API key is set in the environment, so it cannot be changed from the app.',
+      };
+    }
+    try {
+      fs.mkdirSync(path.dirname(backend.keyFilePath), { recursive: true });
+      fs.writeFileSync(backend.keyFilePath, contents, { mode: 0o600 });
+      // An existing file keeps its old mode through writeFileSync, so a key
+      // file created before this path existed is tightened here too.
+      fs.chmodSync(backend.keyFilePath, 0o600);
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+    reresolveBackend();
+    return { ok: true };
+  };
+
+  ipcMain.handle('set-aion-api-key', (_event, rawKey: unknown) => {
+    let key: string;
+    try {
+      key = normalizeApiKey(typeof rawKey === 'string' ? rawKey : '');
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+    return writeStoredApiKey(`${key}\n`);
+  });
+
+  // Signing out truncates rather than unlinks: an empty key file and an absent
+  // one resolve the same way, and truncation leaves the operator's path in
+  // place for the next key.
+  ipcMain.handle('clear-aion-api-key', () => writeStoredApiKey(''));
 
   // ==================== restart app handler ====================
   ipcMain.handle('restart-app', () => {
@@ -2742,7 +2819,11 @@ const setupExternalLinkHandling = () => {
 // readiness is decided by edge-config validation at startup, and edge
 // reachability is the renderer session layer's concern.
 const checkAndStartBackend = async (): Promise<BackendStartResult> => {
-  if (remoteBackend.mode === 'remote') {
+  const backend = resolveBackend();
+  // A missing key is readiness, not failure: the endpoint is known and
+  // onboarding is what asks for the credential. Only an endpoint this build
+  // cannot use at all fails here.
+  if (backend.mode === 'remote' || backend.mode === 'remote-needs-key') {
     const result: BackendStartResult = {
       success: true,
       remote: true,
@@ -2752,10 +2833,10 @@ const checkAndStartBackend = async (): Promise<BackendStartResult> => {
     return result;
   }
 
-  log.error('Backend configuration is invalid:', remoteBackend.error);
+  log.error('Backend configuration is invalid:', backend.error);
   const result: BackendStartResult = {
     success: false,
-    error: `Backend configuration is invalid: ${remoteBackend.error}`,
+    error: `Backend configuration is invalid: ${backend.error}`,
   };
   notifyBackendReady(result);
   return result;

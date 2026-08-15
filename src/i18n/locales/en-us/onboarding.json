@@ -1,0 +1,8 @@
+{
+  "title": "Connect to aion",
+  "subtitle": "This desktop runs on an aion backend. Paste an API key to continue.",
+  "key-label": "API key",
+  "key-placeholder": "Paste your API key",
+  "connect": "Connect",
+  "storage-note": "The key is checked against the backend before it is kept, and stored on this machine readable only by your user account."
+}

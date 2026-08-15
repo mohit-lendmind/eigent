@@ -1,0 +1,9 @@
+{
+  "tenant_id": "tenant-eigent-local",
+  "key_id": "9f2c41a7e0b34d58",
+  "user_id": "user-ada",
+  "scopes": [],
+  "cell_id": "cell-local-1",
+  "edge_api_version": "1.11.0",
+  "key_management": true
+}

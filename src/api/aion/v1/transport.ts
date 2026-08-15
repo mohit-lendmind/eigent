@@ -46,6 +46,11 @@ export type CreateScheduleRequest = Schemas['CreateScheduleRequest'];
 export type UpdateScheduleRequest = Schemas['UpdateScheduleRequest'];
 export type ScheduleEvent = Schemas['ScheduleEvent'];
 export type ScheduleEventList = Schemas['ScheduleEventList'];
+export type Account = Schemas['Account'];
+export type APIKeyList = Schemas['APIKeyList'];
+export type APIKeySummary = Schemas['APIKeySummary'];
+export type CreateKeyRequest = Schemas['CreateKeyRequest'];
+export type CreatedKey = Schemas['CreatedKey'];
 
 export interface EdgeTransportConfig {
   /** Base URL of the mounted contract, e.g. `https://edge.example/eigent/v1`. */
@@ -385,6 +390,52 @@ export class EdgeTransport {
       'GET',
       `/schedules/${encodeURIComponent(scheduleId)}/events${suffix}`
     );
+  }
+
+  /**
+   * Who this API key says the caller is. This is the one call that verifies a
+   * pasted key: a bad key answers 401 before anything else in the app runs.
+   * `key_management` says whether the key routes below will work here at all —
+   * an operator-provisioned deployment answers this route and refuses the
+   * rest, and a client must read the flag rather than discover it by clicking.
+   */
+  getAccount(): Promise<Account> {
+    return this.json('GET', '/account');
+  }
+
+  /**
+   * The tenant's API keys, metadata only — a raw secret is never listed. The
+   * row with `current: true` is the one this request authenticated with, which
+   * is the only thing a client holding a raw key cannot work out for itself.
+   */
+  listKeys(): Promise<APIKeyList> {
+    return this.json('GET', '/keys');
+  }
+
+  /**
+   * Mints a key for the caller's own grant and returns the raw secret ONCE.
+   * A replay of the same Idempotency-Key answers 200 with `idempotent_replay`
+   * and no `raw_key` — so a caller that retries must treat a missing secret as
+   * "already minted, unrecoverable", never as an empty key.
+   *
+   * Tenant, user, scopes and environment are not settable: they come from the
+   * credential making the call, and naming one here is refused by the edge.
+   */
+  createKey(request: CreateKeyRequest = {}): Promise<CreatedKey> {
+    return this.json('POST', '/keys', {
+      body: request,
+      headers: { 'Idempotency-Key': newIdempotencyKey() },
+    });
+  }
+
+  /**
+   * Retires a key. 204 for an id this tenant does not own, so the response is
+   * not an oracle for which keys exist. Revoking the `current` row is allowed
+   * and signs this client out on its next request — nothing is cached, the
+   * edge re-resolves every call.
+   */
+  revokeKey(keyId: string): Promise<void> {
+    return this.json('DELETE', `/keys/${encodeURIComponent(keyId)}`);
   }
 
   /**

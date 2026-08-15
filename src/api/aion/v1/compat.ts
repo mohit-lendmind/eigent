@@ -154,6 +154,13 @@ const CONNECTORS_MINIMUM_EDGE = [1, 9];
 // the failure this screen exists to catch is a trigger that stopped firing.
 const SCHEDULES_MINIMUM_EDGE = [1, 10];
 
+// The account and key routes shipped in edge API 1.11.0. Below the floor a
+// key can still be pasted and used — every other route works — so this floor
+// gates only the Account panel: the desktop cannot show which key it is
+// holding, cannot list the tenant's other keys, and must say so rather than
+// render a key manager whose every action 404s.
+const ACCOUNT_MINIMUM_EDGE = [1, 11];
+
 function meetsEdgeFloor(status: IntegrationStatus, floor: number[]): boolean {
   if (!negotiateCompatibility(status).compatible) {
     return false;
@@ -188,4 +195,8 @@ export function supportsConnectors(status: IntegrationStatus): boolean {
 
 export function supportsSchedules(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, SCHEDULES_MINIMUM_EDGE);
+}
+
+export function supportsAccount(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, ACCOUNT_MINIMUM_EDGE);
 }

@@ -17,6 +17,7 @@ import chat from './chat.json';
 import connectors from './connectors.json';
 import dashboard from './dashboard.json';
 import layout from './layout.json';
+import onboarding from './onboarding.json';
 import setting from './setting.json';
 import triggers from './triggers.json';
 import update from './update.json';
@@ -28,6 +29,7 @@ export default {
   workforce,
   chat,
   connectors,
+  onboarding,
   setting,
   update,
   triggers,

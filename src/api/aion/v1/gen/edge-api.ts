@@ -530,6 +530,102 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description The identity this edge verified for the presented credential, and what
+         *     that credential can do here.
+         *
+         *     This is the route a client calls right after it is handed a key: a 200
+         *     means the key is real and names a live tenant, and a 401 means it is
+         *     not — the distinction an onboarding screen has to make before it stores
+         *     anything. `key_management` says whether the /keys routes are served by
+         *     this deployment, so a client never renders a key panel that would
+         *     answer 501 on first use.
+         *
+         *     `scopes` may be empty. That means the credential carries no scope
+         *     restrictions, not that it has no permissions.
+         */
+        get: operations["getAccount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description The tenant's API keys, newest first — metadata only. A raw key is
+         *     returned once, at creation, and appears in no response afterwards.
+         *
+         *     Revoked keys are listed alongside active ones: a key list whose job is
+         *     answering "is the credential from that laptop still live?" has to show
+         *     the ones that are not.
+         */
+        get: operations["listKeys"];
+        put?: never;
+        /**
+         * @description Mint a key carrying the CALLER's own grant — same tenant, same subject,
+         *     same scopes, same environment. None of that is read from the request:
+         *     a credential that could name another subject would be minting itself
+         *     into that person's connector grants and memory scopes. Provisioning a
+         *     key for someone who has none is an operator action, not this route.
+         *
+         *     `raw_key` is returned in this response and never again. A client that
+         *     does not capture it must revoke the key and mint another.
+         *
+         *     Idempotency-Key is required. A replay answers 200 with
+         *     `idempotent_replay: true` and no `raw_key`, because the original
+         *     secret was shown once and is not recoverable — that is a successful
+         *     retry, not a failure.
+         */
+        post: operations["createKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/keys/{keyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyId: components["parameters"]["KeyId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * @description Revoke a key this tenant owns. Idempotent, and 204 for a key id that
+         *     does not exist or belongs to another tenant — this route is not an
+         *     oracle for which key ids are real.
+         *
+         *     Revoking the key the request itself authenticated with is allowed: a
+         *     leaked credential is often the only one its holder has. Clients know
+         *     which row that is (`current` on listKeys) and should confirm first.
+         */
+        delete: operations["revokeKey"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 };
 export type webhooks = Record<string, never>;
 export type components = {
@@ -747,6 +843,94 @@ export type components = {
         AuthIdentity: {
             tenant_id: string;
             user_id?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        Account: {
+            tenant_id: string;
+            /**
+             * @description The credential that authenticated this request. Match it against
+             *     listKeys `current` to identify your own row.
+             */
+            key_id: string;
+            /**
+             * @description The person the credential acts as. ABSENT for a tenant-wide key
+             *     that names nobody — which is a different fact from a user with no
+             *     name, and the reason per-user resources are unavailable to it.
+             */
+            user_id?: string;
+            /**
+             * @description The credential's scopes. An EMPTY array means no scope
+             *     restrictions, not no permissions.
+             */
+            scopes: string[];
+            /** @description The cell this tenant is homed on. Diagnostics only. */
+            cell_id?: string;
+            edge_api_version: string;
+            /**
+             * @description Whether the /keys routes are served by this deployment. false
+             *     means keys are provisioned by an operator here and a client must
+             *     not offer key management.
+             */
+            key_management: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        APIKeyList: {
+            keys: components["schemas"]["APIKeySummary"][];
+        } & {
+            [key: string]: unknown;
+        };
+        APIKeySummary: {
+            key_id: string;
+            /**
+             * @description The name given at creation. ABSENT for an unnamed key, which a
+             *     client renders by key_id.
+             */
+            label?: string;
+            /** @description active | revoked */
+            status: string;
+            scopes: string[];
+            /** @description The person this key acts as. Absent for a tenant-wide key. */
+            user_id?: string;
+            /** Format: date-time */
+            created_at: string;
+            /**
+             * Format: date-time
+             * @description ABSENT when the key has never authenticated a request — which is
+             *     what makes it safe to revoke. Never a zero timestamp.
+             */
+            last_used_at?: string;
+            /**
+             * @description True for the key the calling request authenticated with. Revoking
+             *     it is permitted and signs this client out.
+             */
+            current: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        CreateKeyRequest: {
+            /**
+             * @description Human name for the key, shown wherever it is listed. Omit for an
+             *     unnamed key. Tenant, subject, scopes and environment are NOT
+             *     settable here — a new key carries the caller's own grant.
+             */
+            label?: string;
+        };
+        CreatedKey: {
+            key_id: string;
+            /**
+             * @description The secret, returned in the 201 response and NEVER again. Absent
+             *     on a 200 idempotent replay: the original was shown once and is not
+             *     recoverable.
+             */
+            raw_key?: string;
+            label?: string;
+            /**
+             * @description Present and true when this Idempotency-Key already minted a key.
+             *     The response carries no raw_key; this is a successful retry.
+             */
+            idempotent_replay?: boolean;
         } & {
             [key: string]: unknown;
         };
@@ -1104,6 +1288,19 @@ export type components = {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /**
+         * @description The tenant already holds the maximum number of ACTIVE keys (`code:
+         *     key_ceiling_reached`). This is a durable limit, not a rate limit —
+         *     retrying without revoking a key never succeeds.
+         */
+        KeyCeilingReached: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
     };
     parameters: {
         IdempotencyKey: string;
@@ -1121,6 +1318,7 @@ export type components = {
         SkillUsageFlag: boolean;
         ConnectorId: components["schemas"]["ConnectorId"];
         ScheduleId: components["schemas"]["Identifier"];
+        KeyId: string;
         /**
          * @description Optimistic-concurrency fence: the decimal skill version this write is
          *     conditioned on. The write succeeds only while that is still the
@@ -2044,6 +2242,112 @@ export interface operations {
             400: components["responses"]["Problem"];
             401: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+        };
+    };
+    getAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The verified account */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            401: components["responses"]["Problem"];
+        };
+    };
+    listKeys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tenant's keys */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIKeyList"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
+        };
+    };
+    createKey: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description An idempotent replay of an earlier create. Carries no raw_key. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedKey"];
+                };
+            };
+            /** @description A new key; raw_key is present exactly here */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedKey"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            429: components["responses"]["KeyCeilingReached"];
+            501: components["responses"]["Problem"];
+        };
+    };
+    revokeKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyId: components["parameters"]["KeyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The key is not active */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
         };
     };
 }

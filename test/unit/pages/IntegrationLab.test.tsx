@@ -142,6 +142,7 @@ function renderLab(
   config:
     | { mode: 'local' }
     | { mode: 'remote'; edgeBaseUrl: string; apiKey: string }
+    | { mode: 'remote'; edgeBaseUrl: string; needsKey: true }
     | { mode: 'remote'; error: string } = {
     mode: 'remote',
     edgeBaseUrl: 'http://127.0.0.1:8106/eigent/v1',
@@ -169,6 +170,24 @@ describe('IntegrationLab gating', () => {
     renderLab(transport, { mode: 'remote', error: 'bad endpoint' });
     const node = await screen.findByTestId('lab-config-error');
     expect(node.textContent).toContain('bad endpoint');
+  });
+
+  it('holds the panel down when the endpoint has no key yet', async () => {
+    // A configured endpoint with no credential is neither broken nor local,
+    // and the lab must not open on it: every control it offers would 401, so
+    // the panel would read as a working diagnostic of a deployment that is
+    // not reachable at all.
+    const { transport } = fakeTransport();
+    renderLab(transport, {
+      mode: 'remote',
+      edgeBaseUrl: 'http://127.0.0.1:8106/eigent/v1',
+      needsKey: true,
+    });
+    const node = await screen.findByTestId('lab-needs-key');
+    expect(node.textContent).toContain('http://127.0.0.1:8106/eigent/v1');
+    expect(screen.queryByTestId('lab-root')).toBeNull();
+    expect(screen.queryByTestId('lab-config-error')).toBeNull();
+    expect(transport.getIntegrationStatus).not.toHaveBeenCalled();
   });
 });
 

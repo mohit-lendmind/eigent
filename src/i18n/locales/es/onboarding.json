@@ -1,0 +1,8 @@
+{
+  "title": "Conectar con aion",
+  "subtitle": "Este escritorio funciona sobre un backend de aion. Pega una clave de API para continuar.",
+  "key-label": "Clave de API",
+  "key-placeholder": "Pega tu clave de API",
+  "connect": "Conectar",
+  "storage-note": "La clave se verifica con el backend antes de guardarse, y se almacena en este equipo con acceso solo para tu cuenta de usuario."
+}

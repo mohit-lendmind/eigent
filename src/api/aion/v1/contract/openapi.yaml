@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Eigent Desktop Edge API
-  version: 1.10.0
+  version: 1.11.0
   description: |
     Public, additive-only API used by the Eigent desktop application. The edge
     authenticates the device/user, enforces tenant policy, and projects private
@@ -27,6 +27,7 @@ tags:
   - name: skills
   - name: connectors
   - name: schedules
+  - name: account
 paths:
   /projects:
     get:
@@ -735,6 +736,109 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '401': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
+  /account:
+    get:
+      operationId: getAccount
+      tags: [account]
+      description: |
+        The identity this edge verified for the presented credential, and what
+        that credential can do here.
+
+        This is the route a client calls right after it is handed a key: a 200
+        means the key is real and names a live tenant, and a 401 means it is
+        not — the distinction an onboarding screen has to make before it stores
+        anything. `key_management` says whether the /keys routes are served by
+        this deployment, so a client never renders a key panel that would
+        answer 501 on first use.
+
+        `scopes` may be empty. That means the credential carries no scope
+        restrictions, not that it has no permissions.
+      responses:
+        '200':
+          description: The verified account
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Account'}
+        '401': {$ref: '#/components/responses/Problem'}
+  /keys:
+    get:
+      operationId: listKeys
+      tags: [account]
+      description: |
+        The tenant's API keys, newest first — metadata only. A raw key is
+        returned once, at creation, and appears in no response afterwards.
+
+        Revoked keys are listed alongside active ones: a key list whose job is
+        answering "is the credential from that laptop still live?" has to show
+        the ones that are not.
+      responses:
+        '200':
+          description: The tenant's keys
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/APIKeyList'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '501': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createKey
+      tags: [account]
+      description: |
+        Mint a key carrying the CALLER's own grant — same tenant, same subject,
+        same scopes, same environment. None of that is read from the request:
+        a credential that could name another subject would be minting itself
+        into that person's connector grants and memory scopes. Provisioning a
+        key for someone who has none is an operator action, not this route.
+
+        `raw_key` is returned in this response and never again. A client that
+        does not capture it must revoke the key and mint another.
+
+        Idempotency-Key is required. A replay answers 200 with
+        `idempotent_replay: true` and no `raw_key`, because the original
+        secret was shown once and is not recoverable — that is a successful
+        retry, not a failure.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateKeyRequest'}
+      responses:
+        '201':
+          description: A new key; raw_key is present exactly here
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CreatedKey'}
+        '200':
+          description: |
+            An idempotent replay of an earlier create. Carries no raw_key.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CreatedKey'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '429': {$ref: '#/components/responses/KeyCeilingReached'}
+        '501': {$ref: '#/components/responses/Problem'}
+  /keys/{keyId}:
+    parameters:
+      - $ref: '#/components/parameters/KeyId'
+    delete:
+      operationId: revokeKey
+      tags: [account]
+      description: |
+        Revoke a key this tenant owns. Idempotent, and 204 for a key id that
+        does not exist or belongs to another tenant — this route is not an
+        oracle for which key ids are real.
+
+        Revoking the key the request itself authenticated with is allowed: a
+        leaked credential is often the only one its holder has. Clients know
+        which row that is (`current` on listKeys) and should confirm first.
+      responses:
+        '204': {description: The key is not active}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '501': {$ref: '#/components/responses/Problem'}
 components:
   securitySchemes:
     bearerAuth:
@@ -792,6 +896,13 @@ components:
       in: path
       required: true
       schema: {$ref: '#/components/schemas/Identifier'}
+    KeyId:
+      name: keyId
+      in: path
+      required: true
+      # Not Identifier: a key id is a fixed-width hex string minted by the
+      # registry, shorter than the 3..128 product identifiers.
+      schema: {type: string, minLength: 1, maxLength: 128}
     SkillIfMatch:
       name: If-Match
       in: header
@@ -832,6 +943,14 @@ components:
         failed_precondition`) — pausing a paused trigger, resuming one that is
         dead-lettered, requeueing one that is merely paused. The current
         status is on the trigger; read it and offer the transition that fits.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    KeyCeilingReached:
+      description: |
+        The tenant already holds the maximum number of ACTIVE keys (`code:
+        key_ceiling_reached`). This is a durable limit, not a rate limit —
+        retrying without revoking a key never succeeds.
       content:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problem'}
@@ -1101,6 +1220,109 @@ components:
       properties:
         tenant_id: {type: string}
         user_id: {type: string}
+      additionalProperties: true
+    Account:
+      type: object
+      required: [tenant_id, key_id, scopes, edge_api_version, key_management]
+      properties:
+        tenant_id: {type: string}
+        key_id:
+          type: string
+          description: |
+            The credential that authenticated this request. Match it against
+            listKeys `current` to identify your own row.
+        user_id:
+          type: string
+          description: |
+            The person the credential acts as. ABSENT for a tenant-wide key
+            that names nobody — which is a different fact from a user with no
+            name, and the reason per-user resources are unavailable to it.
+        scopes:
+          type: array
+          items: {type: string}
+          description: |
+            The credential's scopes. An EMPTY array means no scope
+            restrictions, not no permissions.
+        cell_id:
+          type: string
+          description: The cell this tenant is homed on. Diagnostics only.
+        edge_api_version: {type: string}
+        key_management:
+          type: boolean
+          description: |
+            Whether the /keys routes are served by this deployment. false
+            means keys are provisioned by an operator here and a client must
+            not offer key management.
+      additionalProperties: true
+    APIKeyList:
+      type: object
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          items: {$ref: '#/components/schemas/APIKeySummary'}
+      additionalProperties: true
+    APIKeySummary:
+      type: object
+      required: [key_id, status, scopes, created_at, current]
+      properties:
+        key_id: {type: string}
+        label:
+          type: string
+          description: |
+            The name given at creation. ABSENT for an unnamed key, which a
+            client renders by key_id.
+        status:
+          type: string
+          description: active | revoked
+        scopes:
+          type: array
+          items: {type: string}
+        user_id:
+          type: string
+          description: |
+            The person this key acts as. Absent for a tenant-wide key.
+        created_at: {type: string, format: date-time}
+        last_used_at:
+          type: string
+          format: date-time
+          description: |
+            ABSENT when the key has never authenticated a request — which is
+            what makes it safe to revoke. Never a zero timestamp.
+        current:
+          type: boolean
+          description: |
+            True for the key the calling request authenticated with. Revoking
+            it is permitted and signs this client out.
+      additionalProperties: true
+    CreateKeyRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        label:
+          type: string
+          maxLength: 64
+          description: |
+            Human name for the key, shown wherever it is listed. Omit for an
+            unnamed key. Tenant, subject, scopes and environment are NOT
+            settable here — a new key carries the caller's own grant.
+    CreatedKey:
+      type: object
+      required: [key_id]
+      properties:
+        key_id: {type: string}
+        raw_key:
+          type: string
+          description: |
+            The secret, returned in the 201 response and NEVER again. Absent
+            on a 200 idempotent replay: the original was shown once and is not
+            recoverable.
+        label: {type: string}
+        idempotent_replay:
+          type: boolean
+          description: |
+            Present and true when this Idempotency-Key already minted a key.
+            The response carries no raw_key; this is a successful retry.
       additionalProperties: true
     Problem:
       type: object

@@ -188,9 +188,11 @@ async function cursorValue(page: Page): Promise<bigint> {
 
 test('backend-unavailable UX: set-but-invalid config is a typed error, never local fallback', async () => {
   test.skip(!bootstrap || !edgeReady || !APP_BUILT, 'eigent-local stack not running or app not built');
+  // Plain http off loopback is refused by the endpoint validator, so this is a
+  // configuration the main process can reject without reaching any network.
   const { app, page } = await launchLab({
-    EIGENT_REMOTE_BACKEND_URL: edgeBaseUrl!,
-    EIGENT_REMOTE_BACKEND_API_KEY: '',
+    EIGENT_REMOTE_BACKEND_URL: 'http://edge.invalid.example/eigent/v1',
+    EIGENT_REMOTE_BACKEND_API_KEY: 'aion-not-reached',
     EIGENT_REMOTE_BACKEND_API_KEY_FILE: '',
   });
   try {
@@ -198,6 +200,27 @@ test('backend-unavailable UX: set-but-invalid config is a typed error, never loc
     await expect(error).toBeVisible();
     await expect(error).toContainText('invalid');
     await screenshot(page, 'backend-unavailable');
+  } finally {
+    await app.close();
+  }
+});
+
+test('a configured endpoint with no key is onboarding, not a broken lab', async () => {
+  test.skip(!bootstrap || !edgeReady || !APP_BUILT, 'eigent-local stack not running or app not built');
+  const { app, page } = await launchLab({
+    EIGENT_REMOTE_BACKEND_URL: edgeBaseUrl!,
+    EIGENT_REMOTE_BACKEND_API_KEY: '',
+    EIGENT_REMOTE_BACKEND_API_KEY_FILE: '',
+  });
+  try {
+    // An absent credential is not a malformed one, and neither is a reason to
+    // fall back to local. The lab has to say which of the three it is.
+    await expect(byId(page, 'lab-needs-key')).toBeVisible();
+    await expect(byId(page, 'lab-config-error')).toHaveCount(0);
+    await expect(byId(page, 'lab-mode-local')).toHaveCount(0);
+    // The panel proper stays down: every control on it would 401.
+    await expect(byId(page, 'lab-root')).toHaveCount(0);
+    await screenshot(page, 'backend-needs-key');
   } finally {
     await app.close();
   }

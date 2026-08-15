@@ -14,7 +14,7 @@
 
 import { proxyFetchPost } from '@/api/http';
 import { isDesktop } from '@/client/platform';
-import { getAionRemoteConfig } from '@/store/aionChatBridge';
+import { getAionBackendState } from '@/store/aionChatBridge';
 import { useAuthStore } from '@/store/authStore';
 import { lazy, useEffect, useReducer } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
@@ -28,6 +28,7 @@ const History = lazy(() => import('@/pages/History'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 const RemoteControl = lazy(() => import('@/pages/RemoteControl'));
 const IntegrationLab = lazy(() => import('@/pages/IntegrationLab'));
+const Onboarding = lazy(() => import('@/pages/Onboarding'));
 
 const IS_LOCAL_MODE = import.meta.env.VITE_USE_LOCAL_PROXY === 'true';
 const ENABLE_DESKTOP_REMOTE_CONTROL_FALLBACK = isDesktop();
@@ -36,10 +37,15 @@ interface AuthState {
   loading: boolean;
   isAuthenticated: boolean;
   initialized: boolean;
+  /** Aion mode with a configured endpoint and no credential stored yet. */
+  needsOnboarding: boolean;
 }
 
 type AuthAction =
-  | { type: 'INITIALIZE'; payload: { isAuthenticated: boolean } }
+  | {
+      type: 'INITIALIZE';
+      payload: { isAuthenticated: boolean; needsOnboarding?: boolean };
+    }
   | { type: 'LOGOUT' };
 
 const authReducer = (state: AuthState, action: AuthAction): AuthState => {
@@ -49,12 +55,14 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
         loading: false,
         isAuthenticated: action.payload.isAuthenticated,
         initialized: true,
+        needsOnboarding: action.payload.needsOnboarding === true,
       };
     case 'LOGOUT':
       return {
         loading: false,
         isAuthenticated: false,
         initialized: true,
+        needsOnboarding: false,
       };
     default:
       return state;
@@ -68,6 +76,7 @@ const ProtectedRoute = () => {
     loading: false,
     isAuthenticated: false,
     initialized: false,
+    needsOnboarding: false,
   });
 
   const {
@@ -136,19 +145,26 @@ const ProtectedRoute = () => {
 
     if (!token) {
       // Remote-backend mode: the desktop's credential is the edge API key
-      // the main process resolved (M4-G); there is no local brain to
-      // auto-login against and no cloud session to require. A misconfigured
-      // remote config still falls through to the legacy guard, whose login
-      // wall makes the failure visible.
-      getAionRemoteConfig()
-        .then((config) => {
+      // the main process resolved; there is no local brain to auto-login
+      // against and no cloud session to require. A configured endpoint that
+      // holds no key yet routes to onboarding instead — that is the one aion
+      // state a user can resolve, and the legacy login wall cannot resolve it.
+      // Anything else still falls through to that wall, which makes a genuine
+      // misconfiguration visible.
+      getAionBackendState()
+        .then((backend) => {
           if (cancelled) return;
-          if (config && !('error' in config)) {
+          if (backend.kind === 'ready') {
             setInitState('done');
             setIsFirstLaunch(false);
             dispatch({
               type: 'INITIALIZE',
               payload: { isAuthenticated: true },
+            });
+          } else if (backend.kind === 'needs-key') {
+            dispatch({
+              type: 'INITIALIZE',
+              payload: { isAuthenticated: false, needsOnboarding: true },
             });
           } else {
             legacyInitialize();
@@ -183,6 +199,9 @@ const ProtectedRoute = () => {
   if (state.isAuthenticated) {
     return <Outlet />;
   }
+  if (state.needsOnboarding) {
+    return <Navigate to="/onboarding" replace />;
+  }
 
   const redirect = `${location.pathname}${location.search}`;
   return (
@@ -202,6 +221,9 @@ const AppRoutes = () => (
         local brain, absent in remote-backend mode. The page gates itself on
         the resolved aion transport mode. */}
     <Route path="/integration-lab" element={<IntegrationLab />} />
+    {/* Also outside the guard, and for the same reason from the other side:
+        this is the screen that produces the credential the guard checks. */}
+    <Route path="/onboarding" element={<Onboarding />} />
     <Route element={<ProtectedRoute />}>
       <Route element={<Layout />}>
         <Route path="/" element={<Workspace />} />

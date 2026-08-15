@@ -1,0 +1,8 @@
+{
+  "title": "Connetti ad aion",
+  "subtitle": "Questo desktop funziona su un backend aion. Incolla una chiave API per continuare.",
+  "key-label": "Chiave API",
+  "key-placeholder": "Incolla la tua chiave API",
+  "connect": "Connetti",
+  "storage-note": "La chiave viene verificata con il backend prima di essere conservata e salvata su questo computer, leggibile solo dal tuo account utente."
+}
