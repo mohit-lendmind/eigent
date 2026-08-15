@@ -1,0 +1,5 @@
+{
+  "cron": "0 7 * * 1",
+  "task": "Summarise last week's failed builds and open an issue for each new one.",
+  "single_shot": false
+}

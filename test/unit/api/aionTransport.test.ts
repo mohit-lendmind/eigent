@@ -475,6 +475,120 @@ describe('EdgeTransport connectors (golden fixtures)', () => {
   });
 });
 
+describe('EdgeTransport schedules (golden fixtures)', () => {
+  it('lists the tenant, and narrows to one project only when asked', async () => {
+    const { transport, fetchImpl } = transportWith(() =>
+      jsonResponse(fixture('schedule_list_response.json'))
+    );
+    const list = await transport.listSchedules();
+    expect(list.schedules).toHaveLength(4);
+    // The paused row carries no next firing at all — the field is omitted, not
+    // zeroed, which is what lets the desktop say "no next firing".
+    expect(list.schedules?.[1].next_fire_at).toBeUndefined();
+
+    await transport.listSchedules({ projectId: 'prj/one' });
+    expect(requestOf(fetchImpl, 0).url).toBe(
+      'https://edge.local/eigent/v1/schedules'
+    );
+    expect(requestOf(fetchImpl, 1).url).toBe(
+      'https://edge.local/eigent/v1/schedules?project_id=prj%2Fone'
+    );
+  });
+
+  it('creates with a fresh idempotency key per attempt', async () => {
+    const { transport, fetchImpl } = transportWith(() =>
+      jsonResponse(fixture('schedule_response.json'), 201)
+    );
+    const request = fixture('create_schedule_request.json') as any;
+    await transport.createSchedule(request);
+    await transport.createSchedule(request);
+
+    const first = requestOf(fetchImpl, 0);
+    expect(first.url).toBe('https://edge.local/eigent/v1/schedules');
+    expect(first.init.method).toBe('POST');
+    expect(JSON.parse(String(first.init.body))).toEqual(request);
+    // A retried create would otherwise register a second trigger firing the
+    // same task on the same cadence — a duplicate no later read can undo.
+    expect(first.headers['Idempotency-Key']).toBeTruthy();
+    expect(requestOf(fetchImpl, 1).headers['Idempotency-Key']).not.toBe(
+      first.headers['Idempotency-Key']
+    );
+  });
+
+  it('sends the lifecycle transitions without an idempotency key', async () => {
+    const { transport, fetchImpl } = transportWith(() =>
+      jsonResponse(fixture('schedule_response.json'))
+    );
+    await transport.pauseSchedule('sch_1');
+    await transport.resumeSchedule('sch_1');
+    await transport.requeueSchedule('sch_1');
+    await transport.updateSchedule(
+      'sch_1',
+      fixture('update_schedule_request.json') as any
+    );
+
+    const paths = ['pause', 'resume', 'requeue'];
+    paths.forEach((leg, index) => {
+      const { url, init, headers } = requestOf(fetchImpl, index);
+      expect(url).toBe(`https://edge.local/eigent/v1/schedules/sch_1/${leg}`);
+      expect(init.method).toBe('POST');
+      // The edge requires a key only on create; these are all naturally
+      // idempotent or refused as a typed conflict.
+      expect(headers['Idempotency-Key']).toBeUndefined();
+    });
+    const update = requestOf(fetchImpl, 3);
+    expect(update.url).toBe('https://edge.local/eigent/v1/schedules/sch_1');
+    expect(update.init.method).toBe('PUT');
+    expect(update.headers['Idempotency-Key']).toBeUndefined();
+  });
+
+  it('reads a 204 delete as success and percent-encodes the id', async () => {
+    const { transport, fetchImpl } = transportWith(
+      new Response(null, { status: 204 })
+    );
+    await expect(transport.deleteSchedule('sch/one')).resolves.toBeUndefined();
+    const { url, init } = requestOf(fetchImpl);
+    expect(url).toBe('https://edge.local/eigent/v1/schedules/sch%2Fone');
+    expect(init.method).toBe('DELETE');
+  });
+
+  it('requests a bounded ledger window and decodes it oldest-first', async () => {
+    const { transport, fetchImpl } = transportWith(() =>
+      jsonResponse(fixture('schedule_event_list_response.json'))
+    );
+    const ledger = await transport.listScheduleEvents('sch_1', { limit: 25 });
+    expect(ledger.events?.map((event) => event.action)).toEqual([
+      'created',
+      'fired',
+      'skipped_busy',
+      'fire_failed',
+      'dead_lettered',
+    ]);
+    expect(requestOf(fetchImpl, 0).url).toBe(
+      'https://edge.local/eigent/v1/schedules/sch_1/events?limit=25'
+    );
+
+    await transport.listScheduleEvents('sch_1');
+    expect(requestOf(fetchImpl, 1).url).toBe(
+      'https://edge.local/eigent/v1/schedules/sch_1/events'
+    );
+  });
+
+  it('surfaces the refused seconds cadence as a typed problem', async () => {
+    const { transport } = transportWith(
+      problemResponse('problem_schedule_cron_denied.json', 422)
+    );
+    const error = await transport
+      .createSchedule({ project_id: 'prj_1', cron: '*/5 * * * * *', task: 'x' } as any)
+      .catch((cause) => cause);
+    expect(error).toBeInstanceOf(EdgeProblemError);
+    expect((error as EdgeProblemError).problem.code).toBe(
+      'schedule_cron_denied'
+    );
+    expect((error as EdgeProblemError).problem.retryable).toBe(false);
+  });
+});
+
 describe('EdgeTransport SSE subscription', () => {
   const frame = (id: number, body: unknown): string =>
     `id: ${id}\nevent: project_event\ndata: ${JSON.stringify(body)}\n\n`;

@@ -1,0 +1,6 @@
+{
+  "project_id": "prj_01JY0000000000000000000001",
+  "cron": "30 6 * * 1-5",
+  "task": "Summarise yesterday's failed builds and open an issue for each new one.",
+  "single_shot": false
+}

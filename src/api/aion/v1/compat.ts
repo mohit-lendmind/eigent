@@ -147,6 +147,13 @@ const WORKFORCE_MINIMUM_EDGE = [1, 8];
 // would be indistinguishable from an unknown connector.
 const CONNECTORS_MINIMUM_EDGE = [1, 9];
 
+// The schedule routes shipped in edge API 1.10.0. Below the floor the triggers
+// exist in the store and fire, and this desktop simply cannot see them — so the
+// screen must say the backend cannot report triggers. An empty list would claim
+// nothing is scheduled, which for a trigger surface is the one wrong answer:
+// the failure this screen exists to catch is a trigger that stopped firing.
+const SCHEDULES_MINIMUM_EDGE = [1, 10];
+
 function meetsEdgeFloor(status: IntegrationStatus, floor: number[]): boolean {
   if (!negotiateCompatibility(status).compatible) {
     return false;
@@ -177,4 +184,8 @@ export function supportsWorkforceEvents(status: IntegrationStatus): boolean {
 
 export function supportsConnectors(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, CONNECTORS_MINIMUM_EDGE);
+}
+
+export function supportsSchedules(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, SCHEDULES_MINIMUM_EDGE);
 }

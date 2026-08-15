@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/schedule-cron-denied",
+  "title": "Cadence is not allowed",
+  "status": 422,
+  "detail": "A six-field cron expression schedules by the second, which this API does not accept. Use the five-field form (minute hour day-of-month month day-of-week).",
+  "code": "schedule_cron_denied",
+  "trace_id": "trc_01JY0000000000000000000009",
+  "retryable": false
+}

@@ -1,5 +1,5 @@
 {
-  "edge_api_version": "1.9.0",
+  "edge_api_version": "1.10.0",
   "event_schema_version": "1.0",
   "minimum_desktop_version": "1.0.2",
   "harness_generation": "aion-go/1",
