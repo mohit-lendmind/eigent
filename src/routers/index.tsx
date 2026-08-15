@@ -12,37 +12,27 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { proxyFetchPost } from '@/api/http';
 import { getAionBackendState } from '@/store/aionChatBridge';
 import { useAuthStore } from '@/store/authStore';
 import { lazy, useEffect, useReducer } from 'react';
-import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 
 import Layout from '@/components/Layout';
 // Lazy load page components
-const Login = lazy(() => import('@/pages/Login'));
-const Signup = lazy(() => import('@/pages/SignUp'));
 const Workspace = lazy(() => import('@/pages/Workspace'));
 const History = lazy(() => import('@/pages/History'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 const IntegrationLab = lazy(() => import('@/pages/IntegrationLab'));
 const Onboarding = lazy(() => import('@/pages/Onboarding'));
 
-const IS_LOCAL_MODE = import.meta.env.VITE_USE_LOCAL_PROXY === 'true';
-
 interface AuthState {
   loading: boolean;
   isAuthenticated: boolean;
   initialized: boolean;
-  /** Aion mode with a configured endpoint and no credential stored yet. */
-  needsOnboarding: boolean;
 }
 
 type AuthAction =
-  | {
-      type: 'INITIALIZE';
-      payload: { isAuthenticated: boolean; needsOnboarding?: boolean };
-    }
+  | { type: 'INITIALIZE'; payload: { isAuthenticated: boolean } }
   | { type: 'LOGOUT' };
 
 const authReducer = (state: AuthState, action: AuthAction): AuthState => {
@@ -52,139 +42,48 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
         loading: false,
         isAuthenticated: action.payload.isAuthenticated,
         initialized: true,
-        needsOnboarding: action.payload.needsOnboarding === true,
       };
     case 'LOGOUT':
-      return {
-        loading: false,
-        isAuthenticated: false,
-        initialized: true,
-        needsOnboarding: false,
-      };
+      return { loading: false, isAuthenticated: false, initialized: true };
     default:
       return state;
   }
 };
 
 // Route guard: Check if user is logged in
+// Route guard: the desktop's credential is the edge API key the main process
+// resolved, so "signed in" means the key is present and usable. Every other
+// backend state routes to onboarding, which is the screen that can name it.
 const ProtectedRoute = () => {
-  const location = useLocation();
   const [state, dispatch] = useReducer(authReducer, {
     loading: false,
     isAuthenticated: false,
     initialized: false,
-    needsOnboarding: false,
   });
 
-  const {
-    token,
-    localProxyValue,
-    logout,
-    setAuth,
-    setLocalProxyValue,
-    setInitState,
-    setIsFirstLaunch,
-    setModelType,
-  } = useAuthStore();
+  const { setInitState, setIsFirstLaunch } = useAuthStore();
   useEffect(() => {
-    // Check VITE_USE_LOCAL_PROXY value on app startup
-    if (token) {
-      const currentProxyValue = import.meta.env.VITE_USE_LOCAL_PROXY || null;
-      const storedProxyValue = localProxyValue;
-
-      // If stored value exists and differs from current, logout
-      if (storedProxyValue !== null && storedProxyValue !== currentProxyValue) {
-        console.warn('VITE_USE_LOCAL_PROXY value changed, logging out user');
-        logout();
-        dispatch({ type: 'LOGOUT' });
-        return;
-      }
-    }
-
     let cancelled = false;
-
-    const legacyInitialize = () => {
-      if (cancelled) return;
-      // Local mode: auto-login when no token
-      if (IS_LOCAL_MODE && !token) {
-        proxyFetchPost('/api/v1/user/auto-login', {})
-          .then((data) => {
-            if (cancelled) return;
-            if (data && data.token) {
-              setAuth({ email: data.email, ...data });
-              setLocalProxyValue(import.meta.env.VITE_USE_LOCAL_PROXY || null);
-              setModelType('custom');
-              setInitState('done');
-              setIsFirstLaunch(false);
-              dispatch({
-                type: 'INITIALIZE',
-                payload: { isAuthenticated: true },
-              });
-            } else {
-              dispatch({
-                type: 'INITIALIZE',
-                payload: { isAuthenticated: false },
-              });
-            }
-          })
-          .catch(() => {
-            if (cancelled) return;
-            dispatch({
-              type: 'INITIALIZE',
-              payload: { isAuthenticated: false },
-            });
-          });
-        return;
-      }
-
-      dispatch({ type: 'INITIALIZE', payload: { isAuthenticated: !!token } });
-    };
-
-    if (!token) {
-      // Remote-backend mode: the desktop's credential is the edge API key
-      // the main process resolved; there is no local brain to auto-login
-      // against and no cloud session to require. A configured endpoint that
-      // holds no key yet routes to onboarding instead — that is the one aion
-      // state a user can resolve, and the legacy login wall cannot resolve it.
-      // Anything else still falls through to that wall, which makes a genuine
-      // misconfiguration visible.
-      getAionBackendState()
-        .then((backend) => {
-          if (cancelled) return;
-          if (backend.kind === 'ready') {
-            setInitState('done');
-            setIsFirstLaunch(false);
-            dispatch({
-              type: 'INITIALIZE',
-              payload: { isAuthenticated: true },
-            });
-          } else if (backend.kind === 'needs-key') {
-            dispatch({
-              type: 'INITIALIZE',
-              payload: { isAuthenticated: false, needsOnboarding: true },
-            });
-          } else {
-            legacyInitialize();
-          }
-        })
-        .catch(legacyInitialize);
-    } else {
-      legacyInitialize();
-    }
-
+    getAionBackendState()
+      .then((backend) => {
+        if (cancelled) return;
+        if (backend.kind === 'ready') {
+          setInitState('done');
+          setIsFirstLaunch(false);
+        }
+        dispatch({
+          type: 'INITIALIZE',
+          payload: { isAuthenticated: backend.kind === 'ready' },
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        dispatch({ type: 'INITIALIZE', payload: { isAuthenticated: false } });
+      });
     return () => {
       cancelled = true;
     };
-  }, [
-    token,
-    localProxyValue,
-    logout,
-    setAuth,
-    setLocalProxyValue,
-    setInitState,
-    setIsFirstLaunch,
-    setModelType,
-  ]);
+  }, [setInitState, setIsFirstLaunch]);
 
   if (state.loading || !state.initialized) {
     return (
@@ -196,27 +95,17 @@ const ProtectedRoute = () => {
   if (state.isAuthenticated) {
     return <Outlet />;
   }
-  if (state.needsOnboarding) {
-    return <Navigate to="/onboarding" replace />;
-  }
-
-  const redirect = `${location.pathname}${location.search}`;
-  return (
-    <Navigate to={`/login?redirect=${encodeURIComponent(redirect)}`} replace />
-  );
+  return <Navigate to="/onboarding" replace />;
 };
 
 // Main route configuration
 const AppRoutes = () => (
   <Routes>
-    <Route path="/login" element={<Login />} />
-    <Route path="/signup" element={<Signup />} />
-    {/* Outside ProtectedRoute: the guard's auto-login talks to the legacy
-        local brain, absent in remote-backend mode. The page gates itself on
-        the resolved aion transport mode. */}
+    {/* Outside ProtectedRoute: this is a diagnostics view, and the states it
+        exists to show are the ones that fail the guard. */}
     <Route path="/integration-lab" element={<IntegrationLab />} />
-    {/* Also outside the guard, and for the same reason from the other side:
-        this is the screen that produces the credential the guard checks. */}
+    {/* Also outside the guard: this is the screen that produces the credential
+        the guard checks. */}
     <Route path="/onboarding" element={<Onboarding />} />
     <Route element={<ProtectedRoute />}>
       <Route element={<Layout />}>

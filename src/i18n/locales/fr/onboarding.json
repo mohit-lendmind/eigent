@@ -4,5 +4,8 @@
   "key-label": "Clé d'API",
   "key-placeholder": "Collez votre clé d'API",
   "connect": "Connecter",
+  "unreachable-title": "Aucun backend auquel se connecter",
+  "no-endpoint": "Aucun point de terminaison aion n'est configuré sur ce bureau : une clé d'API n'aurait rien à joindre. Configurez un point de terminaison puis redémarrez l'application.",
+  "resolve-failed": "Ce bureau n'a pas pu résoudre son point de terminaison aion : {{message}}",
   "storage-note": "La clé est vérifiée auprès du backend avant d'être conservée, puis stockée sur cette machine et lisible uniquement par votre compte utilisateur."
 }

@@ -4,5 +4,8 @@
   "key-label": "API 金鑰",
   "key-placeholder": "貼上你的 API 金鑰",
   "connect": "連線",
+  "unreachable-title": "沒有可連線的後端",
+  "no-endpoint": "此桌面端未設定 aion 端點，API 金鑰沒有可連線的目標。請先設定端點再重新啟動應用程式。",
+  "resolve-failed": "此桌面端無法解析其 aion 端點：{{message}}",
   "storage-note": "金鑰會先與後端驗證再保存，僅儲存在本機且只有你的使用者帳戶可讀取。"
 }

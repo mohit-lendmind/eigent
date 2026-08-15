@@ -12,12 +12,9 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import giftWhiteIcon from '@/assets/custom/gift-white.svg';
-import giftIcon from '@/assets/custom/gift.svg';
 import eigentAppIconBlack from '@/assets/logo/icon_black.svg';
 import eigentAppIconWhite from '@/assets/logo/icon_white.svg';
 import { type HistoryTabId } from '@/components/Dashboard/HistoryTabsNav';
-import InviteCodeDialog from '@/components/Dialog/InviteCodeDialog';
 import ReportBugDialog from '@/components/Dialog/ReportBugDialog';
 import { SpaceSwitchDropdown } from '@/components/ProjectPageSidebar/SpaceSwitchDropdown';
 import UpdateButton from '@/components/TopBar/UpdateButton';
@@ -133,7 +130,6 @@ function HeaderWin() {
   const location = useLocation();
   const { canGoBack } = useStackNavigationBounds();
   const [reportBugOpen, setReportBugOpen] = useState(false);
-  const [inviteCodeDialogOpen, setInviteCodeDialogOpen] = useState(false);
   const [renameSpaceDialogOpen, setRenameSpaceDialogOpen] = useState(false);
   const [renameSpaceValue, setRenameSpaceValue] = useState('');
   const [renamingSpace, setRenamingSpace] = useState(false);
@@ -220,9 +216,6 @@ function HeaderWin() {
     [activeSpaceId, projectsBySpaceId, spacesById]
   );
 
-  const openInviteCodeDialog = () => {
-    setInviteCodeDialogOpen(true);
-  };
 
   const navigateToHistoryTab = useCallback(
     (tab: HistoryTabId) => {
@@ -524,29 +517,6 @@ function HeaderWin() {
               <CircleHelp aria-hidden />
             </Button>
           </TooltipSimple>
-          <TooltipSimple
-            content={t('layout.refer-friends')}
-            side="bottom"
-            align="end"
-            variant="instant"
-          >
-            <Button
-              onClick={openInviteCodeDialog}
-              variant="ghost"
-              size="sm"
-              className="no-drag rounded-full"
-              buttonContent="icon-only"
-              aria-label={t('layout.refer-friends')}
-            >
-              <img
-                src={appearance === 'dark' ? giftWhiteIcon : giftIcon}
-                alt=""
-                width={16}
-                height={16}
-                aria-hidden
-              />
-            </Button>
-          </TooltipSimple>
 
           <div className="ml-1.5 flex h-full shrink-0 items-center gap-1 border-y-0 border-l border-r-0 border-solid border-ds-border-neutral-subtle-default pl-1.5">
             <AnimatePresence mode="wait" initial={false}>
@@ -639,10 +609,6 @@ function HeaderWin() {
         </div>
       )}
       <ReportBugDialog open={reportBugOpen} onOpenChange={setReportBugOpen} />
-      <InviteCodeDialog
-        open={inviteCodeDialogOpen}
-        onOpenChange={setInviteCodeDialogOpen}
-      />
     </div>
   );
 }

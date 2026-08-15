@@ -26,7 +26,6 @@ import { Node as CustomNodeComponent } from './node';
 import { createWorkflowWheelHandler } from './workflowWheelHandler';
 
 import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
-import { share } from '@/lib/share';
 import { useWorkerList } from '@/store/authStore';
 import { useWorkflowViewportStore } from '@/store/workflowViewportStore';
 import '@xyflow/react/dist/style.css';
@@ -287,10 +286,6 @@ export default function Workflow({
     if (onMoveViewport) {
       onMoveViewport(dx > 0 ? 'left' : 'right');
     }
-  };
-
-  const _handleShare = async (taskId: string) => {
-    share(taskId);
   };
 
   // Register moveViewport callbacks with the store

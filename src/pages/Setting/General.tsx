@@ -15,13 +15,9 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LocaleEnum, switchLanguage } from '@/i18n';
-import { SITE_URL } from '@/lib';
 import { useAuthStore } from '@/store/authStore';
-import { useInstallationStore } from '@/store/installationStore';
-import { LogOut, Settings } from 'lucide-react';
 import { createRef, RefObject, useEffect, useState } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import {
@@ -32,7 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import { useHost } from '@/host';
 
 export default function SettingGeneral() {
@@ -40,21 +35,12 @@ export default function SettingGeneral() {
   const host = useHost();
   const authStore = useAuthStore();
 
-  const resetInstallation = useInstallationStore((state) => state.reset);
-  const setNeedsBackendRestart = useInstallationStore(
-    (state) => state.setNeedsBackendRestart
-  );
-
-  const navigate = useNavigate();
   const [_isLoading, _setIsLoading] = useState(false);
   const language = authStore.language;
   const _setLanguage = authStore.setLanguage;
   const _fullNameRef: RefObject<HTMLInputElement> = createRef();
   const _nickNameRef: RefObject<HTMLInputElement> = createRef();
   const _workDescRef: RefObject<HTMLInputElement> = createRef();
-  //Get Chatstore for the active project's task
-  const { chatStore } = useChatStoreAdapter();
-
   // Proxy configuration state
   const [proxyUrl, setProxyUrl] = useState('');
   const [isProxySaving, setIsProxySaving] = useState(false);
@@ -193,62 +179,6 @@ export default function SettingGeneral() {
       </div>
       {/* Content Section */}
       <div className="mb-xl flex flex-col gap-6">
-        {/* Profile Section */}
-        <div className="item-center flex flex-row justify-between rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
-          <div className="flex flex-col gap-2">
-            <div className="text-body-base font-bold text-ds-text-neutral-default-default">
-              {t('setting.profile')}
-            </div>
-            <div className="text-body-sm">
-              <Trans
-                i18nKey="setting.you-are-currently-signed-in-with"
-                values={{ email: authStore.email }}
-                components={{
-                  email: (
-                    <span className="text-ds-text-status-splitting-strong-default underline" />
-                  ),
-                }}
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-sm">
-            <Button
-              onClick={() => {
-                window.location.href = `${SITE_URL}/dashboard?email=${authStore.email}`;
-              }}
-              variant="primary"
-              textWeight="semibold"
-              buttonContent="text"
-              buttonRadius="lg"
-              tone="neutral"
-              size="sm"
-            >
-              <Settings />
-              {t('setting.manage')}
-            </Button>
-            <Button
-              variant="outline"
-              textWeight="semibold"
-              buttonContent="text"
-              buttonRadius="lg"
-              tone="neutral"
-              size="sm"
-              onClick={() => {
-                chatStore?.clearTasks?.();
-
-                resetInstallation(); // Reset installation state for new account
-                setNeedsBackendRestart(true); // Mark that backend is restarting
-
-                authStore.logout();
-                navigate('/login');
-              }}
-            >
-              <LogOut />
-              {t('setting.log-out')}
-            </Button>
-          </div>
-        </div>
-
         {/* Language Section */}
         <div className="item-center flex flex-row justify-between rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
           <div className="flex flex-1 items-center">

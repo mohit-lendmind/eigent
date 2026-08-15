@@ -19,7 +19,6 @@ import { Button } from '@/components/ui/button';
 import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import { useHost } from '@/host';
 import { deleteProjectLocally } from '@/lib/projectDeletion';
-import { share } from '@/lib/share';
 import { useAuthStore } from '@/store/authStore';
 import { useSidebarStore } from '@/store/sidebarStore';
 import { useSpaceStore } from '@/store/spaceStore';
@@ -173,11 +172,6 @@ export default function HistorySidebar() {
     await deleteProjectLocally(currentProjectId, ipcRenderer);
     setCurrentProjectId('');
     setDeleteModalOpen(false);
-  };
-
-  const handleShare = async (taskId: string) => {
-    close();
-    share(taskId);
   };
 
   useLayoutEffect(() => {
@@ -361,21 +355,6 @@ export default function HistorySidebar() {
                       </PopoverTrigger>
                       <PopoverContent className="w-[98px] rounded-[12px] border border-solid border-ds-border-neutral-default-default bg-ds-bg-neutral-default-default p-sm">
                         <div className="space-y-1">
-                          <PopoverClose asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="w-full"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleShare(project.id);
-                              }}
-                            >
-                              <Share size={16} />
-                              {t('layout.share')}
-                            </Button>
-                          </PopoverClose>
-
                           <PopoverClose asChild>
                             <Button
                               variant="ghost"

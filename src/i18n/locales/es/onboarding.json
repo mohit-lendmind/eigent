@@ -4,5 +4,8 @@
   "key-label": "Clave de API",
   "key-placeholder": "Pega tu clave de API",
   "connect": "Conectar",
+  "unreachable-title": "No hay backend al que conectarse",
+  "no-endpoint": "Este escritorio no tiene configurado ningún endpoint de aion, así que no hay nada a lo que una clave de API pueda conectarse. Configura un endpoint y reinicia la aplicación.",
+  "resolve-failed": "Este escritorio no pudo resolver su endpoint de aion: {{message}}",
   "storage-note": "La clave se verifica con el backend antes de guardarse, y se almacena en este equipo con acceso solo para tu cuenta de usuario."
 }
