@@ -13,7 +13,6 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import { proxyFetchPost } from '@/api/http';
-import { isDesktop } from '@/client/platform';
 import { getAionBackendState } from '@/store/aionChatBridge';
 import { useAuthStore } from '@/store/authStore';
 import { lazy, useEffect, useReducer } from 'react';
@@ -26,12 +25,10 @@ const Signup = lazy(() => import('@/pages/SignUp'));
 const Workspace = lazy(() => import('@/pages/Workspace'));
 const History = lazy(() => import('@/pages/History'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
-const RemoteControl = lazy(() => import('@/pages/RemoteControl'));
 const IntegrationLab = lazy(() => import('@/pages/IntegrationLab'));
 const Onboarding = lazy(() => import('@/pages/Onboarding'));
 
 const IS_LOCAL_MODE = import.meta.env.VITE_USE_LOCAL_PROXY === 'true';
-const ENABLE_DESKTOP_REMOTE_CONTROL_FALLBACK = isDesktop();
 
 interface AuthState {
   loading: boolean;
@@ -214,9 +211,6 @@ const AppRoutes = () => (
   <Routes>
     <Route path="/login" element={<Login />} />
     <Route path="/signup" element={<Signup />} />
-    {ENABLE_DESKTOP_REMOTE_CONTROL_FALLBACK ? (
-      <Route path="/remote-control/:sessionId" element={<RemoteControl />} />
-    ) : null}
     {/* Outside ProtectedRoute: the guard's auto-login talks to the legacy
         local brain, absent in remote-backend mode. The page gates itself on
         the resolved aion transport mode. */}

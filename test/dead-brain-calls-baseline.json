@@ -8,14 +8,12 @@
     "src/components/Session/SidePanelSections/useProjectOutputFiles.ts": 3,
     "src/components/TerminalAgentWorkspace/index.tsx": 3,
     "src/context/ConnectionContext.tsx": 1,
-    "src/hooks/useRemoteControlBridge.ts": 3,
     "src/lib/fileUtils.ts": 2,
     "src/pages/Browser/CDP.tsx": 5,
     "src/service/workspaceApi.ts": 8,
     "src/store/chatStore.ts": 11,
     "src/store/connectionStore.ts": 1,
     "test/unit/components/ChatBox.test.tsx": 14,
-    "test/unit/hooks/useRemoteControlBridge.test.ts": 5,
     "test/unit/hooks/useTriggerTaskExecutor.test.ts": 1,
     "test/unit/pages/Browser/CDP.test.tsx": 7,
     "test/unit/store/chatStore.test.ts": 11
@@ -30,10 +28,8 @@
     "src/components/TopBar/index.tsx": 2,
     "src/components/Trigger/DynamicTriggerConfig.tsx": 5,
     "src/hooks/useModelConfigCheck.ts": 3,
-    "src/hooks/useRemoteControlBridge.ts": 2,
     "src/hooks/useTriggerTaskExecutor.ts": 2,
     "src/lib/index.ts": 1,
-    "src/lib/remoteControl.ts": 13,
     "src/lib/share.ts": 2,
     "src/pages/Home/hooks/useHomeHubProjects.ts": 3,
     "src/pages/Home/index.tsx": 2,
@@ -51,7 +47,6 @@
     "src/store/spaceStore.test.ts": 1,
     "src/store/spaceStore.ts": 2,
     "test/unit/components/ChatBox.test.tsx": 8,
-    "test/unit/hooks/useRemoteControlBridge.test.ts": 4,
     "test/unit/hooks/useTriggerTaskExecutor.test.ts": 2,
     "test/unit/store/chatStore.test.ts": 7
   }

@@ -40,23 +40,6 @@ export type WebSocketConnectionStatus =
   | 'connected'
   | 'unhealthy';
 
-export interface RemoteControlSession {
-  sessionId: string;
-  url: string;
-  title: string;
-  expiresAt?: string;
-  linkToken?: string;
-}
-
-export type RemoteControlLogStatus = 'created' | 'stopped' | 'expired';
-
-export interface RemoteControlLogEntry {
-  id: string;
-  time: string;
-  name: string;
-  status: RemoteControlLogStatus;
-}
-
 interface TriggerStore {
   // State
   triggers: Trigger[];
@@ -64,8 +47,6 @@ interface TriggerStore {
   wsConnectionStatus: WebSocketConnectionStatus;
   lastPongTimestamp: number | null;
   wsReconnectCallback: (() => void) | null;
-  activeRemoteControlSessions: RemoteControlSession[];
-  remoteControlLogs: RemoteControlLogEntry[];
 
   // Actions
   setTriggers: (triggers: Trigger[]) => void;
@@ -80,11 +61,6 @@ interface TriggerStore {
   getTriggerById: (triggerId: number) => Trigger | undefined;
   emitWebSocketEvent: (event: WebSocketEvent) => void;
   clearWebSocketEvent: () => void;
-  addRemoteControlSession: (session: RemoteControlSession) => void;
-  removeRemoteControlSession: (sessionId: string) => void;
-  addRemoteControlLog: (
-    entry: Omit<RemoteControlLogEntry, 'id' | 'time'>
-  ) => void;
 }
 
 export const useTriggerStore = create<TriggerStore>((set, get) => ({
@@ -94,8 +70,6 @@ export const useTriggerStore = create<TriggerStore>((set, get) => ({
   wsConnectionStatus: 'disconnected' as WebSocketConnectionStatus,
   lastPongTimestamp: null,
   wsReconnectCallback: null,
-  activeRemoteControlSessions: [],
-  remoteControlLogs: [],
 
   setTriggers: (triggers: Trigger[]) => {
     set({ triggers });
@@ -172,31 +146,4 @@ export const useTriggerStore = create<TriggerStore>((set, get) => ({
     set({ webSocketEvent: null });
   },
 
-  addRemoteControlSession: (session: RemoteControlSession) => {
-    set((state) => ({
-      activeRemoteControlSessions: [
-        ...state.activeRemoteControlSessions,
-        session,
-      ],
-    }));
-  },
-
-  removeRemoteControlSession: (sessionId: string) => {
-    set((state) => ({
-      activeRemoteControlSessions: state.activeRemoteControlSessions.filter(
-        (s) => s.sessionId !== sessionId
-      ),
-    }));
-  },
-
-  addRemoteControlLog: (entry) => {
-    const newEntry: RemoteControlLogEntry = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      time: new Date().toISOString(),
-      ...entry,
-    };
-    set((state) => ({
-      remoteControlLogs: [...state.remoteControlLogs, newEntry],
-    }));
-  },
 }));

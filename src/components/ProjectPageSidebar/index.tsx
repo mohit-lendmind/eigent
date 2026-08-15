@@ -51,7 +51,7 @@ import {
 } from '@/store/spaceStore';
 import { useTriggerStore } from '@/store/triggerStore';
 import { ChatTaskStatus } from '@/types/constants';
-import { Cast, Inbox, LayoutGrid, Plus, Zap, ZapOff } from 'lucide-react';
+import { Inbox, LayoutGrid, Plus, Zap, ZapOff } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -846,17 +846,6 @@ export default function ProjectPageSidebar({
                   folded={projectSidebarFolded}
                   ariaLabel={triggersTabAriaLabel}
                   ariaCurrentPage={activeWorkspaceTab === 'triggers'}
-                />
-                <NavTab
-                  active={activeWorkspaceTab === 'dispatch'}
-                  onClick={() => setActiveWorkspaceTab('dispatch')}
-                  leading={<Cast className="h-4 w-4 shrink-0" aria-hidden />}
-                  label={t('layout.dispatch-tab')}
-                  tooltip={t('layout.dispatch-tab')}
-                  tooltipEnabledWhenCollapsed={!projectSidebarFolded}
-                  folded={projectSidebarFolded}
-                  ariaLabel={t('layout.dispatch-tab')}
-                  ariaCurrentPage={activeWorkspaceTab === 'dispatch'}
                 />
               </div>
             </div>
