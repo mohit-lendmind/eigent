@@ -253,6 +253,7 @@
   "please-select-model": "Por favor, selecciona un modelo en Agentes > Modelos para continuar.",
   "select-model-cta": "Seleccionar un modelo",
   "cdp-browser-connection": "Conexión de navegador CDP",
+  "cdp-desktop-only": "Las conexiones de navegador las gestiona la aplicación de escritorio, que es la dueña de los procesos de Chrome y sus puertos de depuración. Abre Eigent en el escritorio para añadir una.",
   "cdp-browser-connection-description": "Conectar a un navegador Chrome con depuración remota habilitada",
   "current-port": "Puerto actual:",
   "cdp-port-check-description": "Verificar si hay un navegador disponible en un puerto específico",

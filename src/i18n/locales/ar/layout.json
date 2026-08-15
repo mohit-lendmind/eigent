@@ -253,6 +253,7 @@
   "please-select-model": "يرجى اختيار نموذج في الوكلاء > النماذج للمتابعة.",
   "select-model-cta": "اختر نموذجًا",
   "cdp-browser-connection": "اتصال متصفح CDP",
+  "cdp-desktop-only": "يدير تطبيق سطح المكتب اتصالات المتصفح، فهو يملك عمليات Chrome ومنافذ التصحيح الخاصة بها. افتح Eigent على سطح المكتب لإضافة اتصال.",
   "cdp-browser-connection-description": "الاتصال بمتصفح Chrome مع تمكين التصحيح عن بُعد",
   "current-port": "المنفذ الحالي:",
   "cdp-port-check-description": "التحقق مما إذا كان المتصفح متاحاً على منفذ محدد",

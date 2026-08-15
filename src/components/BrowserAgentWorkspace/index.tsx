@@ -12,7 +12,6 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { fetchPut } from '@/api/http';
 import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import type { SelectedProjectTurn } from '@/hooks/useSelectedProjectTurn';
 import { useHost } from '@/host';
@@ -39,7 +38,7 @@ export default function BrowserAgentWorkspace({
   selectedTurn?: SelectedProjectTurn;
 }) {
   //Get Chatstore for the active project's task
-  const { chatStore, projectStore } = useChatStoreAdapter();
+  const { chatStore } = useChatStoreAdapter();
   const host = useHost();
 
   const [isSingleMode, setIsSingleMode] = useState(false);
@@ -131,12 +130,9 @@ export default function BrowserAgentWorkspace({
     }
   }, [host]);
 
+  // Handing the window over is all the desktop can do on its own: the agent
+  // keeps its turn, so the browser is shared rather than taken.
   const handleTakeControl = (id: string) => {
-    console.log('handleTakeControl', id);
-    fetchPut(`/task/${projectStore.activeProjectId}/take-control`, {
-      action: 'pause',
-    });
-
     setIsTakeControl(true);
     setTimeout(() => {
       getSize();
@@ -183,9 +179,6 @@ export default function BrowserAgentWorkspace({
         <div className="rounded-full border border-solid border-ds-border-neutral-strong-default bg-transparent p-1">
           <Button
             onClick={() => {
-              fetchPut(`/task/${projectStore.activeProjectId}/take-control`, {
-                action: 'resume',
-              });
               setIsTakeControl(false);
               host?.electronAPI?.hideAllWebview?.();
             }}

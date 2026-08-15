@@ -253,6 +253,7 @@
   "please-select-model": "続行するには、エージェント > モデルでモデルを選択してください。",
   "select-model-cta": "モデルを選択",
   "cdp-browser-connection": "CDP ブラウザ接続",
+  "cdp-desktop-only": "ブラウザ接続はデスクトップアプリが管理します。Chrome のプロセスとデバッグポートを保持しているためです。追加するにはデスクトップで Eigent を開いてください。",
   "cdp-browser-connection-description": "リモートデバッグが有効な Chrome ブラウザに接続",
   "current-port": "現在のポート：",
   "cdp-port-check-description": "特定のポートでブラウザが利用可能か確認",

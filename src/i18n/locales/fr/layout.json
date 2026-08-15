@@ -253,6 +253,7 @@
   "please-select-model": "Veuillez sélectionner un modèle dans Agents > Modèles pour continuer.",
   "select-model-cta": "Choisir un modèle",
   "cdp-browser-connection": "Connexion navigateur CDP",
+  "cdp-desktop-only": "Les connexions de navigateur sont gérées par l'application de bureau, qui détient les processus Chrome et leurs ports de débogage. Ouvrez Eigent sur votre bureau pour en ajouter une.",
   "cdp-browser-connection-description": "Se connecter à un navigateur Chrome avec le débogage à distance activé",
   "current-port": "Port actuel :",
   "cdp-port-check-description": "Vérifier si un navigateur est disponible sur un port spécifique",

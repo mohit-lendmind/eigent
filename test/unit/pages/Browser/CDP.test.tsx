@@ -16,16 +16,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchDelete, fetchGet, fetchPost } from '@/api/http';
 import { useHost } from '@/host';
 import CDP from '@/pages/Browser/CDP';
 import { toast } from 'sonner';
-
-vi.mock('@/api/http', () => ({
-  fetchDelete: vi.fn(),
-  fetchGet: vi.fn(),
-  fetchPost: vi.fn(),
-}));
 
 vi.mock('@/host', () => ({
   useHost: vi.fn(),
@@ -39,12 +32,17 @@ vi.mock('sonner', () => ({
   },
 }));
 
+vi.mock('react-router-dom', () => ({
+  useSearchParams: () => [new URLSearchParams(), vi.fn()],
+}));
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string | number>) => {
       const translations: Record<string, string> = {
         'layout.cdp-browser-connection': 'CDP Browser Connection',
         'layout.cdp-browser-pool': 'CDP Browser Pool',
+        'layout.cdp-desktop-only': 'Open Eigent on your desktop to add one.',
         'layout.open-new-browser': 'Open Blank Browser',
         'layout.connect-existing-browser': 'Connect Existing Browser',
         'layout.no-browsers-in-pool': 'No browsers in pool',
@@ -69,47 +67,32 @@ vi.mock('@/components/ui/alertDialog', () => ({
 }));
 
 describe('CDP Browser Page', () => {
-  const mockFetchDelete = vi.mocked(fetchDelete);
-  const mockFetchGet = vi.mocked(fetchGet);
-  const mockFetchPost = vi.mocked(fetchPost);
   const mockUseHost = vi.mocked(useHost);
   const mockToast = vi.mocked(toast);
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseHost.mockReturnValue(null);
-    mockFetchDelete.mockResolvedValue({ success: true });
-    mockFetchGet.mockResolvedValue([]);
-    mockFetchPost.mockResolvedValue({
-      success: true,
-      port: 9222,
-      browser: {
-        id: 'web-cdp-9222',
-        port: 9222,
-        isExternal: false,
-        name: 'Managed Browser (9222)',
-        addedAt: 123,
-      },
-    });
   });
 
-  it('launches a browser through the backend in web mode', async () => {
-    render(<CDP />);
+  it('launches a browser through the main process', async () => {
+    const launchCdpBrowser = vi
+      .fn()
+      .mockResolvedValue({ success: true, port: 9222 });
+    mockUseHost.mockReturnValue({
+      electronAPI: {
+        getCdpBrowsers: vi.fn().mockResolvedValue([]),
+        launchCdpBrowser,
+      },
+    } as any);
 
-    await waitFor(() => {
-      expect(mockFetchGet).toHaveBeenCalledWith('/browser/cdp/list');
-    });
+    render(<CDP />);
 
     await userEvent.click(
       screen.getByRole('button', { name: /open blank browser/i })
     );
 
     await waitFor(() => {
-      expect(mockFetchPost).toHaveBeenCalledWith('/browser/cdp/launch');
-    });
-
-    await waitFor(() => {
-      expect(mockFetchGet).toHaveBeenCalledTimes(2);
+      expect(launchCdpBrowser).toHaveBeenCalledTimes(1);
     });
 
     expect(mockToast.loading).toHaveBeenCalledWith(
@@ -120,5 +103,22 @@ describe('CDP Browser Page', () => {
       'Browser launched on port 9222',
       { id: 'launch-browser' }
     );
+  });
+
+  // The Chrome processes and their debugging ports are held by the main
+  // process. A browser tab has nothing to hold them, so the pool controls
+  // must not be offered there at all.
+  it('offers no pool controls when the main process is absent', () => {
+    mockUseHost.mockReturnValue(null);
+
+    render(<CDP />);
+
+    expect(screen.getByTestId('cdp-desktop-only')).toBeTruthy();
+    expect(
+      screen.queryByRole('button', { name: /open blank browser/i })
+    ).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: /connect existing browser/i })
+    ).toBeNull();
   });
 });

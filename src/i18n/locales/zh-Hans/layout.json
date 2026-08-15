@@ -253,6 +253,7 @@
   "please-select-model": "请在智能体 > 模型中选择一个模型以继续。",
   "select-model-cta": "选择模型",
   "cdp-browser-connection": "CDP 浏览器连接",
+  "cdp-desktop-only": "浏览器连接由桌面应用管理，它持有 Chrome 进程及其调试端口。请在桌面端打开 Eigent 以添加连接。",
   "cdp-browser-connection-description": "连接到启用了远程调试的 Chrome 浏览器",
   "current-port": "当前端口：",
   "cdp-port-check-description": "检查指定端口上是否有可用的浏览器",

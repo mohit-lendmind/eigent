@@ -253,6 +253,7 @@
   "please-select-model": "Bitte wählen Sie ein Modell unter Agenten > Modelle aus, um fortzufahren.",
   "select-model-cta": "Modell auswählen",
   "cdp-browser-connection": "CDP-Browser-Verbindung",
+  "cdp-desktop-only": "Browserverbindungen verwaltet die Desktop-App, die die Chrome-Prozesse und ihre Debugging-Ports besitzt. Öffne Eigent auf dem Desktop, um eine hinzuzufügen.",
   "cdp-browser-connection-description": "Verbindung zu einem Chrome-Browser mit aktiviertem Remote-Debugging herstellen",
   "current-port": "Aktueller Port:",
   "cdp-port-check-description": "Prüfen, ob ein Browser auf einem bestimmten Port verfügbar ist",

@@ -253,6 +253,7 @@
   "please-select-model": "Seleziona un modello in Agenti > Modelli per continuare.",
   "select-model-cta": "Seleziona un modello",
   "cdp-browser-connection": "Connessione browser CDP",
+  "cdp-desktop-only": "Le connessioni del browser sono gestite dall'app desktop, che possiede i processi Chrome e le loro porte di debug. Apri Eigent sul desktop per aggiungerne una.",
   "cdp-browser-connection-description": "Connetti a un browser Chrome con il debug remoto abilitato",
   "current-port": "Porta attuale:",
   "cdp-port-check-description": "Verifica se un browser è disponibile su una porta specifica",

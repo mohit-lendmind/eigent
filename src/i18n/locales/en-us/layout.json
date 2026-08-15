@@ -260,6 +260,7 @@
   "please-select-model": "Please select a model in Agents > Models to continue.",
   "select-model-cta": "Select a model",
   "cdp-browser-connection": "CDP Browser Connection",
+  "cdp-desktop-only": "Browser connections are managed by the desktop app, which owns the Chrome processes and their debugging ports. Open Eigent on your desktop to add one.",
   "cdp-browser-connection-description": "Connect to a Chrome browser with remote debugging enabled",
   "current-port": "Current Electron Port:",
   "cdp-port-check-description": "Check if a browser is available on a specific port",

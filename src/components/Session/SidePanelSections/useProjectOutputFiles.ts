@@ -12,7 +12,6 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { fetchGet, getBaseURL } from '@/api/http';
 import { useHost } from '@/host';
 import { filterVisibleAgentFiles } from '@/lib/agentFileFilters';
 import { useAuthStore } from '@/store/authStore';
@@ -35,22 +34,6 @@ function isTaskLive(task: SidePanelTask | undefined): boolean {
   return (task.taskAssigning ?? []).some(
     (agent) => agent.status === 'running' || agent.status === 'pending'
   );
-}
-
-function normalizeRemoteFiles(items: any[], baseURL: string): FileInfo[] {
-  return items.map((item: any) => {
-    const filename = item.filename || '';
-    const url = item.url?.startsWith('http')
-      ? item.url
-      : `${baseURL}${item.url || ''}`;
-    return {
-      name: filename,
-      type: filename.split('.').pop() || '',
-      path: url,
-      relativePath: item.relativePath || filename,
-      isRemote: true,
-    };
-  });
 }
 
 export function useProjectOutputFiles(
@@ -91,31 +74,6 @@ export function useProjectOutputFiles(
         } catch (error) {
           console.warn(
             '[SidePanel] Failed to fetch local project files:',
-            error
-          );
-        }
-      }
-
-      if (
-        !nextFiles.length ||
-        !ipcRenderer?.invoke ||
-        import.meta.env.VITE_USE_LOCAL_PROXY === 'true'
-      ) {
-        try {
-          const baseURL = await getBaseURL();
-          if (baseURL) {
-            const listRes = await fetchGet('/files', {
-              project_id: projectId,
-              email,
-              ...(userId != null ? { user_id: String(userId) } : {}),
-            });
-            if (Array.isArray(listRes)) {
-              nextFiles = normalizeRemoteFiles(listRes, baseURL);
-            }
-          }
-        } catch (error) {
-          console.warn(
-            '[SidePanel] Failed to fetch remote project files:',
             error
           );
         }

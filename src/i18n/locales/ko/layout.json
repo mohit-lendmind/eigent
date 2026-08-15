@@ -253,6 +253,7 @@
   "please-select-model": "계속하려면 에이전트 > 모델에서 모델을 선택하세요.",
   "select-model-cta": "모델 선택",
   "cdp-browser-connection": "CDP 브라우저 연결",
+  "cdp-desktop-only": "브라우저 연결은 Chrome 프로세스와 디버깅 포트를 보유한 데스크톱 앱에서 관리합니다. 추가하려면 데스크톱에서 Eigent를 여세요.",
   "cdp-browser-connection-description": "원격 디버깅이 활성화된 Chrome 브라우저에 연결",
   "current-port": "현재 포트:",
   "cdp-port-check-description": "특정 포트에서 브라우저를 사용할 수 있는지 확인",
