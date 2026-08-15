@@ -22,23 +22,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TooltipSimple } from '@/components/ui/tooltip';
-import { useHost } from '@/host';
-import {
-  createSpaceFromFolderPicker,
-  getFolderSpaceErrorMessage,
-} from '@/lib/createSpaceFromFolder';
-import { ensureScratchSpaceWorkspaceBinding } from '@/lib/scratchSpaceWorkspace';
 import { getDefaultNewSpaceName } from '@/lib/spaceLabel';
-import { useAuthStore } from '@/store/authStore';
 import { usePageTabStore } from '@/store/pageTabStore';
 import { useProjectRuntimeStore } from '@/store/projectRuntimeStore';
 import { useSpaceStore } from '@/store/spaceStore';
 import {
   ArrowUpDown,
-  ChevronDown,
   Columns2,
   Filter,
-  FolderOpen,
   LayoutGrid,
   List,
   PlusCircle,
@@ -79,12 +70,8 @@ export default function HomeHubToolbar({
 }: HomeHubToolbarProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const host = useHost();
-  const email = useAuthStore((s) => s.email);
-  const userId = useAuthStore((s) => s.user_id);
   const projectStore = useProjectRuntimeStore();
-  const activeSpaceId = useSpaceStore((s) => s.activeSpaceId);
-  const createSpaceOnServer = useSpaceStore((s) => s.createSpaceOnServer);
+  const createSpace = useSpaceStore((s) => s.createSpace);
   const setActiveSpace = useSpaceStore((s) => s.setActiveSpace);
   const setActiveWorkspaceTab = usePageTabStore((s) => s.setActiveWorkspaceTab);
   const requestWorkspaceChatFocus = usePageTabStore(
@@ -128,9 +115,9 @@ export default function HomeHubToolbar({
     navigate('/');
   }, [navigate, requestWorkspaceChatFocus, setActiveWorkspaceTab]);
 
-  const handleCreateBlankSpace = useCallback(async () => {
+  const handleCreateBlankSpace = useCallback(() => {
     try {
-      const spaceId = await createSpaceOnServer({
+      const spaceId = createSpace({
         name: getDefaultNewSpaceName(t),
         sourceType: 'blank',
         setActive: false,
@@ -138,11 +125,6 @@ export default function HomeHubToolbar({
           createdFrom: 'home_hub_toolbar',
           autoCreatedPlaceholder: true,
         },
-      });
-      await ensureScratchSpaceWorkspaceBinding({
-        email,
-        userId,
-        space: useSpaceStore.getState().getSpaceById(spaceId),
       });
       setActiveSpace(spaceId);
       projectStore.setActiveProject(null);
@@ -153,35 +135,7 @@ export default function HomeHubToolbar({
         closeButton: true,
       });
     }
-  }, [
-    createSpaceOnServer,
-    email,
-    goToWorkspace,
-    projectStore,
-    setActiveSpace,
-    t,
-    userId,
-  ]);
-
-  const handleCreateSpaceFromFolder = useCallback(async () => {
-    try {
-      const spaceId = await createSpaceFromFolderPicker({
-        host,
-        email,
-        userId,
-        activeSpaceId,
-        projectStore,
-        createdFrom: 'home_hub_toolbar',
-      });
-      if (!spaceId) return;
-      goToWorkspace();
-    } catch (error) {
-      console.warn('[HomeHubToolbar] Failed to create folder Space:', error);
-      toast.error(getFolderSpaceErrorMessage(error, t), {
-        closeButton: true,
-      });
-    }
-  }, [activeSpaceId, email, goToWorkspace, host, projectStore, t, userId]);
+  }, [createSpace, goToWorkspace, projectStore, setActiveSpace, t]);
 
   const toolbarRef = useRef<HTMLDivElement>(null);
 
@@ -309,42 +263,17 @@ export default function HomeHubToolbar({
           </TabsList>
         </Tabs>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              buttonContent="text"
-              buttonRadius="full"
-            >
-              {t('layout.spaces-new-space')}
-              <ChevronDown className="h-4 w-4" aria-hidden />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44 p-1">
-            <DropdownMenuItem
-              className="cursor-pointer gap-2"
-              onSelect={(event) => {
-                event.preventDefault();
-                void handleCreateBlankSpace();
-              }}
-            >
-              <PlusCircle className="h-4 w-4 shrink-0" aria-hidden />
-              {t('layout.workspace-start-from-scratch')}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="cursor-pointer gap-2"
-              onSelect={(event) => {
-                event.preventDefault();
-                void handleCreateSpaceFromFolder();
-              }}
-            >
-              <FolderOpen className="h-4 w-4 shrink-0" aria-hidden />
-              {t('layout.workspace-use-local-folder')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Button
+          type="button"
+          variant="primary"
+          size="sm"
+          buttonContent="text"
+          buttonRadius="full"
+          onClick={handleCreateBlankSpace}
+        >
+          <PlusCircle className="h-4 w-4 shrink-0" aria-hidden />
+          {t('layout.spaces-new-space')}
+        </Button>
       </div>
     </div>
   );

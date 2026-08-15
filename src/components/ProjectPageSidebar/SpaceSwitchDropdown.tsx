@@ -17,9 +17,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -31,16 +28,10 @@ import type { Space } from '@/store/spaceStore';
 import type { TFunction } from 'i18next';
 import {
   Check,
-  CheckCircle2,
-  FolderOpen,
   Loader2,
   Pencil,
   Plus,
-  PlusCircle,
-  RefreshCw,
   Search,
-  Trash2,
-  TriangleAlert,
 } from 'lucide-react';
 import type {
   ComponentPropsWithoutRef,
@@ -66,22 +57,7 @@ const SPACE_LIST_ITEM_HEIGHT_CLASS = 'h-8';
 const SPACE_LIST_MAX_HEIGHT_CLASS = 'max-h-40';
 
 export interface SpaceSwitchDropdownCreateSpaceMenu {
-  onStartFromScratch: () => void | Promise<void>;
-  onSelectFolder: () => void | Promise<void>;
-}
-
-export interface SpaceSwitchDropdownPendingChangesMenu {
-  loading: boolean;
-  loadFailed: boolean;
-  overlayCount: number;
-  action: 'apply' | 'discard' | 'refresh' | null;
-  applyProgress: { current: number; total: number } | null;
-  applyDisabled: boolean;
-  discardDisabled: boolean;
-  refreshDisabled: boolean;
-  onApply: () => void | Promise<void>;
-  onDiscard: () => void;
-  onRefresh: () => void | Promise<void>;
+  onCreateSpace: () => void | Promise<void>;
 }
 
 export interface SpaceSwitchDropdownProps {
@@ -100,7 +76,6 @@ export interface SpaceSwitchDropdownProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   triggerWrapperClassName?: string;
-  pendingChangesMenu?: SpaceSwitchDropdownPendingChangesMenu;
   /** Tooltip for the trigger (e.g. active space name when the sidebar is folded). */
   triggerTooltip?: ReactNode;
   triggerTooltipEnabled?: boolean;
@@ -126,7 +101,6 @@ export function SpaceSwitchDropdown({
   open: controlledOpen,
   onOpenChange,
   triggerWrapperClassName = 'min-w-0 flex-1 overflow-hidden rounded-full',
-  pendingChangesMenu,
   triggerTooltip,
   triggerTooltipEnabled = true,
 }: SpaceSwitchDropdownProps) {
@@ -313,119 +287,21 @@ export function SpaceSwitchDropdown({
         <DropdownMenuSeparator className="my-0 bg-ds-border-neutral-default-default" />
 
         <div className={cn('mb-1 px-1 pt-1')}>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="gap-2 text-ds-text-brand-default-default">
-              <Plus
-                className="h-4 w-4 shrink-0 text-ds-text-brand-default-default"
-                aria-hidden
-              />
-              {t('layout.spaces-create-new-space')}
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent
-              className="w-52 p-1"
-              sideOffset={6}
-              alignOffset={-4}
-            >
-              <DropdownMenuItem
-                className="cursor-pointer gap-2"
-                onSelect={(event) => {
-                  event.preventDefault();
-                  navigateToWorkspaceTab();
-                  void createSpaceMenu.onStartFromScratch();
-                  setOpen(false);
-                }}
-              >
-                <PlusCircle className="h-4 w-4 shrink-0" aria-hidden />
-                {t('layout.workspace-start-from-scratch')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="cursor-pointer gap-2"
-                onSelect={(event) => {
-                  event.preventDefault();
-                  navigateToWorkspaceTab();
-                  void createSpaceMenu.onSelectFolder();
-                  setOpen(false);
-                }}
-              >
-                <FolderOpen className="h-4 w-4 shrink-0" aria-hidden />
-                {t('layout.workspace-use-local-folder')}
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-
-          {pendingChangesMenu ? (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger className="gap-2">
-                {pendingChangesMenu.loading ? (
-                  <Loader2
-                    className="h-4 w-4 shrink-0 animate-spin"
-                    aria-hidden
-                  />
-                ) : pendingChangesMenu.loadFailed ? (
-                  <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
-                )}
-                {t('layout.workspace-pending-changes')}
-                {pendingChangesMenu.overlayCount > 0
-                  ? ` (${pendingChangesMenu.overlayCount})`
-                  : ''}
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent
-                className="w-52 p-1"
-                sideOffset={6}
-                alignOffset={-4}
-              >
-                {pendingChangesMenu.loadFailed ? (
-                  <div className="flex items-start gap-2 px-2 py-2 text-body-sm text-ds-text-neutral-muted-default">
-                    <TriangleAlert
-                      className="mt-0.5 h-4 w-4 shrink-0 text-ds-icon-warning-default-default"
-                      aria-hidden
-                    />
-                    <span>{t('layout.workspace-pending-load-stale')}</span>
-                  </div>
-                ) : null}
-                <DropdownMenuItem
-                  className="cursor-pointer gap-2"
-                  disabled={pendingChangesMenu.applyDisabled}
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    void pendingChangesMenu.onApply();
-                  }}
-                >
-                  <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
-                  {pendingChangesMenu.applyProgress
-                    ? t('layout.workspace-apply-progress', {
-                        current: pendingChangesMenu.applyProgress.current,
-                        total: pendingChangesMenu.applyProgress.total,
-                      })
-                    : t('layout.workspace-apply-pending-changes')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="cursor-pointer gap-2"
-                  disabled={pendingChangesMenu.discardDisabled}
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    pendingChangesMenu.onDiscard();
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
-                  {t('layout.workspace-discard-pending-changes')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="cursor-pointer gap-2"
-                  disabled={pendingChangesMenu.refreshDisabled}
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    void pendingChangesMenu.onRefresh();
-                  }}
-                >
-                  <RefreshCw className="h-4 w-4 shrink-0" aria-hidden />
-                  {t('layout.workspace-refresh-workdir')}
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          ) : null}
+          <DropdownMenuItem
+            className="cursor-pointer gap-2 text-ds-text-brand-default-default"
+            onSelect={(event) => {
+              event.preventDefault();
+              navigateToWorkspaceTab();
+              void createSpaceMenu.onCreateSpace();
+              setOpen(false);
+            }}
+          >
+            <Plus
+              className="h-4 w-4 shrink-0 text-ds-text-brand-default-default"
+              aria-hidden
+            />
+            {t('layout.spaces-create-new-space')}
+          </DropdownMenuItem>
 
           <DropdownMenuItem
             className="cursor-pointer"

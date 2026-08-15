@@ -12,15 +12,9 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import type { ServerProject } from '@/service/spaceApi';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getSessionPreviewSlice, usePageTabStore } from './pageTabStore';
-import {
-  SPACE_SCHEMA_VERSION,
-  type Space,
-  type SpaceSourceType,
-  useSpaceStore,
-} from './spaceStore';
+import { SPACE_SCHEMA_VERSION, useSpaceStore } from './spaceStore';
 
 const authStoreMock = vi.hoisted(() => ({
   state: {
@@ -33,67 +27,9 @@ vi.mock('@/store/authStore', () => ({
   getAuthStore: () => authStoreMock.state,
 }));
 
-vi.mock('@/api/http', () => ({
-  proxyFetchGet: vi.fn().mockResolvedValue({ projects: [] }),
-}));
-
-vi.mock('@/service/spaceApi', () => ({
-  proxyCreateSpace: vi.fn(),
-  proxyEnsureLegacySpace: vi.fn(),
-  proxyFetchSpaceProjects: vi.fn(),
-  proxyFetchSpaces: vi.fn(),
-}));
-
-vi.mock('@/service/workspaceApi', () => ({
-  reconcileWorkspaceBindings: vi.fn().mockResolvedValue(undefined),
-}));
-
-const makeSpace = (
-  id: string,
-  name: string,
-  sourceType: SpaceSourceType,
-  userId = '2',
-  metadata?: Space['metadata']
-): Space => ({
-  id,
-  name,
-  userId,
-  sourceType,
-  rootPath: null,
-  rootFingerprint: null,
-  status: 'active',
-  schemaVersion: SPACE_SCHEMA_VERSION,
-  createdAt: 1,
-  updatedAt: 1,
-  metadata,
-});
-
-const makeServerProject = (
-  id: string,
-  spaceId: string,
-  status: ServerProject['status'] = 'active'
-): ServerProject => ({
-  id,
-  user_id: '2',
-  space_id: spaceId,
-  name: `Project ${id}`,
-  status,
-  created_at: '2026-01-01T00:00:00.000Z',
-  updated_at: '2026-01-01T00:00:00.000Z',
-});
-
 describe('spaceStore user scoping', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    const spaceApi = await import('@/service/spaceApi');
-    vi.mocked(spaceApi.proxyFetchSpaces).mockResolvedValue([]);
-    vi.mocked(spaceApi.proxyFetchSpaceProjects).mockResolvedValue([]);
-    vi.mocked(spaceApi.proxyCreateSpace).mockResolvedValue(
-      makeSpace('space_created', 'Untitled Space', 'blank')
-    );
-    vi.mocked(spaceApi.proxyEnsureLegacySpace).mockResolvedValue(
-      makeSpace('legacy_2', 'Legacy Space', 'legacy', '2', { legacy: true })
-    );
     authStoreMock.state = {
       email: 'new@example.com',
       user_id: 2,
@@ -173,11 +109,6 @@ describe('spaceStore user scoping', () => {
         project_old: 'space_old_blank',
         project_new: 'space_new_blank',
       },
-      projectsSyncedAt: {
-        space_old_blank: 100,
-        legacy_1: 100,
-        space_new_blank: 200,
-      },
     });
   });
 
@@ -213,87 +144,5 @@ describe('spaceStore user scoping', () => {
     expect(state.lastVisitedProjectBySpace).toEqual({
       space_new_blank: 'project_new',
     });
-    expect(state.projectsSyncedAt).toEqual({ space_new_blank: 200 });
-  });
-
-  it('hydrates new accounts with one blank space and hides empty legacy rows', async () => {
-    const spaceApi = await import('@/service/spaceApi');
-    vi.mocked(spaceApi.proxyFetchSpaces).mockResolvedValue([
-      makeSpace('legacy_2', 'Legacy Space', 'legacy', '2', { legacy: true }),
-    ]);
-    vi.mocked(spaceApi.proxyCreateSpace).mockResolvedValue(
-      makeSpace('space_new_blank', 'Untitled Space', 'blank')
-    );
-
-    await useSpaceStore.getState().hydrateFromServer(2);
-
-    const state = useSpaceStore.getState();
-    expect(spaceApi.proxyFetchSpaceProjects).toHaveBeenCalledWith('legacy_2');
-    expect(spaceApi.proxyCreateSpace).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'Untitled Space',
-        source_type: 'blank',
-      })
-    );
-    expect(Object.keys(state.spaces)).toEqual(['space_new_blank']);
-    expect(state.activeSpaceId).toBe('space_new_blank');
-  });
-
-  it('keeps the previously selected active space when hydrating existing spaces', async () => {
-    const spaceApi = await import('@/service/spaceApi');
-    vi.mocked(spaceApi.proxyFetchSpaces).mockResolvedValue([
-      makeSpace('space_recent', 'Recent Space', 'blank', '2'),
-      makeSpace('space_selected', 'Selected Space', 'blank', '2'),
-    ]);
-    useSpaceStore.setState({
-      activeSpaceId: 'space_selected',
-      projectsSyncedAt: {
-        space_selected: Date.now(),
-      },
-    });
-
-    await useSpaceStore.getState().hydrateFromServer(2);
-
-    const state = useSpaceStore.getState();
-    expect(spaceApi.proxyCreateSpace).not.toHaveBeenCalled();
-    expect(Object.keys(state.spaces).sort()).toEqual([
-      'space_recent',
-      'space_selected',
-    ]);
-    expect(state.activeSpaceId).toBe('space_selected');
-  });
-
-  it('creates a blank space for legacy migrations and selects it on first hydrate', async () => {
-    const spaceApi = await import('@/service/spaceApi');
-    vi.mocked(spaceApi.proxyFetchSpaces).mockResolvedValue([
-      makeSpace('legacy_2', 'Legacy Space', 'legacy', '2', { legacy: true }),
-    ]);
-    vi.mocked(spaceApi.proxyFetchSpaceProjects).mockImplementation(
-      async (spaceId) =>
-        spaceId === 'legacy_2'
-          ? [makeServerProject('project_legacy', 'legacy_2')]
-          : []
-    );
-    vi.mocked(spaceApi.proxyCreateSpace).mockResolvedValue(
-      makeSpace('space_migration_blank', 'Untitled Space', 'blank')
-    );
-    useSpaceStore.setState({
-      activeSpaceId: 'legacy_2',
-    });
-
-    await useSpaceStore.getState().hydrateFromServer(2);
-
-    const state = useSpaceStore.getState();
-    expect(spaceApi.proxyCreateSpace).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'Untitled Space',
-        source_type: 'blank',
-      })
-    );
-    expect(Object.keys(state.spaces).sort()).toEqual([
-      'legacy_2',
-      'space_migration_blank',
-    ]);
-    expect(state.activeSpaceId).toBe('space_migration_blank');
   });
 });

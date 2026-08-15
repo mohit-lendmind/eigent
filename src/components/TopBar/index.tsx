@@ -28,20 +28,14 @@ import { Input } from '@/components/ui/input';
 import { TooltipSimple } from '@/components/ui/tooltip';
 import { useHost } from '@/host';
 import {
-  createSpaceFromFolderPicker,
-  getFolderSpaceErrorMessage,
-} from '@/lib/createSpaceFromFolder';
-import {
   buildTaskQuestionsById,
   computeProjectFreshnessAnchor,
 } from '@/lib/replay';
-import { ensureScratchSpaceWorkspaceBinding } from '@/lib/scratchSpaceWorkspace';
 import { getSessionNavLeadFromHistoryProject } from '@/lib/sessionNavLead';
 import {
   getActiveSpaceTriggerLabel,
   getDefaultNewSpaceName,
 } from '@/lib/spaceLabel';
-import { resolveServerBackedSpaceId } from '@/lib/spaceProject';
 import { useAuthStore } from '@/store/authStore';
 import { useInstallationUI } from '@/store/installationStore';
 import { usePageTabStore } from '@/store/pageTabStore';
@@ -154,9 +148,9 @@ function HeaderWin() {
   const activeSpaceId = useSpaceStore((s) => s.activeSpaceId);
   const spacesById = useSpaceStore((s) => s.spaces);
   const projectsBySpaceId = useSpaceStore((s) => s.projectsBySpaceId);
-  const createSpaceOnServer = useSpaceStore((s) => s.createSpaceOnServer);
+  const createSpace = useSpaceStore((s) => s.createSpace);
   const setActiveSpace = useSpaceStore((s) => s.setActiveSpace);
-  const renameSpaceOnServer = useSpaceStore((s) => s.renameSpaceOnServer);
+  const updateSpace = useSpaceStore((s) => s.updateSpace);
   const setActiveWorkspaceTab = usePageTabStore((s) => s.setActiveWorkspaceTab);
   const requestWorkspaceChatFocus = usePageTabStore(
     (s) => s.requestWorkspaceChatFocus
@@ -166,8 +160,6 @@ function HeaderWin() {
     (s) => s.toggleProjectSidebarFolded
   );
   const appearance = useAuthStore((state) => state.appearance);
-  const email = useAuthStore((s) => s.email);
-  const userId = useAuthStore((s) => s.user_id);
   const { installationState } = useInstallationUI();
   const _isInstallationActive = installationState === 'waiting-backend';
 
@@ -329,9 +321,9 @@ function HeaderWin() {
     [projectStore]
   );
 
-  const handleCreateBlankSpace = useCallback(async () => {
+  const handleCreateBlankSpace = useCallback(() => {
     try {
-      const spaceId = await createSpaceOnServer({
+      const spaceId = createSpace({
         name: getDefaultNewSpaceName(t),
         sourceType: 'blank',
         setActive: false,
@@ -339,11 +331,6 @@ function HeaderWin() {
           createdFrom: 'top_bar',
           autoCreatedPlaceholder: true,
         },
-      });
-      await ensureScratchSpaceWorkspaceBinding({
-        email,
-        userId,
-        space: useSpaceStore.getState().getSpaceById(spaceId),
       });
       setActiveSpace(spaceId);
       projectStore.setActiveProject(null);
@@ -356,68 +343,24 @@ function HeaderWin() {
       });
     }
   }, [
-    createSpaceOnServer,
-    email,
+    createSpace,
     projectStore,
     requestWorkspaceChatFocus,
     setActiveSpace,
     setActiveWorkspaceTab,
     t,
-    userId,
-  ]);
-
-  const handleCreateSpaceFromFolder = useCallback(async () => {
-    try {
-      const spaceId = await createSpaceFromFolderPicker({
-        host,
-        email,
-        userId,
-        activeSpaceId,
-        projectStore,
-        createdFrom: 'top_bar_space_selector',
-      });
-      if (!spaceId) return;
-      setActiveWorkspaceTab('workforce');
-      requestWorkspaceChatFocus();
-    } catch (error) {
-      console.warn('[TopBar] Failed to create folder Space:', error);
-      toast.error(getFolderSpaceErrorMessage(error, t), {
-        closeButton: true,
-      });
-    }
-  }, [
-    activeSpaceId,
-    email,
-    host,
-    projectStore,
-    requestWorkspaceChatFocus,
-    setActiveWorkspaceTab,
-    t,
-    userId,
   ]);
 
   const handleTopBarSpaceSelect = useCallback(
     async (spaceId: string) => {
       setSwitchingSpaceId(spaceId);
       try {
-        const resolvedSpaceId = await resolveServerBackedSpaceId(
-          projectStore,
-          spaceId
-        );
         const spaceStore = useSpaceStore.getState();
-        if (
-          resolvedSpaceId.startsWith('legacy_') ||
-          spaceStore.shouldSyncProjects(resolvedSpaceId)
-        ) {
-          await spaceStore.syncProjectsFromServer(resolvedSpaceId);
-        }
-        const projectsInSpace = useSpaceStore
-          .getState()
-          .getProjectsForSpace(resolvedSpaceId);
-        setActiveSpace(resolvedSpaceId);
+        const projectsInSpace = spaceStore.getProjectsForSpace(spaceId);
+        setActiveSpace(spaceId);
         if (projectsInSpace.length > 0) {
           const lastVisitedProjectId =
-            spaceStore.lastVisitedProjectBySpace[resolvedSpaceId];
+            spaceStore.lastVisitedProjectBySpace[spaceId];
           const targetProject =
             projectsInSpace.find(
               (project) => project.id === lastVisitedProjectId
@@ -459,7 +402,7 @@ function HeaderWin() {
     if (!activeSpaceId || !nextName || renamingSpace) return;
     setRenamingSpace(true);
     try {
-      await renameSpaceOnServer(activeSpaceId, nextName);
+      updateSpace(activeSpaceId, { name: nextName });
       toast.success(t('layout.spaces-rename-success'));
       setRenameSpaceDialogOpen(false);
     } catch (error) {
@@ -468,7 +411,7 @@ function HeaderWin() {
     } finally {
       setRenamingSpace(false);
     }
-  }, [activeSpaceId, renameSpaceOnServer, renameSpaceValue, renamingSpace, t]);
+  }, [activeSpaceId, renameSpaceValue, renamingSpace, t, updateSpace]);
 
   return (
     <div
@@ -607,10 +550,7 @@ function HeaderWin() {
               activeSpaceId={activeSpaceId}
               switchingSpaceId={switchingSpaceId}
               canRenameActiveSpace={canRenameActiveSpace}
-              createSpaceMenu={{
-                onStartFromScratch: handleCreateBlankSpace,
-                onSelectFolder: handleCreateSpaceFromFolder,
-              }}
+              createSpaceMenu={{ onCreateSpace: handleCreateBlankSpace }}
               onRenameSpace={openRenameSpaceDialog}
               onSpaceSelect={handleTopBarSpaceSelect}
               contentAlign="start"

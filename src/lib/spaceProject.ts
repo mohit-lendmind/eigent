@@ -14,11 +14,6 @@
 
 import { generateUniqueId } from '@/lib';
 import { isLegacySpace } from '@/lib/spaceLabel';
-import { getAionRemoteConfig } from '@/store/aionChatBridge';
-import {
-  proxyCreateSpaceProject,
-  proxyEnsureLegacySpace,
-} from '@/service/spaceApi';
 import type {
   ProjectMode,
   ProjectRuntimeStore,
@@ -55,35 +50,6 @@ interface CreateSyncedProjectInSpaceResult {
   spaceId: string;
 }
 
-export const resolveServerBackedSpaceId = async (
-  projectStore: ProjectRuntimeStore,
-  spaceId: string
-): Promise<string> => {
-  if (!spaceId.startsWith('legacy_')) {
-    return spaceId;
-  }
-
-  const legacySpace = await proxyEnsureLegacySpace();
-  const spaceStore = useSpaceStore.getState();
-  spaceStore.upsertSpaces([legacySpace], legacySpace.id);
-
-  Object.values(projectStore.projects).forEach((project) => {
-    if (
-      !project.spaceId ||
-      project.spaceId === spaceId ||
-      project.spaceId.startsWith('legacy_')
-    ) {
-      projectStore.setProjectSpace(project.id, legacySpace.id);
-    }
-  });
-
-  if (spaceId !== legacySpace.id) {
-    spaceStore.deleteSpace(spaceId);
-  }
-
-  return legacySpace.id;
-};
-
 export const createSyncedProjectInSpace = async ({
   projectStore,
   spaceId,
@@ -94,9 +60,8 @@ export const createSyncedProjectInSpace = async ({
   metadata,
   setActive = true,
 }: CreateSyncedProjectInSpaceInput): Promise<CreateSyncedProjectInSpaceResult> => {
-  // Reject legacy Spaces before `resolveServerBackedSpaceId` runs any of its
-  // ensure/remap side effects. A bare `legacy_` id is always legacy; otherwise
-  // consult the loaded Space metadata.
+  // A bare `legacy_` id is always legacy; otherwise consult the loaded Space
+  // metadata.
   const requestedSpace = useSpaceStore.getState().getSpaceById(spaceId);
   if (
     spaceId.startsWith('legacy_') ||
@@ -105,64 +70,21 @@ export const createSyncedProjectInSpace = async ({
     throw new LegacySpaceProjectError();
   }
 
-  // Remote-backend mode: the Project record stays local — conversation truth
-  // lives in the aion Project the chat bridge creates, and durable listing
-  // arrives with the M6 history train's aion-side persistence.
-  const remote = await getAionRemoteConfig();
-  if (remote && !('error' in remote)) {
-    const localOnlyProjectId = projectStore.createProject(
-      name,
-      description,
-      generateUniqueId(),
-      undefined,
-      undefined,
-      setActive,
-      {
-        spaceId,
-        mode,
-        workdirMode,
-        metadata: { ...metadata, serverSynced: false },
-      }
-    );
-    return { projectId: localOnlyProjectId, spaceId };
-  }
-
-  const resolvedSpaceId = await resolveServerBackedSpaceId(
-    projectStore,
-    spaceId
-  );
-  const projectId = generateUniqueId();
-  const projectMetadata = {
-    ...metadata,
-    serverSynced: true,
-  };
-
-  await proxyCreateSpaceProject(resolvedSpaceId, {
-    id: projectId,
+  // Conversation truth lives in the aion Project the chat bridge creates; the
+  // renderer keeps only the local shell that points at it.
+  const projectId = projectStore.createProject(
     name,
     description,
-    mode,
-    workdir_mode: workdirMode,
-    metadata: projectMetadata,
-  });
-
-  const localProjectId = projectStore.createProject(
-    name,
-    description,
-    projectId,
+    generateUniqueId(),
     undefined,
     undefined,
     setActive,
     {
-      spaceId: resolvedSpaceId,
+      spaceId,
       mode,
       workdirMode,
-      metadata: projectMetadata,
+      metadata: { ...metadata, serverSynced: false },
     }
   );
-
-  return {
-    projectId: localProjectId,
-    spaceId: resolvedSpaceId,
-  };
+  return { projectId, spaceId };
 };

@@ -21,14 +21,6 @@ const { hasActiveSSEConnectionMock } = vi.hoisted(() => ({
   hasActiveSSEConnectionMock: vi.fn(),
 }));
 
-vi.mock('@/service/spaceApi', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/service/spaceApi')>();
-  return {
-    ...actual,
-    proxyUpdateSpaceProject: vi.fn().mockResolvedValue({}),
-  };
-});
-
 vi.mock('./chatStore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./chatStore')>();
   return {
@@ -72,7 +64,6 @@ describe('projectStore runtime shape', () => {
       lastVisitedProjectBySpace: {},
       projectsBySpaceId: {},
       projectIdIndex: {},
-      projectsSyncedAt: {},
     });
   });
 

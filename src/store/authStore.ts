@@ -165,7 +165,6 @@ const hydrateSpacesForUser = (userId: number | string | null | undefined) => {
     return;
   }
   useSpaceStore.getState().resetForUser(userId);
-  void useSpaceStore.getState().hydrateFromServer(userId);
 };
 
 const clearAuthForCurrentEnvironment = (

@@ -23,8 +23,6 @@ import {
 import type { SessionNavLeadPresentation } from '@/lib/sessionNavLead';
 import { getSessionNavLeadPresentation } from '@/lib/sessionNavLead';
 import { isPlaceholderProjectName } from '@/lib/spaceLabel';
-import type { ServerProject } from '@/service/spaceApi';
-import { proxyUpdateSpaceProject } from '@/service/spaceApi';
 import {
   ChatTaskStatus,
   TaskStatus,
@@ -38,11 +36,7 @@ import {
   VanillaChatStore,
 } from './chatStore';
 import { usePageTabStore } from './pageTabStore';
-import {
-  projectMetaFromServer,
-  useSpaceStore,
-  type SpaceProjectMeta,
-} from './spaceStore';
+import { useSpaceStore, type SpaceProjectMeta } from './spaceStore';
 
 /**
  * After a history project finishes replaying, the per-subtask `status` may be
@@ -77,12 +71,6 @@ const promoteSubtaskStatus = (
   status && TERMINAL_SUBTASK_STATUSES.has(status)
     ? status
     : TaskStatus.COMPLETED;
-
-const timestampFromServer = (value?: string | null, fallback = Date.now()) => {
-  if (!value) return fallback;
-  const timestamp = new Date(value).getTime();
-  return Number.isFinite(timestamp) ? timestamp : fallback;
-};
 
 const polishCompletedHistoryTask = (
   chatStore: VanillaChatStore,
@@ -354,7 +342,6 @@ interface ProjectStore {
   setActiveProject: (projectId: string | null) => void;
   setActiveSpaceAndProject: (spaceId: string, projectId: string) => void;
   setProjectSpace: (projectId: string, spaceId: string) => void;
-  upsertProjectsFromServer: (serverProjects: ServerProject[]) => void;
   cleanupAutoCreatedEmptyProjects: () => void;
   removeProject: (projectId: string) => void;
   updateProject: (
@@ -745,77 +732,6 @@ const projectStore = create<ProjectStore>()((set, get) => ({
     if (updatedProject) {
       upsertSpaceProjectMetaFromProject(updatedProject);
     }
-  },
-
-  upsertProjectsFromServer: (serverProjects) => {
-    if (serverProjects.length === 0) return;
-    useSpaceStore
-      .getState()
-      .upsertProjectMetas(serverProjects.map(projectMetaFromServer));
-
-    set((state) => {
-      const nextProjects = { ...state.projects };
-
-      for (const serverProject of serverProjects) {
-        const existing = nextProjects[serverProject.id];
-        const createdAt = timestampFromServer(serverProject.created_at);
-        const updatedAt = timestampFromServer(
-          serverProject.updated_at,
-          existing?.updatedAt ?? Date.now()
-        );
-        const serverMetadata = (serverProject.metadata ??
-          {}) as Partial<ProjectMetadata>;
-
-        if (existing) {
-          const shouldKeepExistingName =
-            isPlaceholderProjectName(serverProject.name, serverProject.id) &&
-            !isPlaceholderProjectName(existing.name, existing.id);
-          nextProjects[serverProject.id] = {
-            ...existing,
-            name: shouldKeepExistingName
-              ? existing.name
-              : serverProject.name || existing.name,
-            description: serverProject.description ?? existing.description,
-            spaceId: serverProject.space_id,
-            mode: serverProject.mode ?? existing.mode ?? null,
-            workdirMode:
-              serverProject.workdir_mode ?? existing.workdirMode ?? null,
-            metadata: {
-              ...existing.metadata,
-              ...serverMetadata,
-              status: serverProject.status,
-              serverSynced: true,
-            },
-            updatedAt,
-          };
-          continue;
-        }
-
-        nextProjects[serverProject.id] = {
-          id: serverProject.id,
-          spaceId: serverProject.space_id,
-          name: serverProject.name || 'Project',
-          description: serverProject.description ?? undefined,
-          createdAt,
-          updatedAt,
-          mode: serverProject.mode ?? null,
-          workdirMode: serverProject.workdir_mode ?? null,
-          chatStores: {},
-          chatStoreTimestamps: {},
-          activeChatId: null,
-          queuedMessages: [],
-          metadata: {
-            ...serverMetadata,
-            status: serverProject.status,
-            serverSynced: true,
-          },
-        };
-      }
-
-      return {
-        projects: nextProjects,
-      };
-    });
   },
 
   cleanupAutoCreatedEmptyProjects: () => {
@@ -2172,22 +2088,6 @@ const projectStore = create<ProjectStore>()((set, get) => ({
     const updatedProject = get().projects[projectId];
     if (updatedProject) {
       upsertSpaceProjectMetaFromProject(updatedProject);
-    }
-
-    // Server metadata is shallow-merged, so persisting only the pin keeps the
-    // selection across restarts and space re-syncs (best-effort).
-    const spaceId =
-      updatedProject?.spaceId ??
-      useSpaceStore.getState().getProjectMeta(projectId)?.spaceId;
-    if (spaceId) {
-      void proxyUpdateSpaceProject(spaceId, projectId, {
-        metadata: { modelSelection },
-      }).catch((error) => {
-        console.warn(
-          `Failed to persist model selection for project ${projectId}:`,
-          error
-        );
-      });
     }
   },
 

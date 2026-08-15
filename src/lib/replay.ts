@@ -21,14 +21,8 @@ export { buildTaskQuestionsById } from './historyPrompts';
 const activateHistorySpace = async (spaceId?: string | null) => {
   if (!spaceId) return;
   const spaceStore = useSpaceStore.getState();
-  if (!spaceStore.getSpaceById(spaceId)) {
-    await spaceStore.hydrateFromServer();
-  }
-  if (!useSpaceStore.getState().getSpaceById(spaceId)) return;
-  useSpaceStore.getState().setActiveSpace(spaceId);
-  if (useSpaceStore.getState().shouldSyncProjects(spaceId)) {
-    void useSpaceStore.getState().syncProjectsFromServer(spaceId);
-  }
+  if (!spaceStore.getSpaceById(spaceId)) return;
+  spaceStore.setActiveSpace(spaceId);
 };
 
 /**

@@ -31,7 +31,6 @@ import {
   buildTaskQuestionsById,
   computeProjectFreshnessAnchor,
 } from '@/lib/replay';
-import { ensureScratchSpaceWorkspaceBinding } from '@/lib/scratchSpaceWorkspace';
 import {
   getSessionNavLeadFromHistoryProject,
   resolveProjectNavLeadPresentation,
@@ -138,7 +137,6 @@ export default function ProjectPageSidebar({
   }, [scheduledTabLabel, t, triggersListenerConnected, wsConnectionStatus]);
 
   const email = useAuthStore((s) => s.email);
-  const userId = useAuthStore((s) => s.user_id);
   const host = useHost();
   const ipcRenderer = host?.ipcRenderer;
 
@@ -159,28 +157,6 @@ export default function ProjectPageSidebar({
     () => getContextTabBindingLabel(activeSpace, t),
     [activeSpace, t]
   );
-
-  useEffect(() => {
-    if (
-      !activeSpace ||
-      activeSpace.sourceType !== 'blank' ||
-      activeSpace.rootPath
-    ) {
-      return;
-    }
-    void ensureScratchSpaceWorkspaceBinding({
-      email,
-      userId,
-      space: activeSpace,
-    });
-  }, [
-    activeSpace,
-    activeSpace?.id,
-    activeSpace?.rootPath,
-    activeSpace?.sourceType,
-    email,
-    userId,
-  ]);
 
   const projectHasStarted = useCallback(
     (projectId: string) => {
@@ -503,8 +479,6 @@ export default function ProjectPageSidebar({
 
     setDeleteProjectLoading(true);
     try {
-      const projectMeta = useSpaceStore.getState().getProjectMeta(projectId);
-      const spaceId = projectMeta?.spaceId ?? activeSpaceId ?? undefined;
       const wasActive = projectStore.activeProjectId === projectId;
 
       let historyProject: {
@@ -570,21 +544,6 @@ export default function ProjectPageSidebar({
         /* Backend may already have removed the chat */
       }
 
-      if (spaceId) {
-        try {
-          const { proxyUpdateSpaceProject } =
-            await import('@/service/spaceApi');
-          await proxyUpdateSpaceProject(spaceId, projectId, {
-            status: 'archived',
-          });
-        } catch (error) {
-          console.warn(
-            `[ProjectPageSidebar] Failed to archive server project ${projectId}:`,
-            error
-          );
-        }
-      }
-
       projectStore.removeProject(projectId);
 
       if (wasActive) {
@@ -601,7 +560,6 @@ export default function ProjectPageSidebar({
       setDeleteProjectId(null);
     }
   }, [
-    activeSpaceId,
     deleteProjectId,
     email,
     ipcRenderer,

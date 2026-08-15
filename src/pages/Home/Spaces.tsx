@@ -20,7 +20,7 @@ import {
   type Space,
 } from '@/store/spaceStore';
 import { FolderKanban } from 'lucide-react';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import AionSpaces from './AionSpaces';
 import HomeHubBoard from './components/HomeHubBoard';
@@ -97,25 +97,6 @@ function LegacySpaces() {
         })),
     [activeSpaceId, projectsBySpaceId, spacesById]
   );
-
-  const spaceIdsKey = useMemo(
-    () => spaceSections.map(({ space }) => space.id).join('|'),
-    [spaceSections]
-  );
-
-  useEffect(() => {
-    const spaceIds = spaceIdsKey.split('|').filter(Boolean);
-    if (spaceIds.length === 0) return;
-
-    const store = useSpaceStore.getState();
-    for (const spaceId of spaceIds) {
-      const space = store.getSpaceById(spaceId);
-      if (!space) continue;
-      if (isLegacySpace(space) || store.shouldSyncProjects(space.id)) {
-        void store.syncProjectsFromServer(space.id);
-      }
-    }
-  }, [spaceIdsKey]);
 
   const getSubtitle = useCallback(
     (space: Space) => {

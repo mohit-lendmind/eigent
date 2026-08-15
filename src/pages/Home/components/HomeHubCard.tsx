@@ -72,8 +72,8 @@ function SpaceItemContent({
 }: HomeHubSpaceItemProps) {
   const { t } = useTranslation();
   const { openSpace } = useHomeHubNavigation();
-  const renameSpaceOnServer = useSpaceStore((s) => s.renameSpaceOnServer);
-  const deleteSpaceOnServer = useSpaceStore((s) => s.deleteSpaceOnServer);
+  const updateSpace = useSpaceStore((s) => s.updateSpace);
+  const deleteSpace = useSpaceStore((s) => s.deleteSpace);
 
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameValue, setRenameValue] = useState('');
@@ -90,7 +90,7 @@ function SpaceItemContent({
     if (!nextName || renaming || !canManage) return;
     setRenaming(true);
     try {
-      await renameSpaceOnServer(space.id, nextName);
+      updateSpace(space.id, { name: nextName });
       toast.success(t('layout.spaces-rename-success'));
       setRenameDialogOpen(false);
     } catch (error) {
@@ -99,13 +99,13 @@ function SpaceItemContent({
     } finally {
       setRenaming(false);
     }
-  }, [canManage, renameSpaceOnServer, renameValue, renaming, space.id, t]);
+  }, [canManage, renameValue, renaming, space.id, t, updateSpace]);
 
   const handleDelete = useCallback(async () => {
     if (deleting || !canManage) return;
     setDeleting(true);
     try {
-      await deleteSpaceOnServer(space.id);
+      deleteSpace(space.id);
       setDeleteDialogOpen(false);
     } catch (error) {
       console.warn('[HomeHubCard] Failed to delete Space:', error);
@@ -117,7 +117,7 @@ function SpaceItemContent({
     } finally {
       setDeleting(false);
     }
-  }, [canManage, deleteSpaceOnServer, deleting, space.id, t]);
+  }, [canManage, deleteSpace, deleting, space.id, t]);
 
   const menuItems = [
     {
