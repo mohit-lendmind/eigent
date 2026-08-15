@@ -18,7 +18,7 @@ import { PreviewPanel } from '@/components/Session/PreviewPanel';
 import Workspace from '@/components/Workspace';
 import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import { useSelectedProjectTurn } from '@/hooks/useSelectedProjectTurn';
-import { inferSessionModeFromTask } from '@/lib/sessionMode';
+import { inferSessionModeFromTask, resolveSessionMode } from '@/lib/sessionMode';
 import { cn } from '@/lib/utils';
 import { getSessionPreviewSlice, usePageTabStore } from '@/store/pageTabStore';
 import { useProjectRuntimeStore } from '@/store/projectRuntimeStore';
@@ -221,8 +221,7 @@ export default function Session({ isNewProject = false }: SessionProps) {
   // agent until the Project mode toggle writes a value.
   const displaySessionMode: SessionModeType | null = isNewProject
     ? (activeProjectMeta?.mode ?? draftSessionMode)
-    : (activeProjectMeta?.mode ??
-      inferredSessionMode ??
+    : (resolveSessionMode(activeProjectMeta?.mode, inferredSessionMode) ??
       (hasSessionStarted ? null : SessionMode.SINGLE_AGENT));
 
   useEffect(() => {

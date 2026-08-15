@@ -57,13 +57,20 @@ export function inferSessionModeFromTask(
   fallback: SessionModeType | null = SessionMode.WORKFORCE
 ): SessionModeType | null {
   if (!task) return fallback;
-  if (task.sessionMode) return task.sessionMode;
 
-  if (hasSingleAgent(task.taskAssigning)) {
-    return SessionMode.SINGLE_AGENT;
-  }
+  // Delegation is read first, ahead of both the stated mode and the
+  // single-agent card. A stated mode is an intent stamped at submit time, when
+  // nothing about the run is known yet, and a run that fanned out carries the
+  // orchestrator's own card alongside one per worker it staffed — so neither
+  // rules out a workforce. Workers actually being on the run is the stronger
+  // evidence, and it only ever upgrades: nothing here turns a stated workforce
+  // back into one agent.
   if (hasWorkforceAgent(task.taskAssigning)) {
     return SessionMode.WORKFORCE;
+  }
+  if (task.sessionMode) return task.sessionMode;
+  if (hasSingleAgent(task.taskAssigning)) {
+    return SessionMode.SINGLE_AGENT;
   }
 
   const messages = task.messages ?? [];
@@ -82,4 +89,21 @@ export function inferSessionModeFromTask(
   }
 
   return fallback;
+}
+
+/**
+ * Reconcile the mode a Project has stored against the mode its live turn turned
+ * out to be.
+ *
+ * The stored mode is stamped when the Project is created, before anything about
+ * the run is known — so it can say single-agent about a session that then goes
+ * on to staff workers. Delegation is the stronger evidence and wins. Nothing
+ * downgrades a Project that was created as a workforce one.
+ */
+export function resolveSessionMode(
+  storedMode: SessionModeType | null | undefined,
+  inferredMode: SessionModeType | null
+): SessionModeType | null {
+  if (inferredMode === SessionMode.WORKFORCE) return SessionMode.WORKFORCE;
+  return storedMode ?? inferredMode ?? null;
 }

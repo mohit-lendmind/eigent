@@ -1338,6 +1338,10 @@ export function TaskWorkLogAccordion({
         type="button"
         aria-expanded={outerOpen}
         onClick={() => setOuterOpen((v) => !v)}
+        // The body unmounts while collapsed, and a finished task collapses
+        // itself — so reopening it is the only way to read back what a turn did.
+        data-testid="work-log-toggle"
+        data-open={outerOpen}
         className="flex w-full min-w-0 items-center justify-start gap-1 px-0 py-2 text-left"
       >
         <span className="text-body-sm font-medium text-ds-text-neutral-muted-default">

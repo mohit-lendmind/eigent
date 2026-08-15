@@ -229,22 +229,24 @@ export const UserQueryGroup: React.FC<UserQueryGroupProps> = ({
   // in the normal running/input path.
   const shouldShowFallbackTask =
     isLastUserQuery && activeTaskId && isPlanningPhase;
-  // Single agent has no split/confirm step: once the task is the current
-  // query and past planning, show its task-card area immediately — even while
-  // PENDING — so the "Preparing to execute" item can render before the work
-  // log. `TaskWorkLogAccordion` self-hides until the task reaches RUNNING.
-  const shouldShowSingleAgentWorkLog =
+  // A turn that never split into subtasks has no plan card to stand in for it:
+  // its work log IS its task card. `isCurrentUserQuery` already excludes groups
+  // that carry one, so what is left is the direct kind — every single-agent
+  // turn, and every turn that ran straight through, including one that
+  // delegated to workers. A workforce session is not always a planned one, so
+  // the mode is not what decides this. Shown even while PENDING, so "Preparing
+  // to execute" can render first; the log self-hides until RUNNING.
+  const shouldShowDirectWorkLog =
     isCurrentUserQuery &&
     activeTaskId &&
     activeTask &&
-    isSingleAgentTask &&
     !isPlanningPhase &&
     !isHumanReply;
 
   const task =
     (queryGroup.taskMessage ||
       shouldShowFallbackTask ||
-      shouldShowSingleAgentWorkLog) &&
+      shouldShowDirectWorkLog) &&
     activeTaskId
       ? chatState.tasks[activeTaskId]
       : null;
@@ -292,7 +294,7 @@ export const UserQueryGroup: React.FC<UserQueryGroupProps> = ({
   const taskCardVisible = Boolean(task) && !isSkeletonPhase && !isHumanReply;
   const showTaskPlanCard =
     taskCardVisible &&
-    !shouldShowSingleAgentWorkLog &&
+    !shouldShowDirectWorkLog &&
     !isInitialTaskPreparation;
 
   const hasConfirmedSubTasks = Boolean(
@@ -307,7 +309,7 @@ export const UserQueryGroup: React.FC<UserQueryGroupProps> = ({
       // Workforce: after the user confirms the plan, before the work log.
       (showTaskPlanCard && hasConfirmedSubTasks) ||
       // Single agent: from submit until the first `todo_state` arrives.
-      shouldShowSingleAgentWorkLog);
+      shouldShowDirectWorkLog);
   const shouldShowPlanTaskBox = Boolean(
     !hasConfirmedSubTasks && (isLastUserQuery || queryGroup.taskMessage)
   );
