@@ -36,6 +36,38 @@ export interface ToolResultState {
   isError: boolean;
 }
 
+export type WorkerUIStatus =
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  /** Started, and the run ended without this worker's end ever arriving. */
+  | 'unknown';
+
+/**
+ * One worker in a run's fan-out. Both lifecycle events are forwarded
+ * non-blocking upstream, so a start can arrive with no end and an end with no
+ * start; and an ephemeral (non-persisted) spawn carries no child session id at
+ * all, which leaves the worker unidentifiable and therefore unpairable. Each
+ * of those is recorded as what it is rather than smoothed into a clean pair.
+ */
+export interface WorkerState {
+  /** Stable key within the project; identity when known, else the start's sequence. */
+  workerKey: string;
+  runId: string;
+  /** Empty for an ephemeral spawn: such a worker can only be reported as started. */
+  childSessionId: string;
+  role?: string;
+  name?: string;
+  status: WorkerUIStatus;
+  /** The child's engine outcome reason, verbatim, once its end is observed. */
+  reason?: string;
+  /** Set when the child ended in error. */
+  error?: string;
+  /** Absent when only the end was observed — the start was dropped in transit. */
+  startedSequence?: string;
+  endedSequence?: string;
+}
+
 export type TimelineEntry =
   | { type: 'text'; runId: string; sequence: string; text: string }
   | {
@@ -65,6 +97,9 @@ export type TimelineEntry =
       sequence: string;
       artifact: Record<string, unknown>;
     }
+  // Where a worker joined the run. The lane's own state lives in `workers` and
+  // keeps changing after this point, so the entry carries only the key.
+  | { type: 'worker'; runId: string; sequence: string; workerKey: string }
   | {
       type: 'run_boundary';
       runId: string;
@@ -94,6 +129,8 @@ export interface ProjectUIState {
     { approvalId: string; runId: string; sequence: string; toolName?: string; reason?: string }
   >;
   artifacts: Record<string, Record<string, unknown>>;
+  /** The run fan-out, keyed by WorkerState.workerKey, in observation order. */
+  workers: Record<string, WorkerState>;
   /** user-invisible (internal/audit/unknown-visibility) events applied. */
   suppressedEventCount: number;
   /** Sequence discontinuities observed (diagnostic; transport owns recovery). */
@@ -110,6 +147,7 @@ export function initialProjectState(projectId?: string): ProjectUIState {
     timeline: [],
     pendingApprovals: {},
     artifacts: {},
+    workers: {},
     suppressedEventCount: 0,
     gapCount: 0,
   };
@@ -198,6 +236,7 @@ export function reduceProjectEvent(
     timeline: [...state.timeline],
     pendingApprovals: { ...state.pendingApprovals },
     artifacts: { ...state.artifacts },
+    workers: { ...state.workers },
   };
   // The edge replays gapless from any admitted cursor (including a snapshot
   // floor), so anything but lastSequence+1 is a protocol anomaly. Recorded,
@@ -343,6 +382,54 @@ export function reduceProjectEvent(
       next.timeline.push({ type: 'artifact', runId, sequence, artifact });
       return next;
     }
+    case 'subagent_started': {
+      const childSessionId = str(data.child_session_id) ?? '';
+      // An ephemeral spawn has no identity to pair an end against, so it gets
+      // a key nothing can ever match — that worker stays "started" honestly
+      // rather than borrowing another worker's end.
+      const workerKey = childSessionId
+        ? `${runId}#${childSessionId}`
+        : `${runId}#seq-${sequence}`;
+      const existing = next.workers[workerKey];
+      next.workers[workerKey] = {
+        ...existing,
+        workerKey,
+        runId,
+        childSessionId,
+        role: str(data.role),
+        name: str(data.name),
+        status: existing?.status ?? 'running',
+        startedSequence: existing?.startedSequence ?? sequence,
+      };
+      if (!existing) {
+        next.timeline.push({ type: 'worker', runId, sequence, workerKey });
+      }
+      return next;
+    }
+    case 'subagent_ended': {
+      const childSessionId = str(data.child_session_id) ?? '';
+      const error = str(data.error) ?? '';
+      // An end whose start was dropped still proves the worker existed, so it
+      // opens its own lane rather than being discarded as unmatched.
+      const workerKey = childSessionId ? `${runId}#${childSessionId}` : `${runId}#seq-${sequence}`;
+      const existing = next.workers[workerKey];
+      next.workers[workerKey] = {
+        ...existing,
+        workerKey,
+        runId,
+        childSessionId,
+        role: str(data.role) ?? existing?.role,
+        name: existing?.name,
+        status: error ? 'failed' : 'succeeded',
+        reason: str(data.reason),
+        error: error || undefined,
+        endedSequence: sequence,
+      };
+      if (!existing) {
+        next.timeline.push({ type: 'worker', runId, sequence, workerKey });
+      }
+      return next;
+    }
     case 'run_completed':
       return settleRun(next, event, 'succeeded', undefined, str(data.summary));
     case 'run_failed':
@@ -375,6 +462,14 @@ function settleRun(
   if (next.activeRunId === runId) {
     next.activeRunId = null;
   }
+  // The run is over, so none of its workers is still running. One whose end
+  // never arrived is reported as unknown — the truthful statement is that we
+  // were not told how it finished, not that it is still working.
+  for (const worker of Object.values(next.workers)) {
+    if (worker.runId === runId && worker.status === 'running') {
+      next.workers[worker.workerKey] = { ...worker, status: 'unknown' };
+    }
+  }
   next.timeline.push({
     type: 'run_boundary',
     runId,
@@ -384,6 +479,25 @@ function settleRun(
     detail: outcomeDetail ?? outcomeReason,
   });
   return next;
+}
+
+/**
+ * A run's workers in the order they were first observed. An empty result means
+ * the run did not fan out — but only on a backend that reports the workforce
+ * at all, so read it beside compat's supportsWorkforceEvents.
+ */
+export function workersForRun(
+  state: ProjectUIState,
+  runId: string
+): WorkerState[] {
+  return Object.values(state.workers)
+    .filter((worker) => worker.runId === runId)
+    .sort((a, b) =>
+      compareSequence(
+        a.startedSequence ?? a.endedSequence ?? '0',
+        b.startedSequence ?? b.endedSequence ?? '0'
+      )
+    );
 }
 
 export function reduceProjectEvents(

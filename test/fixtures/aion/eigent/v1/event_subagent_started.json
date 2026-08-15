@@ -1,0 +1,12 @@
+{
+  "event_id": "evt_01JY0000000000000000000010",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "run_01JY0000000000000000000001",
+  "sequence": "10",
+  "kind": "subagent_started",
+  "visibility": "user",
+  "occurred_at": "2026-08-08T09:00:10Z",
+  "correlation": {"tool_call_id": "toolu_01JY0000000000000000003"},
+  "data": {"child_session_id": "ses_01JY0000000000000000000042", "role": "search", "name": "dependency-audit"}
+}

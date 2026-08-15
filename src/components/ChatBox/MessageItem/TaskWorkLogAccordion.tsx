@@ -1029,6 +1029,10 @@ const AgentGroupRow = memo(function AgentGroupRow({
         type="button"
         aria-expanded={open}
         onClick={onToggle}
+        // One row per agent that acted in this turn — the fan-out is countable
+        // from here, by type.
+        data-testid="work-log-agent-group"
+        data-agent-type={group.agentType}
         className={cn(
           'my-1 flex w-fit min-w-0 max-w-full gap-2 px-0 py-1 text-left transition-opacity hover:opacity-80',
           useSingleAgentLiveHeader ? 'items-start' : 'items-center'

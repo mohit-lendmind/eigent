@@ -10,7 +10,10 @@ import type {
   ProjectUIState,
   RunUIStatus,
   TimelineEntry,
+  WorkerState,
+  WorkerUIStatus,
 } from '@/api/aion/v1/reducer';
+import { workersForRun } from '@/api/aion/v1/reducer';
 import {
   IncompatibleBackendError,
   negotiateCompatibility,
@@ -24,6 +27,7 @@ import {
   AgentStep,
   ChatTaskStatus,
   TaskStatus,
+  type AgentStatusType,
 } from '@/types/constants';
 import type { ChatStore } from './chatStore';
 
@@ -556,7 +560,11 @@ function projectTurn(
     tasks: [taskInfo],
     log: agentLog,
   };
-  const agents: Agent[] = [agent];
+  const workers = workersForRun(state, turn.runId);
+  const agents: Agent[] = [
+    agent,
+    ...projectWorkerLanes(turn.taskId, turn.runId, workers),
+  ];
 
   // --- browser mirror: aion browser_* tools drive a headless browser inside
   // the sandbox pod, so there is no local WebContentsView to attach. The
@@ -622,6 +630,88 @@ function projectTurn(
     store.setIsPending(turn.taskId, false);
     store.setStatus(turn.taskId, ChatTaskStatus.FINISHED);
   }
+}
+
+/**
+ * `unknown` has no counterpart in the closed agent-status set. Both readers of
+ * this field only ask whether a lane is still working, so it fails closed
+ * rather than claiming a success nobody reported — what actually happened is
+ * stated in the lane's own log line.
+ */
+const WORKER_CARD_STATUS: Record<WorkerUIStatus, AgentStatusType> = {
+  running: AgentStatusValue.RUNNING,
+  succeeded: AgentStatusValue.COMPLETED,
+  failed: AgentStatusValue.FAILED,
+  unknown: AgentStatusValue.FAILED,
+};
+
+/**
+ * A run's fan-out as one workspace card per worker. Only the ORCHESTRATOR's
+ * tool calls project onto a Project, so a lane honestly carries identity,
+ * status and how it ended — never a tool log of its own.
+ *
+ * Exported for unit tests.
+ */
+export function projectWorkerLanes(
+  taskId: string,
+  runId: string,
+  workers: WorkerState[]
+): Agent[] {
+  return workers.map((worker) => ({
+    agent_id: `${taskId}-worker-${worker.workerKey}`,
+    name: worker.name || worker.role || 'Worker',
+    type: 'worker_agent',
+    status: WORKER_CARD_STATUS[worker.status],
+    tasks: [],
+    log: workerLaneLog(worker, runId),
+  }));
+}
+
+/**
+ * The lane's timeline: it opens when the worker is first observed and closes
+ * on the outcome. A worker seen only through its end says so rather than
+ * pretending its start was witnessed.
+ */
+function workerLaneLog(worker: WorkerState, runId: string): AgentMessage[] {
+  const log: AgentMessage[] = [
+    {
+      step: AgentStep.ACTIVATE_AGENT,
+      data: {
+        agent_name: 'worker_agent',
+        message: worker.startedSequence
+          ? worker.role
+            ? `Joined the run as ${worker.role}.`
+            : 'Joined the run.'
+          : 'Only the end of this worker was delivered; its start never arrived.',
+        process_task_id: runId,
+      },
+    },
+  ];
+  if (worker.status === 'running') return log;
+  log.push({
+    step: AgentStep.NOTICE,
+    data: { notice: workerOutcomeLine(worker), process_task_id: runId },
+  });
+  log.push({
+    step: AgentStep.DEACTIVATE_AGENT,
+    data: { agent_name: 'worker_agent', process_task_id: runId },
+  });
+  return log;
+}
+
+function workerOutcomeLine(worker: WorkerState): string {
+  if (worker.status === 'failed') {
+    return `Failed: ${worker.error || 'no detail reported'}.`;
+  }
+  if (worker.status === 'succeeded') {
+    return worker.reason ? `Finished: ${worker.reason}.` : 'Finished.';
+  }
+  // The run settled without this worker's end. An ephemeral spawn carries no
+  // identity for an end to be matched against, which is a different statement
+  // from an end that simply never arrived, so the two read differently.
+  return worker.childSessionId
+    ? 'The run ended before this worker reported an outcome.'
+    : 'This worker was not persisted, so no outcome could be matched to it.';
 }
 
 function previewToolArgs(argumentsJson: string): string {
