@@ -11,16 +11,39 @@ export const REMOTE_BACKEND_API_KEY_ENV = 'EIGENT_REMOTE_BACKEND_API_KEY';
 export const REMOTE_BACKEND_API_KEY_FILE_ENV =
   'EIGENT_REMOTE_BACKEND_API_KEY_FILE';
 
+/**
+ * Where the resolved key came from, and therefore whether this app may change
+ * it. An `env` key is the operator's: onboarding must not offer to replace a
+ * credential that a restart would silently restore.
+ */
+export type ApiKeySource = 'env' | 'file';
+
 export type RemoteBackendResolution =
-  | { mode: 'remote'; edgeBaseUrl: string; apiKey: string }
+  | {
+      mode: 'remote';
+      edgeBaseUrl: string;
+      apiKey: string;
+      keySource: ApiKeySource;
+      /** Where a replacement key is written; empty when the key is env-pinned. */
+      keyFilePath: string;
+    }
+  /** Endpoint known, credential absent — the onboarding state, not a failure. */
+  | { mode: 'remote-needs-key'; edgeBaseUrl: string; keyFilePath: string }
   | { mode: 'remote-invalid'; error: string };
 
 /**
  * The minimum authenticated transport configuration the renderer receives.
- * Nothing else about the main-process environment crosses the bridge.
+ * Nothing else about the main-process environment crosses the bridge — the
+ * key file's path stays here, because the renderer never writes it.
  */
 export type RendererTransportConfig =
-  | { mode: 'remote'; edgeBaseUrl: string; apiKey: string }
+  | {
+      mode: 'remote';
+      edgeBaseUrl: string;
+      apiKey: string;
+      keySource: ApiKeySource;
+    }
+  | { mode: 'remote'; edgeBaseUrl: string; needsKey: true }
   | { mode: 'remote'; error: string };
 
 const LOOPBACK_IPV4 = /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
@@ -67,13 +90,48 @@ export function validateEdgeBaseUrl(raw: string): string {
 }
 
 /**
+ * Trims a pasted API key and refuses one that could not be a credential.
+ * Whitespace inside is rejected rather than stripped: a key that arrived
+ * wrapped across two lines is a truncated paste, and silently repairing it
+ * would authenticate as something the user did not paste.
+ */
+export function normalizeApiKey(raw: string): string {
+  const key = raw.trim();
+  if (key === '') {
+    throw new Error('API key is empty');
+  }
+  if (/\s/.test(key)) {
+    throw new Error('API key contains whitespace; paste it as one line');
+  }
+  return key;
+}
+
+/** True when the read failed because nothing is there yet. */
+function isMissingFile(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return code === 'ENOENT' || code === 'ENOTDIR';
+}
+
+/**
  * Resolves the edge configuration from the environment. `readFile` is
  * injected so the key-file path stays testable; the caller passes
- * fs.readFileSync. When both key sources are set, the direct key wins.
+ * fs.readFileSync.
+ *
+ * Key precedence is operator-first: the direct env key wins, then the file —
+ * `storedKeyPath` (where onboarding writes) is used only when the environment
+ * names no file of its own, so an operator-provisioned deployment cannot be
+ * re-pointed by whatever a previous user pasted, and the harness path stays
+ * the one path in play when it is set.
+ *
+ * An ABSENT credential resolves to `remote-needs-key`, not an error: the
+ * endpoint is known and the app can ask for a key. A key file that exists but
+ * cannot be read, or is empty, stays invalid — absence and failure are
+ * different, and only absence is something onboarding can fix.
  */
 export function resolveRemoteBackend(
   env: Record<string, string | undefined>,
-  readFile: (path: string) => string
+  readFile: (path: string) => string,
+  storedKeyPath = ''
 ): RemoteBackendResolution {
   const rawUrl = env[REMOTE_BACKEND_URL_ENV]?.trim();
   if (!rawUrl) {
@@ -93,34 +151,53 @@ export function resolveRemoteBackend(
     };
   }
 
-  let apiKey = env[REMOTE_BACKEND_API_KEY_ENV]?.trim() ?? '';
-  if (apiKey === '') {
-    const keyFile = env[REMOTE_BACKEND_API_KEY_FILE_ENV]?.trim();
-    if (!keyFile) {
-      return {
-        mode: 'remote-invalid',
-        error: `${REMOTE_BACKEND_URL_ENV} is set but neither ${REMOTE_BACKEND_API_KEY_ENV} nor ${REMOTE_BACKEND_API_KEY_FILE_ENV} provides an API key`,
-      };
-    }
-    try {
-      apiKey = readFile(keyFile).trim();
-    } catch (error) {
-      return {
-        mode: 'remote-invalid',
-        error: `failed to read ${REMOTE_BACKEND_API_KEY_FILE_ENV} (${keyFile}): ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      };
-    }
-    if (apiKey === '') {
-      return {
-        mode: 'remote-invalid',
-        error: `API key file ${keyFile} is empty`,
-      };
-    }
+  const envKey = env[REMOTE_BACKEND_API_KEY_ENV]?.trim() ?? '';
+  if (envKey !== '') {
+    return {
+      mode: 'remote',
+      edgeBaseUrl,
+      apiKey: envKey,
+      keySource: 'env',
+      keyFilePath: '',
+    };
   }
 
-  return { mode: 'remote', edgeBaseUrl, apiKey };
+  const keyFilePath =
+    env[REMOTE_BACKEND_API_KEY_FILE_ENV]?.trim() || storedKeyPath;
+  if (keyFilePath === '') {
+    return {
+      mode: 'remote-invalid',
+      error: `${REMOTE_BACKEND_URL_ENV} is set but neither ${REMOTE_BACKEND_API_KEY_ENV} nor ${REMOTE_BACKEND_API_KEY_FILE_ENV} provides an API key, and this app has nowhere to store one`,
+    };
+  }
+
+  let apiKey: string;
+  try {
+    apiKey = readFile(keyFilePath).trim();
+  } catch (error) {
+    if (isMissingFile(error)) {
+      return { mode: 'remote-needs-key', edgeBaseUrl, keyFilePath };
+    }
+    return {
+      mode: 'remote-invalid',
+      error: `failed to read the API key file (${keyFilePath}): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
+  if (apiKey === '') {
+    // A key file emptied rather than deleted is how signing out leaves the
+    // profile, so it means the same thing as an absent one.
+    return { mode: 'remote-needs-key', edgeBaseUrl, keyFilePath };
+  }
+
+  return {
+    mode: 'remote',
+    edgeBaseUrl,
+    apiKey,
+    keySource: 'file',
+    keyFilePath,
+  };
 }
 
 export function rendererTransportConfig(
@@ -132,6 +209,13 @@ export function rendererTransportConfig(
         mode: 'remote',
         edgeBaseUrl: resolution.edgeBaseUrl,
         apiKey: resolution.apiKey,
+        keySource: resolution.keySource,
+      };
+    case 'remote-needs-key':
+      return {
+        mode: 'remote',
+        edgeBaseUrl: resolution.edgeBaseUrl,
+        needsKey: true,
       };
     case 'remote-invalid':
       return { mode: 'remote', error: resolution.error };

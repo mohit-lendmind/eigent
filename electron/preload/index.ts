@@ -110,6 +110,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkInstallBrowser: () => ipcRenderer.invoke('check-install-browser'),
   getAionTransportConfig: () =>
     ipcRenderer.invoke('get-aion-transport-config'),
+  setAionApiKey: (apiKey: string) =>
+    ipcRenderer.invoke('set-aion-api-key', apiKey),
+  clearAionApiKey: () => ipcRenderer.invoke('clear-aion-api-key'),
   onUpdateNotification: (
     callback: (data: {
       type: string;

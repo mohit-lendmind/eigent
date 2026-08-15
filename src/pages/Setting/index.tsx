@@ -19,8 +19,10 @@ import VerticalNavigation, {
   type VerticalNavItem,
 } from '@/components/Dashboard/VerticalNav';
 import useAppVersion from '@/hooks/use-app-version';
+import { useAionMode } from '@/hooks/useAionMode';
 import { useHost } from '@/host';
 import { SITE_URL } from '@/lib';
+import Account from '@/pages/Setting/Account';
 import Appearance from '@/pages/Setting/Appearance';
 import General from '@/pages/Setting/General';
 import Privacy from '@/pages/Setting/Privacy';
@@ -28,6 +30,7 @@ import { useAuthStore } from '@/store/authStore';
 import {
   Download,
   Fingerprint,
+  KeyRound,
   Palette,
   Settings,
   TagIcon,
@@ -42,6 +45,7 @@ export default function Setting() {
   const { t } = useTranslation();
   const appearance = useAuthStore((state) => state.appearance);
   const logoSrc = appearance === 'dark' ? logoWhite : logoBlack;
+  const aionMode = useAionMode();
   const host = useHost();
   const ipcRenderer = host?.ipcRenderer;
   const version = useAppVersion();
@@ -100,6 +104,19 @@ export default function Setting() {
       icon: Fingerprint,
       path: '/setting/privacy',
     },
+    // Account describes the aion credential this desktop is holding; on the
+    // legacy plane there is no such credential, so the tab is absent rather
+    // than present and empty.
+    ...(aionMode === 'aion'
+      ? [
+          {
+            id: 'account',
+            name: t('setting.account'),
+            icon: KeyRound,
+            path: '/setting/account',
+          },
+        ]
+      : []),
   ];
   // Initialize tab from URL once, then manage locally without routing
   const getCurrentTab = () => {
@@ -200,6 +217,7 @@ export default function Setting() {
           {activeTab === 'general' && <General />}
           {activeTab === 'appearance' && <Appearance />}
           {activeTab === 'privacy' && <Privacy />}
+          {activeTab === 'account' && <Account />}
         </div>
       </div>
     </div>

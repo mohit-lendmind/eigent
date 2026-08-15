@@ -1,0 +1,8 @@
+{
+  "title": "連線到 aion",
+  "subtitle": "此桌面端執行於 aion 後端。貼上 API 金鑰以繼續。",
+  "key-label": "API 金鑰",
+  "key-placeholder": "貼上你的 API 金鑰",
+  "connect": "連線",
+  "storage-note": "金鑰會先與後端驗證再保存，僅儲存在本機且只有你的使用者帳戶可讀取。"
+}

@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/keys-not-configured",
+  "title": "Key management unavailable",
+  "status": 501,
+  "detail": "This edge does not manage API keys; keys are provisioned by an operator here.",
+  "code": "keys_not_configured",
+  "trace_id": "trc_01JY0000000000000000000007",
+  "retryable": false
+}

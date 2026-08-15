@@ -1,0 +1,8 @@
+{
+  "title": "连接到 aion",
+  "subtitle": "此桌面端运行在 aion 后端上。粘贴 API 密钥以继续。",
+  "key-label": "API 密钥",
+  "key-placeholder": "粘贴你的 API 密钥",
+  "connect": "连接",
+  "storage-note": "密钥会先与后端校验再保存，仅存储在本机且只有你的用户账户可读。"
+}

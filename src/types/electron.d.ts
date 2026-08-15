@@ -128,9 +128,21 @@ interface ElectronAPI {
   startBrowserImport: (args?: any) => Promise<any>;
   checkInstallBrowser?: () => Promise<{ data: any[] }>;
   getAionTransportConfig: () => Promise<
-    | { mode: 'remote'; edgeBaseUrl: string; apiKey: string }
+    | {
+        mode: 'remote';
+        edgeBaseUrl: string;
+        apiKey: string;
+        keySource: 'env' | 'file';
+      }
+    // The endpoint is known and no key is stored yet — onboarding, not failure.
+    | { mode: 'remote'; edgeBaseUrl: string; needsKey: true }
     | { mode: 'remote'; error: string }
   >;
+  /** Stores a verified key 0600 in the main process; never renderer storage. */
+  setAionApiKey: (
+    apiKey: string
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
+  clearAionApiKey: () => Promise<{ ok: true } | { ok: false; error: string }>;
   onUpdateNotification: (
     callback: (data: {
       type: string;

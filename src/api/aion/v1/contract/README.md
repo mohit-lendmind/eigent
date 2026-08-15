@@ -10,14 +10,15 @@ sync), record the aion-v1 commit below, then run `pnpm gen:aion-edge` so the
 generated client under `../gen/` matches. `bazel test //:aion_edge_client_gen`
 fails until mirror and generated output agree.
 
-- Contract version: edge_api `1.10.0`
+- Contract version: edge_api `1.11.0`
 - Source path: `aion-v1/api/eigent/v1/`
-- Last synced from: aion-v1 commit `b24269d`, which adds the
-  `/schedules` plane (list, create, `{id}` get/put/delete, `{id}/pause`,
-  `{id}/resume`, `{id}/requeue`, `{id}/events`), together with
-  `test/fixtures/aion/eigent/v1/` (which gains
-  `create_schedule_request.json`, `update_schedule_request.json`,
-  `schedule_response.json`, `schedule_list_response.json`,
-  `schedule_event_list_response.json`, `problem_schedule_cron_invalid.json`
-  and `problem_schedule_cron_denied.json`, and whose
-  `integration_status_response.json` moves to the new `edge_api`).
+- Last synced from: aion-v1 commit `43da052`, which adds the account and key
+  plane (`/account`, `/keys` list + create, `/keys/{keyId}` revoke), together
+  with `test/fixtures/aion/eigent/v1/` (which gains `account_response.json`,
+  `key_list_response.json`, `create_key_request.json`,
+  `create_key_response.json`, `create_key_replay_response.json`,
+  `problem_key_ceiling_reached.json` and `problem_keys_not_configured.json`,
+  and whose `integration_status_response.json` moves to the new `edge_api`).
+  `create_key_response.json` carries a PLACEHOLDER in `raw_key`, not a
+  credential-shaped string: these fixtures travel into evidence bundles whose
+  redaction scan fails on one.

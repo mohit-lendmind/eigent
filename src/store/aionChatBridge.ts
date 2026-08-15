@@ -37,6 +37,25 @@ export type AionRemoteConfig =
   | { edgeBaseUrl: string; apiKey: string }
   | { error: string };
 
+/** Where the API key in force came from, and so whether this app may change it. */
+export type AionKeySource = 'env' | 'file';
+
+/**
+ * The backend's state for this renderer lifetime, with `needs-key` kept apart
+ * from `error`: the endpoint is configured and simply has no credential yet,
+ * which onboarding can fix, while an error is something the user cannot.
+ */
+export type AionBackendState =
+  | { kind: 'local' }
+  | {
+      kind: 'ready';
+      edgeBaseUrl: string;
+      apiKey: string;
+      keySource: AionKeySource;
+    }
+  | { kind: 'needs-key'; edgeBaseUrl: string }
+  | { kind: 'error'; message: string };
+
 interface TurnBinding {
   taskId: string;
   runId: string;
@@ -57,27 +76,63 @@ interface ProjectBinding {
 }
 
 // Mode is decided once per renderer lifetime, mirroring the main process
-// (which resolves it once at startup and never falls back).
+// (which resolves it once at startup and never falls back). Onboarding is the
+// one thing that legitimately changes it mid-lifetime, and it says so by
+// calling resetAionBackendState.
+let statePromise: Promise<AionBackendState> | null = null;
+
+function hostAPI(): Record<string, any> | undefined {
+  return (globalThis as Record<string, any>).electronAPI;
+}
+
+/** The full backend state, including the not-yet-credentialed case. */
+export function getAionBackendState(): Promise<AionBackendState> {
+  statePromise ??= (async () => {
+    const resolved = await hostAPI()?.getAionTransportConfig?.();
+    if (!resolved || resolved.mode !== 'remote') {
+      return { kind: 'local' } as const;
+    }
+    if (typeof resolved.error === 'string') {
+      return { kind: 'error', message: resolved.error } as const;
+    }
+    if (resolved.needsKey === true) {
+      return {
+        kind: 'needs-key',
+        edgeBaseUrl: resolved.edgeBaseUrl as string,
+      } as const;
+    }
+    return {
+      kind: 'ready',
+      edgeBaseUrl: resolved.edgeBaseUrl as string,
+      apiKey: resolved.apiKey as string,
+      keySource: (resolved.keySource as AionKeySource) ?? 'env',
+    } as const;
+  })();
+  return statePromise;
+}
+
 let configPromise: Promise<AionRemoteConfig | null> | null = null;
 
 /**
- * null → local mode (legacy brain). {error} → remote mode misconfigured:
- * the task must fail visibly, never fall back to spawning the local brain.
+ * null → local mode (legacy brain). {error} → remote mode without a usable
+ * transport: the task must fail visibly, never fall back to spawning the local
+ * brain. A backend still awaiting its API key is an error HERE by design —
+ * there is nothing to call with — and onboarding reads getAionBackendState
+ * instead, which is the only place the two are worth telling apart.
  */
 export function getAionRemoteConfig(): Promise<AionRemoteConfig | null> {
   configPromise ??= (async () => {
-    const api = (globalThis as Record<string, any>).electronAPI;
-    const resolved = await api?.getAionTransportConfig?.();
-    if (!resolved || resolved.mode !== 'remote') {
-      return null;
+    const state = await getAionBackendState();
+    switch (state.kind) {
+      case 'local':
+        return null;
+      case 'ready':
+        return { edgeBaseUrl: state.edgeBaseUrl, apiKey: state.apiKey };
+      case 'needs-key':
+        return { error: 'No API key is configured for this backend yet.' };
+      case 'error':
+        return { error: state.message };
     }
-    if (typeof resolved.error === 'string') {
-      return { error: resolved.error };
-    }
-    return {
-      edgeBaseUrl: resolved.edgeBaseUrl as string,
-      apiKey: resolved.apiKey as string,
-    };
   })();
   return configPromise;
 }
@@ -103,6 +158,17 @@ export function getAionModelCatalog(): Promise<ModelAliasCatalog | null> {
     throw error;
   });
   return catalogPromise;
+}
+
+/**
+ * Drops everything derived from the backend's credential so the next read
+ * re-asks the main process. Onboarding calls this after storing or clearing a
+ * key; without it the only way to pick up a new credential is a restart.
+ */
+export function resetAionBackendState(): void {
+  statePromise = null;
+  configPromise = null;
+  catalogPromise = null;
 }
 
 /**

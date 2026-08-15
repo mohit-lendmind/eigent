@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/key-ceiling-reached",
+  "title": "API key limit reached",
+  "status": 429,
+  "detail": "This tenant already holds the maximum number of active keys; revoke one first.",
+  "code": "key_ceiling_reached",
+  "trace_id": "trc_01JY0000000000000000000006",
+  "retryable": false
+}

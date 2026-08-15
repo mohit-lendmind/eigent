@@ -1,0 +1,8 @@
+{
+  "title": "Mit aion verbinden",
+  "subtitle": "Dieser Desktop läuft auf einem aion-Backend. Fügen Sie einen API-Schlüssel ein, um fortzufahren.",
+  "key-label": "API-Schlüssel",
+  "key-placeholder": "API-Schlüssel einfügen",
+  "connect": "Verbinden",
+  "storage-note": "Der Schlüssel wird vor dem Speichern gegen das Backend geprüft und auf diesem Rechner so abgelegt, dass nur Ihr Benutzerkonto ihn lesen kann."
+}
