@@ -1,19 +1,5 @@
 {
-  "_comment": "Ceiling for references to the two non-aion HTTP clients, per file. Regenerate with `node scripts/check-no-dead-brain-calls.mjs --update` when a milestone re-points a surface at the aion edge, and say which surface moved in the PR. Both tables empty is the goal.",
-  "dead": {
-    "src/components/ChatBox/index.tsx": 8,
-    "src/context/ConnectionContext.tsx": 1,
-    "src/store/chatStore.ts": 5,
-    "src/store/connectionStore.ts": 1,
-    "test/unit/components/ChatBox.test.tsx": 14,
-    "test/unit/store/chatStore.test.ts": 6
-  },
-  "hosted": {
-    "src/components/ChatBox/index.tsx": 6,
-    "src/hooks/useModelConfigCheck.ts": 3,
-    "src/lib/index.ts": 1,
-    "src/store/cloudModelStore.ts": 2,
-    "test/unit/components/ChatBox.test.tsx": 8,
-    "test/unit/store/chatStore.test.ts": 2
-  }
+  "_comment": "Both HTTP clients are deleted, so both tables are empty and are meant to stay that way. Regenerate with `node scripts/check-no-dead-brain-calls.mjs --update` only to record a reviewed exception, and say in the PR why the reference is not a new call site.",
+  "dead": {},
+  "hosted": {}
 }

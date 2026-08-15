@@ -46,7 +46,6 @@ Collection covers `test/**` and `src/**` for `*.test.ts(x)` / `*.spec.ts(x)`.
 | -------------------- | ------------------------------------------------------------------------ |
 | `electronMocks.ts`   | `setupElectronMocks()`, `createElectronAPIMock()`, `createIpcRendererMock()` |
 | `authStore.mock.ts`  | a seeded auth store                                                      |
-| `proxy.mock.ts`      | HTTP client stubs                                                        |
 | `sse.mock.ts`        | a controllable SSE stream for transport and reducer tests                |
 
 `setupElectronMocks()` installs `window.electronAPI` and `window.ipcRenderer`,
@@ -61,8 +60,7 @@ channel has to say so explicitly instead of silently receiving `undefined`.
 
 There are no mocks for a local backend, a dependency installer or a Python
 process. This fork has none — the desktop talks to an aion edge, so the thing to
-fake in a transport test is the edge (`sse.mock.ts`, `proxy.mock.ts`), not a
-child process.
+fake in a transport test is the edge (`sse.mock.ts`), not a child process.
 
 ## Writing tests
 

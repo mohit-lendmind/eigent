@@ -15,29 +15,6 @@
 export const SITE_URL =
   import.meta.env.VITE_SITE_URL || 'https://www.eigent.ai';
 
-export function getProxyBaseURL() {
-  const isDev = import.meta.env.DEV;
-
-  if (isDev) {
-    const proxyUrl = import.meta.env.VITE_PROXY_URL;
-    if (!proxyUrl) {
-      return 'http://localhost:3001';
-    }
-    return proxyUrl;
-  } else {
-    const useLocalProxy = import.meta.env.VITE_USE_LOCAL_PROXY === 'true';
-    const proxyUrl = import.meta.env.VITE_PROXY_URL;
-    const baseUrl =
-      !useLocalProxy && proxyUrl
-        ? proxyUrl
-        : import.meta.env.VITE_BASE_URL || proxyUrl;
-    if (!baseUrl) {
-      throw new Error('VITE_BASE_URL or VITE_PROXY_URL is not configured');
-    }
-    return String(baseUrl).replace(/\/$/, '');
-  }
-}
-
 export function generateUniqueId(): string {
   const timestamp = Date.now();
   const random = Math.floor(Math.random() * 10000);

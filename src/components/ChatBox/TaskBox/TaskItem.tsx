@@ -25,7 +25,6 @@ interface TaskItemProps {
   };
   taskIndex: number;
   onUpdate: (content: string) => void;
-  onSave: () => void;
   onDelete: () => void;
 }
 
@@ -33,7 +32,6 @@ export function TaskItem({
   taskInfo,
   taskIndex,
   onUpdate,
-  onSave,
   onDelete,
 }: TaskItemProps) {
   const { t } = useTranslation();
@@ -93,10 +91,7 @@ export function TaskItem({
             value={taskInfo.content}
             onChange={(e) => onUpdate(e.target.value)}
             onBlur={() => {
-              setTimeout(() => {
-                onSave();
-                setIsFocus(false);
-              }, 100);
+              setTimeout(() => setIsFocus(false), 100);
             }}
             rows={1}
           />
@@ -121,10 +116,7 @@ export function TaskItem({
             </Button>
           ) : (
             <Button
-              onClick={(e) => {
-                onSave();
-                handleFocus(e, false);
-              }}
+              onClick={(e) => handleFocus(e, false)}
               className="rounded-full"
               variant="success"
               size="xs"

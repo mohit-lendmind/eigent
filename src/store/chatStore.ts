@@ -13,10 +13,6 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import {
-  fetchPost,
-  fetchPut,
-} from '@/api/http';
-import {
   getAionRemoteConfig,
   startAionTask,
   stopAionTurn,
@@ -37,14 +33,11 @@ import {
   type SessionModeType,
 } from '@/types/constants';
 import { FileText } from 'lucide-react';
-import { toast } from 'sonner';
 import { createStore } from 'zustand';
 import { getWorkerList } from './authStore';
 import { useProjectStore } from './projectStore';
 import { useSpaceStore } from './spaceStore';
 
-const PROJECT_CONTEXT_MAX_CHARS = 24_000;
-const PROJECT_CONTEXT_MAX_RUNS = 8;
 
 type ConfirmedUserPromptSources = {
   lastMessageContent?: unknown;
@@ -175,25 +168,6 @@ function buildUploadName(fileName: string, source: UploadFileSource): string {
 const compactContextText = (value?: string | null) =>
   (value ?? '').replace(/\s+/g, ' ').trim();
 
-const stripSummaryTag = (value?: string | null) =>
-  compactContextText(value?.replace(/<summary>.*?<\/summary>/gs, ''));
-
-function taskContextResult(task: Task): string {
-  const summaryParts = (task.summaryTask || '').split('|');
-  const summary = compactContextText(summaryParts[1] || summaryParts[0]);
-  if (summary) return summary;
-
-  const endMessage = [...task.messages]
-    .reverse()
-    .find((message) => message.step === AgentStep.END && message.content);
-  if (endMessage) return stripSummaryTag(endMessage.content);
-
-  const agentMessage = [...task.messages]
-    .reverse()
-    .find((message) => message.role === 'agent' && message.content);
-  return compactContextText(agentMessage?.content);
-}
-
 export function extractEndPayloadText(endData: unknown): string {
   if (typeof endData === 'string') {
     return endData;
@@ -246,45 +220,6 @@ export function resolveEndMessageText(
     (message) => message.step === AgentStep.AGENT_SUMMARY_END
   );
   return agentSummaryEnd?.summary || completedSubtaskReportFallback(task);
-}
-
-export function buildProjectContinuationContext(
-  projectId?: string | null,
-  excludeTaskId?: string | null
-): string | undefined {
-  if (!projectId) return undefined;
-
-  const projectStore = useProjectStore.getState();
-  const runs: string[] = [];
-
-  for (const { chatStore } of projectStore.getAllChatStores(projectId)) {
-    const state = chatStore.getState();
-    for (const [taskId, task] of Object.entries(state.tasks)) {
-      if (taskId === excludeTaskId) continue;
-      const userMessage = task.messages.find(
-        (message) => message.role === 'user' && message.content
-      );
-      const request = compactContextText(userMessage?.content);
-      const result = taskContextResult(task);
-      if (!request && !result) continue;
-      runs.push(
-        [
-          `Run ${runs.length + 1}:`,
-          request ? `User request: ${request}` : '',
-          result ? `Result: ${result}` : '',
-        ]
-          .filter(Boolean)
-          .join('\n')
-      );
-    }
-  }
-
-  if (runs.length === 0) return undefined;
-  const selectedRuns = runs.slice(-PROJECT_CONTEXT_MAX_RUNS);
-  const context = selectedRuns.join('\n\n');
-  return context.length > PROJECT_CONTEXT_MAX_CHARS
-    ? context.slice(context.length - PROJECT_CONTEXT_MAX_CHARS)
-    : context;
 }
 
 export function collectTaskUploadFiles(
@@ -442,7 +377,6 @@ export interface ChatStore {
   getLastUserMessage: () => Message | null;
   addTaskInfo: () => void;
   updateTaskInfo: (index: number, content: string) => void;
-  saveTaskInfo: () => void;
   deleteTaskInfo: (index: number) => void;
   setTaskTime: (taskId: string, taskTime: number) => void;
   setElapsed: (taskId: string, taskTime: number) => void;
@@ -688,15 +622,6 @@ export function mergeFileInfoLists(
 
 
 
-
-/** Persist subtask edits to backend via PUT /task/{project_id}. */
-const persistSubtaskEdits = async (taskInfo: TaskInfo[]) => {
-  const projectId = useProjectStore.getState().activeProjectId;
-  if (!projectId) return;
-
-  const nonEmpty = taskInfo.filter((t) => t.content !== '');
-  await fetchPut(`/task/${projectId}`, { task: nonEmpty });
-};
 
 // Throttle streaming decompose text updates to prevent excessive re-renders
 const streamingDecomposeTextBuffer: Record<string, string> = {};
@@ -1319,22 +1244,8 @@ const chatStore = (initial?: Partial<ChatStore>) =>
       setLatestPlanConfirmed(true);
 
       if (!type) {
-        try {
-          await fetchPut(`/task/${project_id}`, {
-            task: taskInfo,
-          });
-          await fetchPost(`/task/${project_id}/start`, {});
-
-          setActiveWorkspace(taskId, 'workflow');
-          setStatus(taskId, ChatTaskStatus.RUNNING);
-        } catch (error) {
-          console.error('Failed to confirm and start task:', error);
-          setLatestPlanConfirmed(false);
-          setStatus(taskId, ChatTaskStatus.PENDING);
-          setTaskTime(taskId, 0);
-          toast.error('Failed to start task. Please try again.');
-          return;
-        }
+        setActiveWorkspace(taskId, 'workflow');
+        setStatus(taskId, ChatTaskStatus.RUNNING);
       }
 
       // Reset editing state after manual confirmation so next round can auto-start
@@ -1522,11 +1433,6 @@ const chatStore = (initial?: Partial<ChatStore>) =>
         i === index ? { ...item, content } : item
       );
       setTaskInfo(activeTaskId, targetTaskInfo);
-    },
-    saveTaskInfo() {
-      const { tasks, activeTaskId } = get();
-      if (!activeTaskId) return;
-      persistSubtaskEdits(tasks[activeTaskId].taskInfo);
     },
     deleteTaskInfo(index: number) {
       const { tasks, activeTaskId, setTaskInfo } = get();
@@ -1716,13 +1622,7 @@ const chatStore = (initial?: Partial<ChatStore>) =>
       const { tasks, setPlanDirty, setAutoConfirmDeadline } = get();
       const task = tasks[taskId];
       if (!task) return;
-      try {
-        await persistSubtaskEdits(task.taskInfo);
-        setPlanDirty(taskId, false);
-      } catch (err) {
-        console.error('Failed to persist subtask edits:', err);
-        return;
-      }
+      setPlanDirty(taskId, false);
 
       // After Save, restart the 30-second auto-confirm timer for predictable UX.
       const projectId = useProjectStore.getState().activeProjectId;

@@ -12,7 +12,6 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { checkBackendHealth } from '@/api/http';
 import { useHost } from '@/host';
 import { useAuthStore } from '@/store/authStore';
 import { useInstallationStore } from '@/store/installationStore';
@@ -77,26 +76,11 @@ export const useInstallationSetup = () => {
   const startBackendPolling = useCallback(() => {
     console.log('[useInstallationSetup] Starting backend polling');
 
-    // Web mode: no Electron host, so Brain health is the readiness signal.
-    const checkViaHealth = async (): Promise<boolean> => {
-      try {
-        const ok = await checkBackendHealth();
-        if (ok) {
-          markReady();
-          void syncSkillsOnOpen();
-          return true;
-        }
-      } catch (e) {
-        console.log('[useInstallationSetup] Health check failed:', e);
-      }
-      return false;
-    };
-
     // Desktop: the main process validated the edge endpoint at startup;
     // reachability is the aion session layer's concern, not a readiness gate.
     // The one-shot backend-ready event can race the listener mount, so this
     // poll is the recovery path.
-    const checkEdgeConfigured = async (): Promise<boolean> => {
+    const doCheck = async (): Promise<boolean> => {
       try {
         const transportConfig =
           await host?.electronAPI?.getAionTransportConfig?.();
@@ -117,9 +101,6 @@ export const useInstallationSetup = () => {
       return false;
     };
 
-    const hasDesktop = !!(host?.electronAPI && host?.ipcRenderer);
-    const doCheck = hasDesktop ? checkEdgeConfigured : checkViaHealth;
-
     doCheck().then((isReady) => {
       if (isReady) {
         console.log('[useInstallationSetup] Backend ready, skipping polling');
@@ -133,7 +114,7 @@ export const useInstallationSetup = () => {
       }, 2000);
       setTimeout(() => clearInterval(pollInterval), 30000);
     });
-  }, [markReady, host, syncSkillsOnOpen]);
+  }, [markReady, host]);
 
   // Monitor for backend restart after logout
   useEffect(() => {

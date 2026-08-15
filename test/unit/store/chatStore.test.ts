@@ -25,22 +25,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock dependencies - moved to top before other imports
-vi.mock('@/api/http', () => ({
-  fetchPost: vi.fn(),
-  fetchPut: vi.fn(),
-  proxyFetchGet: vi.fn(() =>
-    Promise.resolve({
-      value: '',
-      api_url: '',
-      items: [],
-      warning_code: null,
-    })
-  ),
-  uploadFile: vi.fn(),
-  fetchDelete: vi.fn(),
-}));
-
 vi.mock('@/store/aionChatBridge', () => ({
   getAionRemoteConfig: vi.fn(() => Promise.resolve(null)),
   startAionTask: vi.fn(() => Promise.resolve()),
@@ -89,7 +73,6 @@ vi.mock('../../../src/store/projectStore', () => ({
   },
 }));
 
-import { fetchPost, fetchPut } from '@/api/http';
 import { getAionRemoteConfig } from '@/store/aionChatBridge';
 import { generateUniqueId } from '../../../src/lib';
 import {
@@ -961,45 +944,4 @@ describe('ChatStore - Core Functionality', () => {
       expect(result.current.getState().tasks['missing-task']).toBeUndefined();
     });
   });
-
-  describe('Plan confirmation', () => {
-    it('rolls back confirmed plan UI when backend start request fails', async () => {
-      vi.mocked(fetchPut).mockRejectedValueOnce(new Error('network down'));
-      const { result } = renderHook(() => useChatStore());
-
-      let taskId: string;
-      await act(async () => {
-        taskId = result.current.getState().create();
-        result.current.getState().setActiveTaskId(taskId);
-        result.current.getState().setTaskInfo(taskId, [
-          {
-            id: 'task.1',
-            content: 'Do the work',
-            status: 'empty',
-          } as any,
-        ]);
-        result.current.getState().addMessages(taskId, {
-          id: generateUniqueId(),
-          role: 'agent',
-          content: '',
-          step: 'to_sub_tasks',
-          isConfirm: false,
-        });
-      });
-
-      await act(async () => {
-        await result.current.getState().handleConfirmTask('project-1', taskId!);
-      });
-
-      const task = result.current.getState().tasks[taskId!];
-      const planMessage = task.messages.find(
-        (message) => message.step === 'to_sub_tasks'
-      );
-      expect(planMessage?.isConfirm).toBe(false);
-      expect(task.status).toBe(ChatTaskStatus.PENDING);
-      expect(task.taskTime).toBe(0);
-      expect(fetchPost).not.toHaveBeenCalledWith('/task/project-1/start', {});
-    });
-  });
-
 });

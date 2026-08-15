@@ -24,8 +24,6 @@ import { BrowserRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ChatBox from '../../../src/components/ChatBox/index';
 
-// Import proxy mock to enable API mocking
-import '../../mocks/proxy.mock';
 // Also Mock authStore & sse
 import '../../mocks/authStore.mock';
 import '../../mocks/sse.mock';

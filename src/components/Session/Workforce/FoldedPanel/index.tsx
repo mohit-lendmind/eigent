@@ -451,9 +451,6 @@ export default function FoldedPanel({
                       onUpdateTask={(taskIndex, content) => {
                         chatStore.updateTaskInfo(taskIndex, content);
                       }}
-                      onSaveTask={() => {
-                        chatStore.saveTaskInfo();
-                      }}
                       onDeleteTask={(taskIndex) => {
                         chatStore.deleteTaskInfo(taskIndex);
                       }}

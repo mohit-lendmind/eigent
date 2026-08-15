@@ -1,10 +1,9 @@
 // Which control plane this renderer is attached to, for the surfaces that only
 // one of the two planes can serve.
 //
-// Nav registries are the reason this exists. Several screens are built on the
-// HTTP client in src/api/http.ts that resolves the local backend this fork no
-// longer ships: in aion mode those screens are reachable, silent and inert, so
-// the entries that lead to them are hidden rather than left clickable.
+// Nav registries are the reason this exists. Some sections only aion can serve
+// — a bill needs a plane that meters what a run costs — so on any other plane
+// the entry is hidden rather than left clickable over an empty screen.
 
 import { useEffect, useState } from 'react';
 

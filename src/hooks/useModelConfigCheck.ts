@@ -12,37 +12,23 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { proxyFetchGet } from '@/api/http';
-import { createHost } from '@/host/createHost';
 import { getAionRemoteConfig } from '@/store/aionChatBridge';
-import { getAuthStore, useAuthStore } from '@/store/authStore';
-import { getCloudModelStore } from '@/store/cloudModelStore';
+import { useAuthStore } from '@/store/authStore';
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-
-const API_CODE_TRIAL_LIMIT = '22';
-
-const hasApiCode = (value: unknown, code: string) =>
-  typeof value === 'object' &&
-  value !== null &&
-  String((value as { code?: unknown }).code) === code;
 
 /**
  * Centralized model-configuration check.
  *
  * Reads the last known result from the persisted auth store so returning
  * users get the correct UI on first paint (no overlay flash). Re-validates
- * silently in the background on mount, when `modelType` changes, when the
- * route returns to `/`, and when the window regains focus. On API failure
- * the previous value is kept rather than reset to `false`, so a transient
- * error doesn't briefly hide the input.
+ * silently in the background on mount, when the route returns to `/`, and
+ * when the window regains focus.
  */
 export function useModelConfigCheck(): {
   hasModel: boolean;
   isConfigLoaded: boolean;
-  cloudUsageLimitReached: boolean;
 } {
-  const modelType = useAuthStore((s) => s.modelType);
   const hasModel = useAuthStore((s) => s.hasModelConfigured);
   const setHasModelConfigured = useAuthStore((s) => s.setHasModelConfigured);
   const location = useLocation();
@@ -50,79 +36,25 @@ export function useModelConfigCheck(): {
   // used by callers that need to wait for a fresh validation (e.g. share
   // token handling) rather than trusting the persisted optimistic value.
   const [isConfigLoaded, setIsConfigLoaded] = useState(false);
-  const [cloudUsageLimitReached, setCloudUsageLimitReached] = useState(false);
 
+  // Models are aion edge aliases: a reachable backend with a working key is
+  // the whole configuration. A backend that reports an error keeps the
+  // composer locked so onboarding is the visible next step.
   const checkModelConfig = useCallback(async () => {
     try {
-      // Remote-backend mode: models are aion edge aliases resolved by the
-      // bridge (the M6 model-settings train wires the product picker); the
-      // legacy provider/cloud checks below target services that don't exist.
       const remote = await getAionRemoteConfig();
-      if (remote && !('error' in remote)) {
-        setCloudUsageLimitReached(false);
-        setHasModelConfigured(true);
-        return;
-      }
-      if (modelType === 'cloud') {
-        const { token, cloud_model_type } = getAuthStore();
-        if (!token) {
-          setCloudUsageLimitReached(false);
-          setHasModelConfigured(false);
-          return;
-        }
-
-        await getCloudModelStore().fetchCloudModels();
-        const resolvedCloudModel =
-          getCloudModelStore().resolveCloudModel(cloud_model_type);
-        setHasModelConfigured(Boolean(resolvedCloudModel));
-
-        try {
-          const res = await proxyFetchGet('/api/v1/user/key');
-          setCloudUsageLimitReached(hasApiCode(res, API_CODE_TRIAL_LIMIT));
-        } catch (err: any) {
-          if (
-            hasApiCode(err?.response?.data, API_CODE_TRIAL_LIMIT) ||
-            hasApiCode(err, API_CODE_TRIAL_LIMIT)
-          ) {
-            setCloudUsageLimitReached(true);
-          } else {
-            console.error('Failed to check cloud usage limit:', err);
-          }
-        }
-      } else if (modelType === 'codex_subscription') {
-        setCloudUsageLimitReached(false);
-        const { email } = getAuthStore();
-        const status = email
-          ? await createHost().electronAPI?.codexSubscriptionStatus?.(email)
-          : null;
-        setHasModelConfigured(Boolean(status?.connected));
-      } else if (modelType === 'local' || modelType === 'custom') {
-        setCloudUsageLimitReached(false);
-        const res = await proxyFetchGet('/api/v1/providers', { prefer: true });
-        const providerList = res.items || [];
-        setHasModelConfigured(providerList.length > 0);
-      } else {
-        setCloudUsageLimitReached(false);
-        setHasModelConfigured(false);
-      }
-    } catch (err: any) {
+      setHasModelConfigured(Boolean(remote) && !('error' in remote!));
+    } catch (err) {
       console.error('Failed to check model config:', err);
-      if (
-        modelType === 'cloud' &&
-        (hasApiCode(err?.response?.data, API_CODE_TRIAL_LIMIT) ||
-          hasApiCode(err, API_CODE_TRIAL_LIMIT))
-      ) {
-        setCloudUsageLimitReached(true);
-        setHasModelConfigured(false);
-      }
+      setHasModelConfigured(false);
     } finally {
       setIsConfigLoaded(true);
     }
-  }, [modelType, setHasModelConfigured]);
+  }, [setHasModelConfigured]);
 
   useEffect(() => {
     checkModelConfig();
-  }, [modelType, checkModelConfig]);
+  }, [checkModelConfig]);
 
   useEffect(() => {
     if (location.pathname === '/') {
@@ -140,5 +72,5 @@ export function useModelConfigCheck(): {
     };
   }, [checkModelConfig]);
 
-  return { hasModel, isConfigLoaded, cloudUsageLimitReached };
+  return { hasModel, isConfigLoaded };
 }

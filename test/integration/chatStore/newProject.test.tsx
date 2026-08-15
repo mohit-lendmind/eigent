@@ -29,8 +29,6 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateUniqueId } from '../../../src/lib';
 
-// Import proxy mock to enable API mocking
-import '../../mocks/proxy.mock';
 // Also Mock authStore
 import '../../mocks/authStore.mock';
 
