@@ -26,6 +26,8 @@
     "event_text_delta.json",
     "event_tool_call.json",
     "event_tool_result.json",
+    "event_subagent_started.json",
+    "event_subagent_ended.json",
     "event_approval_required.json",
     "event_approval_resolved.json",
     "event_artifact_created.json",

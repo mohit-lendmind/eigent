@@ -183,7 +183,13 @@ declare global {
     | 'document_agent'
     | 'multi_modal_agent'
     | 'social_media_agent'
-    | 'single_agent';
+    | 'single_agent'
+    /**
+     * One worker of a run's fan-out. Its label is the worker's own name or
+     * role, so it deliberately has no preset in `agentMap` — every lane in a
+     * run carries this type and they are told apart by `name`/`agent_id`.
+     */
+    | 'worker_agent';
 
   interface AgentNameMap {
     developer_agent: 'Developer Agent';
@@ -192,6 +198,7 @@ declare global {
     multi_modal_agent: 'Multi Modal Agent';
     social_media_agent: 'Social Media Agent';
     single_agent: 'Agent';
+    worker_agent: 'Worker';
   }
   type WorkspaceType =
     | 'workflow'

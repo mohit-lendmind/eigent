@@ -134,6 +134,13 @@ const PROJECT_LIST_MINIMUM_EDGE = [1, 6];
 // a confident $0.00.
 const USAGE_MINIMUM_EDGE = [1, 7];
 
+// Typed subagent lifecycle shipped in edge API 1.8.0. Below the floor the
+// worker events exist but are retained at internal visibility, which the
+// reducer drops — so a run really did fan out and this backend cannot say so.
+// The distinction the UI owes the user is "no workers" versus "this backend
+// cannot report workers", and only the floor tells them apart.
+const WORKFORCE_MINIMUM_EDGE = [1, 8];
+
 function meetsEdgeFloor(status: IntegrationStatus, floor: number[]): boolean {
   if (!negotiateCompatibility(status).compatible) {
     return false;
@@ -156,4 +163,8 @@ export function supportsProjectList(status: IntegrationStatus): boolean {
 
 export function supportsUsage(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, USAGE_MINIMUM_EDGE);
+}
+
+export function supportsWorkforceEvents(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, WORKFORCE_MINIMUM_EDGE);
 }

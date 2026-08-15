@@ -36,7 +36,11 @@ export function SessionSidePanelHeader({
   end,
 }: SessionSidePanelHeaderProps) {
   return (
-    <div className="p-2 min-w-0 relative z-50 flex w-full shrink-0 items-center">
+    <div
+      className="p-2 min-w-0 relative z-50 flex w-full shrink-0 items-center"
+      data-testid="session-side-panel-header"
+      data-session-mode={mode}
+    >
       <div className="min-w-0 gap-1 flex flex-1 items-center justify-start">
         <SessionSidePanelFoldButton
           sessionSidePanelMode={mode}

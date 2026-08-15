@@ -1029,6 +1029,10 @@ const AgentGroupRow = memo(function AgentGroupRow({
         type="button"
         aria-expanded={open}
         onClick={onToggle}
+        // One row per agent that acted in this turn — the fan-out is countable
+        // from here, by type.
+        data-testid="work-log-agent-group"
+        data-agent-type={group.agentType}
         className={cn(
           'my-1 flex w-fit min-w-0 max-w-full gap-2 px-0 py-1 text-left transition-opacity hover:opacity-80',
           useSingleAgentLiveHeader ? 'items-start' : 'items-center'
@@ -1334,6 +1338,10 @@ export function TaskWorkLogAccordion({
         type="button"
         aria-expanded={outerOpen}
         onClick={() => setOuterOpen((v) => !v)}
+        // The body unmounts while collapsed, and a finished task collapses
+        // itself — so reopening it is the only way to read back what a turn did.
+        data-testid="work-log-toggle"
+        data-open={outerOpen}
         className="flex w-full min-w-0 items-center justify-start gap-1 px-0 py-2 text-left"
       >
         <span className="text-body-sm font-medium text-ds-text-neutral-muted-default">

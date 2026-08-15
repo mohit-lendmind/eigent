@@ -29,7 +29,14 @@ import {
   useState,
 } from 'react';
 
+/** One worker of a run's fan-out, as projected from the subagent lifecycle. */
+const WORKER_LANE = 'worker_agent';
+
 function hasWork(agent: Agent) {
+  // A worker lane never gets a task list: only the orchestrator's tool calls
+  // project onto a Project. Being staffed at all is its assignment, so it must
+  // not read as an idle agent sitting on the bench.
+  if (agent.type === WORKER_LANE) return true;
   return Array.isArray(agent.tasks) && agent.tasks.length > 0;
 }
 
@@ -40,6 +47,27 @@ function agentHasAnyToolkitsSeen(agent: Agent): boolean {
     }
   }
   return false;
+}
+
+/** Worth a row in the collapsed strip: it has something to say right now. */
+export function hasVisibleActivity(agent: Agent): boolean {
+  return agent.type === WORKER_LANE || agentHasAnyToolkitsSeen(agent);
+}
+
+/**
+ * A worker lane's own line — the role it joined as while it is running, and how
+ * it ended once it has. It carries no toolkit stream to rotate through, so this
+ * is the whole of what the pool can honestly say about it.
+ *
+ * Exported for unit tests.
+ */
+export function workerLaneLine(agent: Agent): string | null {
+  const log = agent.log ?? [];
+  for (let i = log.length - 1; i >= 0; i--) {
+    const text = log[i]?.data?.notice ?? log[i]?.data?.message;
+    if (text) return text;
+  }
+  return null;
 }
 
 /**
@@ -231,13 +259,19 @@ export function useLiveToolkits(
         stateRef.current.retired.add(id);
         bump();
       }, delay),
-    cancel: clearTimeout,
+    // Wrapped rather than passed by reference: `opts.cancel(t)` would invoke
+    // the native clearTimeout with the options object as its receiver, which
+    // Chromium rejects outright ("Illegal invocation") and which takes the
+    // whole renderer down. Calling it through an arrow keeps the global
+    // receiver. This branch is only reached when a toolkit flips back to
+    // RUNNING after settling — common once several worker lanes are live.
+    cancel: (handle) => clearTimeout(handle),
   });
 
   useEffect(() => {
     const state = stateRef.current;
     return () => {
-      state.timers.forEach(clearTimeout);
+      state.timers.forEach((handle) => clearTimeout(handle));
       state.timers.clear();
     };
   }, []);
@@ -294,6 +328,36 @@ function AgentToolkitTag({ names }: { names: string[] }) {
   );
 }
 
+/** The lane equivalent of the toolkit strip: one line, live while it runs. */
+function WorkerLaneTag({ agent }: { agent: Agent }) {
+  const line = workerLaneLine(agent);
+  if (!line) return null;
+  const running = agent.status === AgentStatusValue.RUNNING;
+  return (
+    <div className="h-6 min-w-0 inline-flex shrink-0 items-center overflow-hidden">
+      <span
+        className={cn(
+          'gap-1 px-1.5 py-0.5 rounded-md inline-flex max-w-full items-center opacity-80',
+          'bg-ds-bg-neutral-muted-default'
+        )}
+        data-testid="agent-worker-tag"
+      >
+        {running ? (
+          <ShinyText
+            text={line}
+            speed={2.5}
+            className="text-label-xs font-medium max-w-[160px] truncate"
+          />
+        ) : (
+          <span className="text-label-xs font-medium max-w-[160px] truncate text-ds-text-neutral-default-default">
+            {line}
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
 function AgentRow({ agent }: { agent: Agent }) {
   const display = agentMap[agent.type as WorkflowAgentType];
   const active = hasWork(agent);
@@ -307,6 +371,8 @@ function AgentRow({ agent }: { agent: Agent }) {
         'gap-2 min-w-0 flex items-center',
         !active && 'opacity-50'
       )}
+      data-testid="agent-pool-row"
+      data-agent-type={agent.type}
     >
       <AgentLeadingIcon agentType={agent.type} />
       <span
@@ -317,7 +383,11 @@ function AgentRow({ agent }: { agent: Agent }) {
       >
         {name}
       </span>
-      <AgentToolkitTag names={liveToolkits} />
+      {agent.type === WORKER_LANE ? (
+        <WorkerLaneTag agent={agent} />
+      ) : (
+        <AgentToolkitTag names={liveToolkits} />
+      )}
     </div>
   );
 }
@@ -352,7 +422,7 @@ export function AgentPoolSection({ title, agents }: AgentPoolSectionProps) {
   const ordered = useMemo(() => sortByAssigned(agents), [agents]);
   const activeAgents = useMemo(() => ordered.filter(hasWork), [ordered]);
   const toolingAgents = useMemo(
-    () => ordered.filter(agentHasAnyToolkitsSeen),
+    () => ordered.filter(hasVisibleActivity),
     [ordered]
   );
 

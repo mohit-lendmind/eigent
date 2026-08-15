@@ -140,7 +140,7 @@ describe('ProjectSession reconnect', () => {
       events
     );
     const done = session.start();
-    await waitUntil(() => session.state.lastSequence === '10');
+    await waitUntil(() => session.state.lastSequence === String(events.length));
     session.stop();
     await done;
 

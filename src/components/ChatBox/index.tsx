@@ -28,7 +28,7 @@ import {
   isProjectAchieved,
   setProjectAchievedState,
 } from '@/lib/projectAchievement';
-import { inferSessionModeFromTask } from '@/lib/sessionMode';
+import { inferSessionModeFromTask, resolveSessionMode } from '@/lib/sessionMode';
 import { proxyUpdateTriggerExecution } from '@/service/triggerApi';
 import { getAionRemoteConfig } from '@/store/aionChatBridge';
 import { useAuthStore } from '@/store/authStore';
@@ -223,13 +223,20 @@ export default function ChatBox(): JSX.Element {
   // so a still-loading Project renders empty instead of the wrong mode.
   const inferredSessionMode = inferSessionModeFromTask(activeTask, null);
   const activeProjectMode = activeProjectMeta?.mode ?? activeProject?.mode;
-  const effectiveSessionMode =
-    activeProjectMode ?? inferredSessionMode ?? SessionMode.SINGLE_AGENT;
-  const displaySessionMode =
-    activeProjectMode ?? inferredSessionMode ?? undefined;
+  const resolvedSessionMode = resolveSessionMode(
+    activeProjectMode,
+    inferredSessionMode
+  );
+  const effectiveSessionMode = resolvedSessionMode ?? SessionMode.SINGLE_AGENT;
+  const displaySessionMode = resolvedSessionMode ?? undefined;
   const ensureActiveProjectMode = useCallback(() => {
     const projectId = projectStore.activeProjectId;
-    if (!projectId || activeProjectMode) return;
+    if (!projectId || activeProjectMode === effectiveSessionMode) return;
+    // A stored mode is only overwritten upward: a run that delegated makes the
+    // Project a workforce one for good, and nothing turns it back.
+    if (activeProjectMode && effectiveSessionMode !== SessionMode.WORKFORCE) {
+      return;
+    }
     updateProjectMeta(projectId, { mode: effectiveSessionMode });
   }, [
     activeProjectMode,

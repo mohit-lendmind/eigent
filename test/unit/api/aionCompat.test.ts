@@ -8,6 +8,7 @@ import {
   supportsProjectList,
   supportsSkillUsage,
   supportsSkills,
+  supportsWorkforceEvents,
 } from '@/api/aion/v1/compat';
 import {
   DESKTOP_CLIENT_VERSION,
@@ -164,5 +165,28 @@ describe('supportsProjectList', () => {
     expect(
       supportsProjectList(status({ minimum_desktop_version: '999.0.0' }))
     ).toBe(false);
+  });
+});
+
+describe('supportsWorkforceEvents', () => {
+  it('gates on the 1.8 typed-subagent floor', () => {
+    // Below the floor the worker events are retained at internal visibility,
+    // which the reducer drops — so an empty workforce there is silence, not
+    // the fact that the run ran alone.
+    expect(supportsWorkforceEvents(status({ edge_api_version: '1.7.9' }))).toBe(
+      false
+    );
+    expect(supportsWorkforceEvents(status({ edge_api_version: '1.8.0' }))).toBe(
+      true
+    );
+  });
+
+  it('fails closed on garbage and on a foreign major', () => {
+    expect(supportsWorkforceEvents(status({ edge_api_version: '2.0.0' }))).toBe(
+      false
+    );
+    expect(supportsWorkforceEvents(status({ edge_api_version: '1.eight' }))).toBe(
+      false
+    );
   });
 });

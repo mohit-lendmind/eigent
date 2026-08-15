@@ -8,6 +8,7 @@ import {
   reduceProjectEvent,
   reduceProjectEvents,
   stateFromSnapshot,
+  workersForRun,
   type ProjectUIState,
 } from '@/api/aion/v1/reducer';
 
@@ -35,7 +36,7 @@ describe('aion Project reducer (golden fixtures)', () => {
     const state = reduceProjectEvents(initialProjectState(), goldenStream());
 
     expect(state.projectId).toBe('prj_01JY0000000000000000000001');
-    expect(state.lastSequence).toBe('10');
+    expect(state.lastSequence).toBe('12');
     expect(state.gapCount).toBe(0);
     expect(state.suppressedEventCount).toBe(0);
     expect(state.activeRunId).toBeNull();
@@ -57,12 +58,14 @@ describe('aion Project reducer (golden fixtures)', () => {
       outcomeReason: 'user_requested',
     });
 
-    // Timeline shape: boundary, text, tool(with result), approval(resolved),
-    // artifact, then three terminal boundaries.
+    // Timeline shape: boundary, text, tool(with result), worker(started then
+    // ended — ONE lane, not two entries), approval(resolved), artifact, then
+    // three terminal boundaries.
     expect(state.timeline.map((entry) => entry.type)).toEqual([
       'run_boundary',
       'text',
       'tool',
+      'worker',
       'approval',
       'artifact',
       'run_boundary',
@@ -79,7 +82,24 @@ describe('aion Project reducer (golden fixtures)', () => {
       result: { content: '1 test failed', isError: true },
     });
 
-    const approval = state.timeline[3];
+    const worker = state.timeline[3];
+    expect(worker).toMatchObject({ type: 'worker', runId: 'run_01JY0000000000000000000001' });
+    expect(workersForRun(state, 'run_01JY0000000000000000000001')).toEqual([
+      {
+        workerKey: 'run_01JY0000000000000000000001#ses_01JY0000000000000000000042',
+        runId: 'run_01JY0000000000000000000001',
+        childSessionId: 'ses_01JY0000000000000000000042',
+        role: 'search',
+        name: 'dependency-audit',
+        status: 'succeeded',
+        reason: 'completed',
+        error: undefined,
+        startedSequence: '5',
+        endedSequence: '6',
+      },
+    ]);
+
+    const approval = state.timeline[4];
     expect(approval).toMatchObject({
       type: 'approval',
       approvalId: 'apr_01JY0000000000000000000001',
@@ -89,7 +109,7 @@ describe('aion Project reducer (golden fixtures)', () => {
       resolvedBy: 'user',
     });
 
-    const artifact = state.timeline[4];
+    const artifact = state.timeline[5];
     expect(artifact).toMatchObject({
       type: 'artifact',
       artifact: { artifact_id: 'art_01JY0000000000000000000001', name: 'test-report.json' },
@@ -244,6 +264,108 @@ describe('aion Project reducer (golden fixtures)', () => {
       last_sequence: '7',
     } as Parameters<typeof stateFromSnapshot>[0]);
     expect(state.runs['run_x'].status).toBe('running');
+  });
+
+  // The three ways a fan-out arrives incomplete. Both lifecycle deltas are
+  // forwarded non-blocking upstream, so either half can be dropped; and an
+  // ephemeral spawn carries no child session id to pair on at all.
+  describe('workforce degradations', () => {
+    const started = (over: Record<string, unknown>): ProjectEvent =>
+      decodeProjectEvent({
+        ...(fixture('event_subagent_started.json') as Record<string, unknown>),
+        ...over,
+      });
+    const ended = (over: Record<string, unknown>): ProjectEvent =>
+      decodeProjectEvent({
+        ...(fixture('event_subagent_ended.json') as Record<string, unknown>),
+        ...over,
+      });
+    const runId = 'run_01JY0000000000000000000001';
+
+    it('reports a start whose end never arrived as unknown once the run settles', () => {
+      let state = reduceProjectEvent(initialProjectState(), started({ sequence: '1' }));
+      expect(workersForRun(state, runId)[0].status).toBe('running');
+
+      state = reduceProjectEvent(
+        state,
+        decodeProjectEvent({
+          ...(fixture('event_run_completed.json') as Record<string, unknown>),
+          sequence: '2',
+          run_id: runId,
+        })
+      );
+      const worker = workersForRun(state, runId)[0];
+      expect(worker.status).toBe('unknown');
+      expect(worker.endedSequence).toBeUndefined();
+    });
+
+    it('opens a lane for an end whose start was dropped', () => {
+      const state = reduceProjectEvent(initialProjectState(), ended({ sequence: '1' }));
+      expect(state.timeline).toHaveLength(1);
+      expect(workersForRun(state, runId)[0]).toMatchObject({
+        status: 'succeeded',
+        reason: 'completed',
+        endedSequence: '1',
+      });
+      expect(workersForRun(state, runId)[0].startedSequence).toBeUndefined();
+    });
+
+    it('keeps an unidentified ephemeral worker unpairable rather than borrowing an end', () => {
+      let state = reduceProjectEvent(
+        initialProjectState(),
+        started({ sequence: '1', data: { child_session_id: '', role: 'search', name: 'scout' } })
+      );
+      state = reduceProjectEvent(
+        state,
+        ended({
+          sequence: '2',
+          data: { child_session_id: '', role: 'search', reason: 'completed', error: '' },
+        })
+      );
+      const workers = workersForRun(state, runId);
+      expect(workers).toHaveLength(2);
+      expect(workers[0]).toMatchObject({ childSessionId: '', status: 'running', name: 'scout' });
+      expect(workers[1]).toMatchObject({ childSessionId: '', status: 'succeeded' });
+    });
+
+    it('names a worker that ended in error as failed and keeps the message', () => {
+      const state = reduceProjectEvent(
+        initialProjectState(),
+        ended({
+          sequence: '1',
+          data: {
+            child_session_id: 'ses_x',
+            role: 'search',
+            reason: 'provider_error',
+            error: 'upstream refused the request',
+          },
+        })
+      );
+      expect(workersForRun(state, runId)[0]).toMatchObject({
+        status: 'failed',
+        reason: 'provider_error',
+        error: 'upstream refused the request',
+      });
+    });
+
+    it('leaves a single-agent run with no workers at all', () => {
+      const state = reduceProjectEvents(initialProjectState(), [
+        decodeProjectEvent({
+          ...(fixture('event_run_accepted.json') as Record<string, unknown>),
+          sequence: '1',
+        }),
+        decodeProjectEvent({
+          ...(fixture('event_text_delta.json') as Record<string, unknown>),
+          sequence: '2',
+        }),
+        decodeProjectEvent({
+          ...(fixture('event_run_completed.json') as Record<string, unknown>),
+          sequence: '3',
+        }),
+      ]);
+      expect(state.workers).toEqual({});
+      expect(workersForRun(state, runId)).toEqual([]);
+    });
   });
 
   it('merges consecutive text deltas for the same run', () => {

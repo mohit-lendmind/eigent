@@ -10,8 +10,9 @@ sync), record the aion-v1 commit below, then run `pnpm gen:aion-edge` so the
 generated client under `../gen/` matches. `bazel test //:aion_edge_client_gen`
 fails until mirror and generated output agree.
 
-- Contract version: edge_api `1.7.0`
+- Contract version: edge_api `1.8.0`
 - Source path: `aion-v1/api/eigent/v1/`
-- Last synced from: aion-v1 commit `a9ee885`, which adds `GET /usage` and the
-  `UsageSummary`/`UsageTotals`/`RunSpend` schemas, together with
-  `test/fixtures/aion/eigent/v1/` (which gains `usage_response.json`).
+- Last synced from: aion-v1 commit `4d15385`, which adds the
+  `subagent_started`/`subagent_ended` event kinds, together with
+  `test/fixtures/aion/eigent/v1/` (which gains `event_subagent_started.json`
+  and `event_subagent_ended.json`).

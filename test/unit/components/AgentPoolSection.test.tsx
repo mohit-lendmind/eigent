@@ -13,10 +13,12 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import {
+  hasVisibleActivity,
   reconcileToolkitState,
   TOOLKIT_MIN_DISPLAY_MS,
+  workerLaneLine,
 } from '@/components/Session/SidePanelSections/AgentPoolSection';
-import { AgentStatusValue } from '@/types/constants';
+import { AgentStatusValue, AgentStep } from '@/types/constants';
 import { describe, expect, it } from 'vitest';
 
 type State = Parameters<typeof reconcileToolkitState>[0];
@@ -302,5 +304,62 @@ describe('reconcileToolkitState', () => {
       { now: 1700, minDisplayMs, schedule, cancel }
     );
     expect(names).toEqual(['Browser Toolkit', 'Screenshot Toolkit']);
+  });
+});
+
+// A worker lane has no toolkit stream to rotate through — only the
+// orchestrator's tool calls project onto a Project — so the pool has to read a
+// lane's own line, and must not file it away as an idle bench agent.
+describe('worker lanes in the pool', () => {
+  const lane = (log: Array<{ notice?: string; message?: string }>): Agent =>
+    ({
+      agent_id: 'task-worker-ses_child_01',
+      name: 'alpha',
+      type: 'worker_agent',
+      status: AgentStatusValue.RUNNING,
+      tasks: [],
+      log: log.map((data) => ({ step: AgentStep.NOTICE, data })),
+    }) as unknown as Agent;
+
+  it('reads the most recent line a lane reported', () => {
+    expect(
+      workerLaneLine(
+        lane([
+          { message: 'Joined the run as researcher.' },
+          { notice: 'Finished: completed.' },
+        ])
+      )
+    ).toBe('Finished: completed.');
+  });
+
+  it('falls back to the line it opened with while it is still running', () => {
+    expect(workerLaneLine(lane([{ message: 'Joined the run.' }]))).toBe(
+      'Joined the run.'
+    );
+  });
+
+  it('says nothing rather than something empty', () => {
+    expect(workerLaneLine(lane([]))).toBeNull();
+    expect(workerLaneLine(lane([{}]))).toBeNull();
+  });
+
+  it('keeps a lane in the collapsed strip even with no toolkits', () => {
+    // Collapsed is the panel's default state, so a lane that only counted as
+    // "active" via toolkits would leave a fan-out invisible until expanded.
+    expect(hasVisibleActivity(lane([{ message: 'Joined the run.' }]))).toBe(
+      true
+    );
+  });
+
+  it('leaves an untooled orchestrator out of the collapsed strip', () => {
+    const idle = {
+      agent_id: 'a',
+      name: 'Aion Agent',
+      type: 'single_agent',
+      status: AgentStatusValue.RUNNING,
+      tasks: [],
+      log: [],
+    } as unknown as Agent;
+    expect(hasVisibleActivity(idle)).toBe(false);
   });
 });
