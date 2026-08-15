@@ -288,6 +288,84 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/connectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description The tenant's connector catalog with the caller's grant state on each
+         *     row. Like the skill routes, connectors are served only by an edge
+         *     connected to a cell; elsewhere they answer 501
+         *     (`code: not_implemented`).
+         *
+         *     A server whose connector vault is not configured still serves this
+         *     route — the catalog is readable, and every oauth row reports
+         *     `connectable: false` so a client renders the state instead of
+         *     offering a Connect action that cannot succeed.
+         */
+        get: operations["listConnectors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/connectors/{connectorId}/auth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connectorId: components["parameters"]["ConnectorId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Begin the brokered OAuth flow for this connector and return the
+         *     provider's consent URL for the caller to open. The URL is the whole
+         *     result: the edge never follows it and never holds a token. The flow
+         *     completes on the cell's own callback listener, whose single-use state
+         *     is the only thing that can redeem it — so a client polls
+         *     `listConnectors` for `connected: true` rather than expecting a
+         *     response here to mean the grant exists.
+         */
+        post: operations["initiateConnectorAuth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/connectors/{connectorId}/grant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connectorId: components["parameters"]["ConnectorId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * @description Revoke the caller's grant for this connector. Soft revoke: the grant
+         *     row is retained as revoked for audit, the tokens are unusable, and the
+         *     connector stays in the catalog. Disconnecting an already-disconnected
+         *     connector succeeds, so this is safe to retry.
+         */
+        delete: operations["disconnectConnector"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 };
 export type webhooks = Record<string, never>;
 export type components = {
@@ -642,6 +720,67 @@ export type components = {
              */
             status: "active" | "disabled";
         };
+        /**
+         * @description Catalog identifier of a connector. Full syntax is validated
+         *     server-side.
+         */
+        ConnectorId: string;
+        /**
+         * @description One catalog row plus the caller's own grant state. Grants are
+         *     per-user; two users of the same tenant see the same catalog with
+         *     different `connected` values.
+         */
+        Connector: {
+            connector_id: components["schemas"]["ConnectorId"];
+            display_name: string;
+            /**
+             * @description How the connector authenticates: `oauth` = per-user brokered
+             *     grant (the only kind these routes can connect or disconnect),
+             *     `static_env` = an operator-provided credential named by
+             *     environment variable, `none` = no credential.
+             */
+            auth_kind: string;
+            /**
+             * @description Catalog state. This route serves `active` rows only — a
+             *     self-registered connector of an exfiltration-capable kind is
+             *     minted `draft` pending operator review, and neither draft nor
+             *     disabled rows are user-facing. The field is on the wire so that
+             *     surfacing them later is an additive change rather than a new
+             *     shape; treat any other value as not usable.
+             */
+            status: string;
+            /**
+             * @description For `oauth`, whether the caller holds an active grant. For the
+             *     other kinds always true — they need no grant to be usable.
+             */
+            connected: boolean;
+            /**
+             * @description Whether initiateConnectorAuth can succeed for this row on this
+             *     server. False for an `oauth` connector on a server with no
+             *     connector vault configured, where `connected` is also false but
+             *     for a reason the user cannot fix. Always true for the kinds that
+             *     need no grant. Render the Connect action off this field, not off
+             *     `connected` alone.
+             */
+            connectable: boolean;
+        };
+        ConnectorCatalog: {
+            connectors: components["schemas"]["Connector"][];
+        } & {
+            [key: string]: unknown;
+        };
+        ConnectorAuthorization: {
+            connector_id: components["schemas"]["ConnectorId"];
+            /**
+             * Format: uri
+             * @description The provider consent URL to open. Single-use and short-lived: it
+             *     carries the flow state that redeems this attempt, so it is never
+             *     cached or shared between users.
+             */
+            authorization_url: string;
+        } & {
+            [key: string]: unknown;
+        };
     };
     responses: {
         /** @description RFC 9457 problem detail */
@@ -668,6 +807,7 @@ export type components = {
          *     zeros, so "never used" stays distinguishable.
          */
         SkillUsageFlag: boolean;
+        ConnectorId: components["schemas"]["ConnectorId"];
         /**
          * @description Optimistic-concurrency fence: the decimal skill version this write is
          *     conditioned on. The write succeeds only while that is still the
@@ -1246,6 +1386,107 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Skill"];
                 };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
+        };
+    };
+    listConnectors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tenant's connector catalog */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorCatalog"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
+        };
+    };
+    initiateConnectorAuth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connectorId: components["parameters"]["ConnectorId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The authorization URL to open */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorAuthorization"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            /**
+             * @description The connector exists but cannot start a flow (`code:
+             *     connector_not_ready`) — it is not an `oauth` connector, or its
+             *     catalog row is not active. Neither is fixable by retrying; both
+             *     are visible on listConnectors before the attempt.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description Two shapes share this status, told apart by the problem `code`:
+             *     `not_implemented` — this edge serves no connector plane at all;
+             *     `connectors_not_configured` — the plane is there but the server has
+             *     no connector vault (or cannot resolve a user identity for grants),
+             *     so no connector can be authorized here. Both are operator
+             *     configuration states: retrying changes nothing.
+             */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    disconnectConnector: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connectorId: components["parameters"]["ConnectorId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller holds no active grant for this connector */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             400: components["responses"]["Problem"];
             401: components["responses"]["Problem"];

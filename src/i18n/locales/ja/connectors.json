@@ -128,5 +128,18 @@
   "search-engine-id": "検索エンジン ID",
   "search-engine-id-placeholder": "API キーに関連付けられたカスタム検索エンジン ID を入力してください",
   "google-search-custom-desc": "Google カスタム検索に接続します。Google API キーとカスタム検索エンジン（CSE）ID が必要です。",
-  "google-search-default-desc": "Google 検索はデフォルトで有効です。API キーは必要ありません。"
+  "google-search-default-desc": "Google 検索はデフォルトで有効です。API キーは必要ありません。",
+  "aion-state-connected": "接続済み",
+  "aion-state-disconnected": "未接続",
+  "aion-state-unavailable": "ここでは利用できません",
+  "aion-state-provisioned": "運用者が提供",
+  "aion-connect": "接続",
+  "aion-disconnect": "接続を解除",
+  "aion-awaiting": "ブラウザーを待機中",
+  "aion-refresh": "更新",
+  "aion-empty": "このワークスペースに登録されたコネクターはありません。運用者がカタログに追加します。",
+  "aion-backend-too-old": "コネクターは利用できません: 接続中のバックエンド (エッジ API {{version}}) はコネクターカタログを提供しません。ここで連携を管理するにはバックエンドを更新してください。",
+  "aion-remote-error": "コネクターを読み込めませんでした: {{message}}",
+  "aion-open-failed": "同意ページをブラウザーで開けませんでした。",
+  "aion-await-timeout": "許可が届きませんでした。同意ページを完了した場合は更新を選び、そうでなければ接続をやり直してください。"
 }

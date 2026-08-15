@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/connectors-not-configured",
+  "title": "Connectors not configured",
+  "status": 501,
+  "detail": "This server has no connector vault configured, so connectors cannot be authorized here.",
+  "code": "connectors_not_configured",
+  "trace_id": "trc_01JY0000000000000000000006",
+  "retryable": false
+}

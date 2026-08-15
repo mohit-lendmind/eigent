@@ -19,7 +19,9 @@
     "skill_catalog_response.json",
     "skill_catalog_usage_response.json",
     "put_skill_response.json",
-    "usage_response.json"
+    "usage_response.json",
+    "connector_catalog_response.json",
+    "connector_auth_response.json"
   ],
   "events": [
     "event_run_accepted.json",
@@ -40,6 +42,8 @@
     "problem_model_alias_denied.json",
     "problem_skill_stale.json",
     "problem_skill_invalid.json",
-    "problem_skill_quota_exceeded.json"
+    "problem_skill_quota_exceeded.json",
+    "problem_connectors_not_configured.json",
+    "problem_connector_not_ready.json"
   ]
 }

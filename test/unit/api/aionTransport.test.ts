@@ -399,6 +399,82 @@ describe('EdgeTransport skills (golden fixtures)', () => {
   });
 });
 
+describe('EdgeTransport connectors (golden fixtures)', () => {
+  it('decodes the catalog, keeping connected and connectable apart', async () => {
+    const { transport, fetchImpl } = transportWith(
+      jsonResponse(fixture('connector_catalog_response.json'))
+    );
+    const catalog = await transport.listConnectors();
+    expect(catalog.connectors).toHaveLength(5);
+    expect(catalog.connectors[1]).toMatchObject({
+      connector_id: 'linear',
+      connected: false,
+      connectable: true,
+    });
+    // Same `connected: false`, opposite meaning for the user.
+    expect(catalog.connectors[2]).toMatchObject({
+      connector_id: 'notion',
+      connected: false,
+      connectable: false,
+    });
+
+    const { url, init } = requestOf(fetchImpl);
+    expect(url).toBe('https://edge.local/eigent/v1/connectors');
+    expect(init.method).toBe('GET');
+  });
+
+  it('starts a flow with a fresh idempotency key per attempt', async () => {
+    const { transport, fetchImpl } = transportWith(() =>
+      jsonResponse(fixture('connector_auth_response.json'))
+    );
+    const authorization = await transport.initiateConnectorAuth('linear');
+    expect(authorization.authorization_url).toContain('state=');
+    await transport.initiateConnectorAuth('linear');
+
+    const first = requestOf(fetchImpl, 0);
+    const second = requestOf(fetchImpl, 1);
+    expect(first.url).toBe(
+      'https://edge.local/eigent/v1/connectors/linear/auth'
+    );
+    expect(first.init.method).toBe('POST');
+    // Each attempt mints its own single-use flow state, so replaying the first
+    // receipt would hand back a URL that can no longer be redeemed.
+    expect(first.headers['Idempotency-Key']).toBeTruthy();
+    expect(second.headers['Idempotency-Key']).not.toBe(
+      first.headers['Idempotency-Key']
+    );
+  });
+
+  it('reads a 204 disconnect as success rather than a parse error', async () => {
+    const { transport, fetchImpl } = transportWith(new Response(null, { status: 204 }));
+    await expect(transport.disconnectConnector('github')).resolves.toBeUndefined();
+    const { url, init } = requestOf(fetchImpl);
+    expect(url).toBe('https://edge.local/eigent/v1/connectors/github/grant');
+    expect(init.method).toBe('DELETE');
+  });
+
+  it('surfaces the unconfigured-vault 501 as a typed problem', async () => {
+    const { transport } = transportWith(
+      problemResponse('problem_connectors_not_configured.json', 501)
+    );
+    const error = await transport
+      .initiateConnectorAuth('linear')
+      .catch((cause) => cause);
+    expect(error).toBeInstanceOf(EdgeProblemError);
+    expect((error as EdgeProblemError).problem.code).toBe(
+      'connectors_not_configured'
+    );
+  });
+
+  it('percent-encodes a connector id rather than splicing it into the path', async () => {
+    const { transport, fetchImpl } = transportWith(new Response(null, { status: 204 }));
+    await transport.disconnectConnector('acme/tickets');
+    expect(requestOf(fetchImpl).url).toBe(
+      'https://edge.local/eigent/v1/connectors/acme%2Ftickets/grant'
+    );
+  });
+});
+
 describe('EdgeTransport SSE subscription', () => {
   const frame = (id: number, body: unknown): string =>
     `id: ${id}\nevent: project_event\ndata: ${JSON.stringify(body)}\n\n`;

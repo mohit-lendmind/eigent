@@ -128,5 +128,18 @@
   "search-engine-id": "معرّف محرك البحث",
   "search-engine-id-placeholder": "أدخل معرّف محرك البحث المخصص المرتبط بمفتاح API",
   "google-search-custom-desc": "اتصل بـ Google Custom Search. يتطلب مفتاح Google API ومعرّف محرك بحث مخصص (CSE).",
-  "google-search-default-desc": "بحث Google مفعّل افتراضيًا. لا يلزم مفتاح API."
+  "google-search-default-desc": "بحث Google مفعّل افتراضيًا. لا يلزم مفتاح API.",
+  "aion-state-connected": "متصل",
+  "aion-state-disconnected": "غير متصل",
+  "aion-state-unavailable": "غير متاح هنا",
+  "aion-state-provisioned": "مُقدَّم من المشغّل",
+  "aion-connect": "اتصال",
+  "aion-disconnect": "قطع الاتصال",
+  "aion-awaiting": "في انتظار المتصفح",
+  "aion-refresh": "تحديث",
+  "aion-empty": "لا توجد موصّلات مسجّلة لمساحة العمل هذه. يقوم المشغّل بإضافتها إلى الكتالوج.",
+  "aion-backend-too-old": "الموصّلات غير متاحة: الخادم المتصل (واجهة الحافة {{version}}) لا يقدّم كتالوج موصّلات. حدِّث الخادم لإدارة التكاملات هنا.",
+  "aion-remote-error": "تعذّر تحميل الموصّلات: {{message}}",
+  "aion-open-failed": "تعذّر فتح صفحة الموافقة في متصفحك.",
+  "aion-await-timeout": "لم يصل أي تفويض. إذا أكملت صفحة الموافقة فاختر تحديث، وإلا فابدأ الاتصال من جديد."
 }

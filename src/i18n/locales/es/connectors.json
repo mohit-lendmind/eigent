@@ -128,5 +128,18 @@
   "search-engine-id": "ID del motor de búsqueda",
   "search-engine-id-placeholder": "Introduce el ID del motor de búsqueda personalizado asociado a tu clave de API",
   "google-search-custom-desc": "Conecta Google Custom Search. Requiere una clave de API de Google y un ID de motor de búsqueda personalizado (CSE).",
-  "google-search-default-desc": "Google Search está habilitado de forma predeterminada. No se requiere una clave de API."
+  "google-search-default-desc": "Google Search está habilitado de forma predeterminada. No se requiere una clave de API.",
+  "aion-state-connected": "Conectado",
+  "aion-state-disconnected": "No conectado",
+  "aion-state-unavailable": "No disponible aquí",
+  "aion-state-provisioned": "Provisto por el operador",
+  "aion-connect": "Conectar",
+  "aion-disconnect": "Desconectar",
+  "aion-awaiting": "Esperando al navegador",
+  "aion-refresh": "Actualizar",
+  "aion-empty": "No hay conectores registrados para este espacio de trabajo. Tu operador los añade al catálogo.",
+  "aion-backend-too-old": "Los conectores no están disponibles: el backend conectado (API edge {{version}}) no sirve un catálogo de conectores. Actualiza el backend para gestionar integraciones aquí.",
+  "aion-remote-error": "No se pudieron cargar tus conectores: {{message}}",
+  "aion-open-failed": "No se pudo abrir la página de consentimiento en tu navegador.",
+  "aion-await-timeout": "No llegó ninguna concesión. Si completaste la página de consentimiento, elige Actualizar; si no, inicia la conexión de nuevo."
 }

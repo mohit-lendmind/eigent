@@ -128,5 +128,18 @@
   "search-engine-id": "Search Engine ID",
   "search-engine-id-placeholder": "Enter the Custom Search Engine ID associated with your API key",
   "google-search-custom-desc": "Connect to Google Custom Search. Requires a Google API key and a Custom Search Engine (CSE) ID.",
-  "google-search-default-desc": "Google Search is enabled by default. No API key required."
+  "google-search-default-desc": "Google Search is enabled by default. No API key required.",
+  "aion-state-connected": "Connected",
+  "aion-state-disconnected": "Not connected",
+  "aion-state-unavailable": "Unavailable here",
+  "aion-state-provisioned": "Provided by the operator",
+  "aion-connect": "Connect",
+  "aion-disconnect": "Disconnect",
+  "aion-awaiting": "Waiting for browser",
+  "aion-refresh": "Refresh",
+  "aion-empty": "No connectors are registered for this workspace. Your operator adds them to the catalog.",
+  "aion-backend-too-old": "Connectors are unavailable: the connected backend (edge API {{version}}) does not serve a connector catalog. Update the backend to manage integrations here.",
+  "aion-remote-error": "Your connectors could not be loaded: {{message}}",
+  "aion-open-failed": "The consent page could not be opened in your browser.",
+  "aion-await-timeout": "No grant arrived. If you finished the consent page, choose Refresh; otherwise start the connection again."
 }

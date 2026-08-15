@@ -141,6 +141,12 @@ const USAGE_MINIMUM_EDGE = [1, 7];
 // cannot report workers", and only the floor tells them apart.
 const WORKFORCE_MINIMUM_EDGE = [1, 8];
 
+// The connector routes shipped in edge API 1.9.0. Below the floor there is no
+// catalog to read, which the Connections screen must state — an empty list
+// would claim this tenant has no integrations, and a 404 from the auth route
+// would be indistinguishable from an unknown connector.
+const CONNECTORS_MINIMUM_EDGE = [1, 9];
+
 function meetsEdgeFloor(status: IntegrationStatus, floor: number[]): boolean {
   if (!negotiateCompatibility(status).compatible) {
     return false;
@@ -167,4 +173,8 @@ export function supportsUsage(status: IntegrationStatus): boolean {
 
 export function supportsWorkforceEvents(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, WORKFORCE_MINIMUM_EDGE);
+}
+
+export function supportsConnectors(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, CONNECTORS_MINIMUM_EDGE);
 }

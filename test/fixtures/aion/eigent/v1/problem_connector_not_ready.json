@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/connector-not-ready",
+  "title": "Connector not ready",
+  "status": 409,
+  "detail": "connector: not active: connector \"linear\"",
+  "code": "connector_not_ready",
+  "trace_id": "trc_01JY0000000000000000000007",
+  "retryable": false
+}

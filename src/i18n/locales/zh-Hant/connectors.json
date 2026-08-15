@@ -128,5 +128,18 @@
   "search-engine-id": "搜尋引擎 ID",
   "search-engine-id-placeholder": "輸入與你的 API 金鑰相關聯的自訂搜尋引擎 ID",
   "google-search-custom-desc": "連接 Google 自訂搜尋。需要 Google API 金鑰和自訂搜尋引擎（CSE）ID。",
-  "google-search-default-desc": "Google 搜尋預設已啟用，無需 API 金鑰。"
+  "google-search-default-desc": "Google 搜尋預設已啟用，無需 API 金鑰。",
+  "aion-state-connected": "已連線",
+  "aion-state-disconnected": "未連線",
+  "aion-state-unavailable": "此處不可用",
+  "aion-state-provisioned": "由營運方提供",
+  "aion-connect": "連線",
+  "aion-disconnect": "中斷連線",
+  "aion-awaiting": "等待瀏覽器",
+  "aion-refresh": "重新整理",
+  "aion-empty": "此工作區尚未註冊任何連接器。由營運方將它們加入目錄。",
+  "aion-backend-too-old": "連接器不可用：所連後端（邊緣 API {{version}}）不提供連接器目錄。請升級後端以在此管理整合。",
+  "aion-remote-error": "無法載入你的連接器：{{message}}",
+  "aion-open-failed": "無法在瀏覽器中開啟授權頁面。",
+  "aion-await-timeout": "沒有收到授權。若你已完成授權頁面，請選擇重新整理；否則請重新開始連線。"
 }
