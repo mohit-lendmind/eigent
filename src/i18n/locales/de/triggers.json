@@ -355,6 +355,7 @@
   "aion-submit": "Trigger erstellen",
   "aion-once": "Einmalig",
   "aion-empty": "Noch keine Trigger. Ein Trigger führt eine Aufgabe getaktet aus, während Sie abwesend sind.",
+  "aion-local": "Trigger brauchen ein verbundenes Backend. Dieser Desktop ist mit keinem verbunden, daher plant noch nichts Aufgaben für Sie.",
   "aion-no-projects": "Erstellen Sie zuerst ein Projekt — ein Trigger führt seine Aufgabe darin aus.",
   "aion-backend-too-old": "Trigger sind nicht verfügbar: Das verbundene Backend (Edge-API {{version}}) liefert keine Trigger. Aktualisieren Sie das Backend, um sie hier zu verwalten.",
   "aion-remote-error": "Ihre Trigger konnten nicht geladen werden: {{message}}",

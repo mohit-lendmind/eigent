@@ -31,7 +31,6 @@ import { useAionSchedules } from './hooks/useAionSchedules';
 import { useAionSpaces } from './hooks/useAionSpaces';
 import { useHomeHubCounts } from './hooks/useHomeHubCounts';
 import { useHomeHubProjects } from './hooks/useHomeHubProjects';
-import { useHomeHubTriggers } from './hooks/useHomeHubTriggers';
 import Projects from './Projects';
 import Spaces from './Spaces';
 import Triggers from './Triggers';
@@ -64,7 +63,6 @@ export default function HomeHub() {
     handleProjectRename,
     handleProjectDelete: hubHandleProjectDelete,
   } = useHomeHubProjects();
-  const { triggers, triggersLoading, reloadTriggers } = useHomeHubTriggers();
   const aionProjects = useAionProjects();
   const aionSchedules = useAionSchedules();
   const aionSpaces = useAionSpaces();
@@ -189,9 +187,6 @@ export default function HomeHub() {
       aionProjects,
       aionSchedules,
       aionSpaces,
-      triggers,
-      triggersLoading,
-      reloadTriggers,
       chatTasks: chatStore?.tasks,
       onProjectDelete: handleProjectDelete,
       onProjectRename: handleProjectRename,
@@ -209,9 +204,6 @@ export default function HomeHub() {
       aionProjects,
       aionSchedules,
       aionSpaces,
-      triggers,
-      triggersLoading,
-      reloadTriggers,
       chatStore?.tasks,
       chatStore?.activeTaskId,
     ]

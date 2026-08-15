@@ -13,7 +13,6 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import type { ChatStore } from '@/store/chatStore';
-import type { Trigger } from '@/types';
 import { ProjectGroup as ProjectGroupType } from '@/types/history';
 import { createContext, useContext } from 'react';
 import type { AionProjectsView } from './hooks/useAionProjects';
@@ -36,16 +35,11 @@ export type HomeHubContextValue = {
   /** The aion-served list. Read once per hub mount so the Projects tab count
    *  and the Projects list can never disagree about how many there are. */
   aionProjects: AionProjectsView;
-  /** The aion-served triggers. Read once per hub mount so the Triggers tab
-   *  count and the Triggers list can never disagree about how many there are. */
   aionSchedules: AionSchedulesView;
   /** The aion-served Spaces. Read once per hub mount: the tab count, the
    *  Spaces list and the Projects list's Space picker all read this one page,
    *  so a Space cannot appear in the picker and be missing from the list. */
   aionSpaces: AionSpacesView;
-  triggers: Trigger[];
-  triggersLoading: boolean;
-  reloadTriggers: () => Promise<void>;
   chatTasks?: ChatStore['tasks'];
   onProjectDelete: (projectId: string) => void;
   onProjectRename: (projectId: string, newName: string) => void;

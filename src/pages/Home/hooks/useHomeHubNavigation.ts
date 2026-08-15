@@ -15,7 +15,6 @@
 import { usePageTabStore } from '@/store/pageTabStore';
 import { useProjectRuntimeStore } from '@/store/projectRuntimeStore';
 import { useSpaceStore } from '@/store/spaceStore';
-import type { Trigger } from '@/types';
 import type { ProjectGroup as ProjectGroupType } from '@/types/history';
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -25,7 +24,6 @@ export function useHomeHubNavigation() {
   const projectStore = useProjectRuntimeStore();
   const setActiveSpace = useSpaceStore((s) => s.setActiveSpace);
   const setActiveWorkspaceTab = usePageTabStore((s) => s.setActiveWorkspaceTab);
-  const requestSelectTrigger = usePageTabStore((s) => s.requestSelectTrigger);
   const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
 
   const openSpace = useCallback(
@@ -67,44 +65,9 @@ export function useHomeHubNavigation() {
     [navigate, projectStore, setActiveSpace, setActiveWorkspaceTab]
   );
 
-  const openTrigger = useCallback(
-    async (trigger: Trigger) => {
-      if (trigger.space_id) {
-        setActiveSpace(trigger.space_id);
-      }
-
-      if (trigger.project_id) {
-        const existingProject = projectStore.getProjectById(trigger.project_id);
-        if (existingProject) {
-          projectStore.setActiveProject(trigger.project_id);
-        } else {
-          projectStore.createProject(
-            trigger.name || 'Project',
-            'Project with triggers',
-            trigger.project_id
-          );
-        }
-      } else {
-        projectStore.setActiveProject(null);
-      }
-
-      setActiveWorkspaceTab('triggers');
-      requestSelectTrigger(trigger.id);
-      navigate('/');
-    },
-    [
-      navigate,
-      projectStore,
-      requestSelectTrigger,
-      setActiveSpace,
-      setActiveWorkspaceTab,
-    ]
-  );
-
   return {
     openSpace,
     openProject,
-    openTrigger,
     loadingProjectId,
   };
 }

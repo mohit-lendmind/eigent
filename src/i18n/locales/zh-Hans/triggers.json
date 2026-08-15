@@ -355,6 +355,7 @@
   "aion-submit": "创建触发器",
   "aion-once": "一次",
   "aion-empty": "还没有触发器。触发器会在你不在时按节奏运行任务。",
+  "aion-local": "触发器需要已连接的后端。此桌面端尚未连接，因此还没有任何东西为你安排任务。",
   "aion-no-projects": "请先创建项目——触发器在项目内运行任务。",
   "aion-backend-too-old": "触发器不可用：所连接的后端（边缘 API {{version}}）不提供触发器。请升级后端以在此管理。",
   "aion-remote-error": "无法加载你的触发器：{{message}}",

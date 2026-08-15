@@ -55,8 +55,6 @@ import {
   toRemoteSubAgentRuntimeConfig,
 } from '@/lib/remoteSubAgent';
 import { isLocalWorkspaceSpace } from '@/lib/spaceLabel';
-import { proxyUpdateTriggerExecution } from '@/service/triggerApi';
-import { ExecutionStatus } from '@/types';
 import {
   AgentMessageStatus,
   AgentStatusValue,
@@ -1152,79 +1150,6 @@ const ttftTracking: Record<
   string,
   { confirmedAt: number; firstTokenLogged: boolean }
 > = {};
-
-// Track which executionIds have already been reported to prevent duplicate updates
-const reportedExecutionIds = new Set<string>();
-
-// Helper function to update trigger execution status using executionId from task
-const updateTriggerExecutionStatus = async (
-  chatStoreState: ChatStore,
-  projectId: string | null | undefined,
-  currentTaskId: string,
-  status: import('@/types').ExecutionStatus,
-  tokens: number,
-  errorMessage?: string
-) => {
-  console.log('[updateTriggerExecutionStatus] Called with:', {
-    projectId,
-    currentTaskId,
-    status,
-    tokens,
-  });
-
-  // Get executionId directly from the task
-  const executionId = chatStoreState.tasks[currentTaskId]?.executionId;
-
-  if (!executionId) {
-    // No executionId means this is not a trigger-initiated task, skip silently
-    console.log(
-      '[updateTriggerExecutionStatus] No executionId found for task:',
-      currentTaskId,
-      '- skipping (not a trigger-initiated task)'
-    );
-    return;
-  }
-
-  // Check if this execution has already been reported
-  if (reportedExecutionIds.has(executionId)) {
-    console.log(
-      '[updateTriggerExecutionStatus] Execution already reported:',
-      executionId
-    );
-    return;
-  }
-
-  try {
-    // Mark as reported to prevent duplicate updates
-    reportedExecutionIds.add(executionId);
-
-    // Call the API to update execution status
-    await proxyUpdateTriggerExecution(
-      executionId,
-      {
-        status,
-        completed_at: new Date().toISOString(),
-        ...(errorMessage && { error_message: errorMessage }),
-        tokens_used: tokens,
-      },
-      { projectId: projectId || undefined }
-    );
-
-    console.log(
-      '[updateTriggerExecutionStatus] Execution status updated:',
-      executionId,
-      '->',
-      status
-    );
-  } catch (err) {
-    console.warn(
-      `[updateTriggerExecutionStatus] Failed to update execution status to ${status}:`,
-      err
-    );
-    // Remove from reported set so it can be retried
-    reportedExecutionIds.delete(executionId);
-  }
-};
 
 const chatStore = (initial?: Partial<ChatStore>) =>
   createStore<ChatStore>()((set, get) => ({
@@ -2433,15 +2358,6 @@ const chatStore = (initial?: Partial<ChatStore>) =>
                     }
                   );
 
-                  const currentTaskId = getCurrentTaskId();
-                  // Update trigger execution status to Completed for connection closed by server
-                  updateTriggerExecutionStatus(
-                    getCurrentChatStore(),
-                    project_id,
-                    currentTaskId,
-                    ExecutionStatus.Running,
-                    getCurrentChatStore().tasks[currentTaskId]?.tokens || 0
-                  );
                 }
               }
             } else {
@@ -2823,16 +2739,6 @@ const chatStore = (initial?: Partial<ChatStore>) =>
               isConfirm: false,
             });
 
-            // Update trigger execution status to Completed for simple question/answer flow
-            // This handles cases where the task ends with wait_confirm instead of the end step
-            updateTriggerExecutionStatus(
-              currentChatStore,
-              project_id,
-              currentTaskId,
-              ExecutionStatus.Completed,
-              currentChatStore.tasks[currentTaskId]?.tokens || 0
-            );
-
             return;
           }
           if (agentMessages.step === AgentStep.TODO_STATE) {
@@ -3038,17 +2944,13 @@ const chatStore = (initial?: Partial<ChatStore>) =>
             if (agentMessages.data.tokens) {
               addTokens(currentTaskId, agentMessages.data.tokens);
             }
-            // Consume the step's request_usage tokens before any early
-            // return below, so entries are cleaned up even for agents that
-            // never appear in taskAssigning.
-            let stepTokens = 0;
+            // Drop the step's request_usage entry before any early return
+            // below, so it is cleaned up even for agents that never appear
+            // in taskAssigning.
             if (agentMessages.step === AgentStep.DEACTIVATE_AGENT) {
-              const stepKey = `${currentTaskId}:${agentMessages.data.agent_id}`;
-              stepTokens =
-                agentMessages.data.tokens ||
-                requestUsageStepTokens.get(stepKey) ||
-                0;
-              requestUsageStepTokens.delete(stepKey);
+              requestUsageStepTokens.delete(
+                `${currentTaskId}:${agentMessages.data.agent_id}`
+              );
             }
             const { state, agent_id, process_task_id } = agentMessages.data;
             if (!state && !agent_id && !process_task_id) return;
@@ -3123,34 +3025,6 @@ const chatStore = (initial?: Partial<ChatStore>) =>
                 };
                 syncProjectDisplayName(project_id, projectName);
                 proxyFetchPut(`/api/v1/chat/history/${historyId}`, obj);
-              }
-
-              // Check if this is a quick reply completion (simple question answered directly)
-              // This happens when question_confirm_agent deactivates with a non-yes/no answer
-              // and tokens are used (indicating actual response generation, not just classification)
-              const isQuestionConfirmAgent =
-                agentMessages.data.agent_name === 'question_confirm_agent';
-              // Per-step tokens (not the task total) so an errored/empty
-              // step is not mistaken for a real reply.
-              const hasTokens = stepTokens > 0;
-              const isNotClassificationAnswer =
-                agentMessages.data.message &&
-                agentMessages.data.message.trim().toLowerCase() !== 'yes' &&
-                agentMessages.data.message.trim().toLowerCase() !== 'no';
-
-              if (
-                isQuestionConfirmAgent &&
-                hasTokens &&
-                isNotClassificationAnswer
-              ) {
-                // This is a quick reply - update trigger execution status to Completed
-                updateTriggerExecutionStatus(
-                  getCurrentChatStore(),
-                  project_id,
-                  currentTaskId,
-                  ExecutionStatus.Completed,
-                  tasks[currentTaskId]?.tokens || 0
-                );
               }
 
               setTaskRunning(currentTaskId, [...taskRunning]);
@@ -3742,16 +3616,6 @@ const chatStore = (initial?: Partial<ChatStore>) =>
                   session_mode: tasks[currentTaskId]?.sessionMode,
                 });
               }
-              // Update trigger execution status to Failed on error
-              updateTriggerExecutionStatus(
-                getCurrentChatStore(),
-                project_id,
-                currentTaskId,
-                ExecutionStatus.Failed,
-                tasks[currentTaskId]?.tokens || 0,
-                errorMessage
-              );
-
               // A busy Project means another run in the same long conversation
               // is still active. Do not stop that active Project while marking
               // only this rejected run as failed.
@@ -4137,15 +4001,6 @@ const chatStore = (initial?: Partial<ChatStore>) =>
 
             console.log(tasks[currentTaskId], 'end');
 
-            // Update trigger execution status to Completed
-            updateTriggerExecutionStatus(
-              getCurrentChatStore(),
-              project_id,
-              currentTaskId,
-              ExecutionStatus.Completed,
-              getTokens(currentTaskId)
-            );
-
             // The run is finished; drop its SSE controller so a completed
             // task no longer counts as an active run (e.g. the close guard).
             delete activeSSEControllers[newTaskId];
@@ -4326,16 +4181,6 @@ const chatStore = (initial?: Partial<ChatStore>) =>
             );
             return;
           }
-
-          const currentTaskId = getCurrentTaskId();
-          // Update trigger execution status to Completed for connection closed by server
-          updateTriggerExecutionStatus(
-            getCurrentChatStore(),
-            project_id,
-            currentTaskId,
-            ExecutionStatus.Cancelled,
-            getCurrentChatStore().tasks[currentTaskId]?.tokens || 0
-          );
 
           // For other errors, log and throw to stop retrying
           console.error(

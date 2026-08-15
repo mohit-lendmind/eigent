@@ -75,7 +75,6 @@ function LegacySpaces() {
     projects: hubProjects,
     sortBy,
     sortDirection,
-    triggers,
     chatTasks,
   } = useHomeHub();
   const spacesById = useSpaceStore((state) => state.spaces);
@@ -124,20 +123,6 @@ function LegacySpaces() {
     }
     return map;
   }, [hubProjects]);
-
-  const triggersBySpaceId = useMemo(() => {
-    const map = new Map<string, typeof triggers>();
-    for (const trigger of triggers) {
-      if (!trigger.space_id) continue;
-      const list = map.get(trigger.space_id);
-      if (list) {
-        list.push(trigger);
-      } else {
-        map.set(trigger.space_id, [trigger]);
-      }
-    }
-    return map;
-  }, [triggers]);
 
   const getSpaceStats = useCallback(
     (spaceId: string, projectCount: number) => {
@@ -196,11 +181,7 @@ function LegacySpaces() {
 
   const boardColumns = useMemo(() => {
     const grouped = groupByBoardColumn(filteredSpaceSections, ({ space }) =>
-      getSpaceBoardColumn(
-        hubProjectsBySpaceId.get(space.id) ?? [],
-        triggersBySpaceId.get(space.id) ?? [],
-        chatTasks
-      )
+      getSpaceBoardColumn(hubProjectsBySpaceId.get(space.id) ?? [], chatTasks)
     );
 
     const renderSpaceCard = ({
@@ -233,7 +214,6 @@ function LegacySpaces() {
     getSpaceStats,
     getSubtitle,
     hubProjectsBySpaceId,
-    triggersBySpaceId,
   ]);
 
   return (

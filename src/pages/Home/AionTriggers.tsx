@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 import {
   validateCron,
   type AionSchedule,
@@ -43,9 +44,10 @@ import {
   SkipForward,
   Zap,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useHomeHub } from './context';
+import type { AionProjectsView } from './hooks/useAionProjects';
+import type { AionSchedulesView } from './hooks/useAionSchedules';
 import { matchesHubNameSearch } from './utils';
 
 /** Absolute local time. A trigger's next firing is in the future, which every
@@ -251,11 +253,14 @@ function Ledger({ events }: { events: AionScheduleEvent[] | undefined }) {
 function CreateForm({
   projects,
   busy,
+  initialTask = '',
   onCreate,
   onCancel,
 }: {
   projects: { projectId: string; title: string }[];
   busy: boolean;
+  /** Prompt carried in from the surface that asked for the form. */
+  initialTask?: string;
   onCreate: (request: {
     project_id: string;
     cron: string;
@@ -267,7 +272,7 @@ function CreateForm({
   const { t } = useTranslation();
   const [projectId, setProjectId] = useState(projects[0]?.projectId ?? '');
   const [cron, setCron] = useState('');
-  const [task, setTask] = useState('');
+  const [task, setTask] = useState(initialTask);
   const [singleShot, setSingleShot] = useState(false);
   const [touched, setTouched] = useState(false);
 
@@ -509,9 +514,29 @@ function TriggerRow({
   );
 }
 
-export default function AionTriggers() {
+/**
+ * Both views arrive as props rather than being read here: each `useAionSchedules`
+ * costs a list read plus up to one ledger read per row, so the screen must never
+ * be the second caller in a tree that already has one.
+ */
+export default function AionTriggers({
+  aionSchedules,
+  aionProjects,
+  searchQuery = '',
+  className,
+  openCreateRequestId = 0,
+  createTaskPrompt = '',
+}: {
+  aionSchedules: AionSchedulesView;
+  aionProjects: AionProjectsView;
+  searchQuery?: string;
+  className?: string;
+  /** Incremented by another surface's add button to open the create form. */
+  openCreateRequestId?: number;
+  /** Prompt that surface wants the new trigger to run. */
+  createTaskPrompt?: string;
+}) {
   const { t } = useTranslation();
-  const { searchQuery, aionProjects, aionSchedules } = useHomeHub();
   const {
     mode,
     schedules,
@@ -547,10 +572,25 @@ export default function AionTriggers() {
     );
   }, [schedules, searchQuery]);
 
+  useEffect(() => {
+    if (openCreateRequestId === 0) return;
+    setCreating(true);
+  }, [openCreateRequestId]);
+
   if (mode === null || loading) {
     return (
       <div className="w-full py-12 text-body-sm text-ds-text-neutral-muted-default">
         {t('layout.loading')}
+      </div>
+    );
+  }
+  // Triggers are served by the aion backend. With no transport there is
+  // nothing scheduling anything, so this says so rather than rendering an
+  // empty list that reads as "you have no triggers".
+  if (mode.kind === 'local') {
+    return (
+      <div className="w-full py-6">
+        <Banner testId="aion-triggers-banner" message={t('triggers.aion-local')} />
       </div>
     );
   }
@@ -579,7 +619,7 @@ export default function AionTriggers() {
 
   return (
     <div
-      className="flex w-full min-w-0 flex-col gap-4 py-6"
+      className={cn('flex w-full min-w-0 flex-col gap-4 py-6', className)}
       data-testid="aion-triggers"
     >
       <div className="flex items-center justify-end gap-2">
@@ -606,8 +646,12 @@ export default function AionTriggers() {
 
       {creating ? (
         <CreateForm
+          // Remount on a fresh request so a prompt carried in from another
+          // surface reaches a form that is already open.
+          key={openCreateRequestId}
           projects={aionProjects.projects}
           busy={busyId === 'new'}
+          initialTask={createTaskPrompt}
           onCreate={create}
           onCancel={() => setCreating(false)}
         />

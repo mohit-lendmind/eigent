@@ -35,17 +35,12 @@ import {
   getVisibleProjectMetasForSpace,
   useSpaceStore,
 } from '@/store/spaceStore';
-import { useTriggerStore } from '@/store/triggerStore';
 import { ChatTaskStatus } from '@/types/constants';
-import { Inbox, LayoutGrid, Plus, Zap, ZapOff } from 'lucide-react';
+import { Inbox, LayoutGrid, Plus, Zap } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import {
-  NavTab,
-  NavTabReconnectSuffix,
-  triggerListenerLeadIconClass,
-} from './NavTab';
+import { NavTab } from './NavTab';
 import { ProjectNavList } from './ProjectNavList';
 
 export interface ProjectPageSidebarProps {
@@ -72,9 +67,6 @@ export default function ProjectPageSidebar({
   const inboxUnviewedForProjects = usePageTabStore(
     (s) => s.inboxUnviewedForProjects
   );
-  const wsConnectionStatus = useTriggerStore((s) => s.wsConnectionStatus);
-  const triggerReconnect = useTriggerStore((s) => s.triggerReconnect);
-  const triggersListenerConnected = wsConnectionStatus === 'connected';
   const projectStore = useProjectRuntimeStore();
   const navLeadByProjectId = useProjectRuntimeStore(
     (s) => s.navLeadByProjectId
@@ -109,16 +101,6 @@ export default function ProjectPageSidebar({
   });
 
   const scheduledTabLabel = t('layout.scheduled-tab');
-  const triggersTabTooltip = scheduledTabLabel;
-
-  const triggersTabAriaLabel = useMemo(() => {
-    const base = scheduledTabLabel;
-    if (triggersListenerConnected) return base;
-    if (wsConnectionStatus === 'connecting') {
-      return `${base}, ${t('layout.triggers-connecting')}`;
-    }
-    return `${base}, ${t('layout.triggers-disconnected')}`;
-  }, [scheduledTabLabel, t, triggersListenerConnected, wsConnectionStatus]);
 
   const host = useHost();
   const ipcRenderer = host?.ipcRenderer;
@@ -587,62 +569,42 @@ export default function ProjectPageSidebar({
                   active={activeWorkspaceTab === 'triggers'}
                   onClick={() => setActiveWorkspaceTab('triggers')}
                   leading={
-                    triggersListenerConnected ? (
-                      <Zap
-                        className={cn(
-                          'h-4 w-4 shrink-0',
-                          triggerListenerLeadIconClass(wsConnectionStatus)
-                        )}
-                        aria-hidden
-                      />
-                    ) : (
-                      <ZapOff
-                        className={cn(
-                          'h-4 w-4 shrink-0',
-                          triggerListenerLeadIconClass(wsConnectionStatus)
-                        )}
-                        aria-hidden
-                      />
-                    )
+                    <Zap
+                      className="h-4 w-4 shrink-0 text-ds-icon-neutral-muted-default"
+                      aria-hidden
+                    />
                   }
                   label={scheduledTabLabel}
                   showNotificationDot={unviewedTabs.has('triggers')}
                   notificationDotTone="attention"
                   notificationDotClassName="h-2 w-2"
                   endAction={
-                    triggersListenerConnected ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        buttonContent="icon-only"
-                        className={cn(
-                          'no-drag mr-1 shrink-0 rounded-xl hover:bg-ds-bg-neutral-strong-default',
-                          'focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-border-neutral-default-default'
-                        )}
-                        aria-label={t('triggers.add-trigger')}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          requestOpenTriggerAddDialog();
-                        }}
-                      >
-                        <Plus
-                          className="h-4 w-4 text-ds-icon-neutral-muted-default"
-                          aria-hidden
-                        />
-                      </Button>
-                    ) : (
-                      <NavTabReconnectSuffix
-                        wsConnectionStatus={wsConnectionStatus}
-                        onReconnect={triggerReconnect}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      buttonContent="icon-only"
+                      className={cn(
+                        'no-drag mr-1 shrink-0 rounded-xl hover:bg-ds-bg-neutral-strong-default',
+                        'focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-border-neutral-default-default'
+                      )}
+                      aria-label={t('triggers.add-trigger')}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        requestOpenTriggerAddDialog();
+                      }}
+                    >
+                      <Plus
+                        className="h-4 w-4 text-ds-icon-neutral-muted-default"
+                        aria-hidden
                       />
-                    )
+                    </Button>
                   }
-                  tooltip={triggersTabTooltip}
+                  tooltip={scheduledTabLabel}
                   tooltipEnabledWhenCollapsed={!projectSidebarFolded}
                   folded={projectSidebarFolded}
-                  ariaLabel={triggersTabAriaLabel}
+                  ariaLabel={scheduledTabLabel}
                   ariaCurrentPage={activeWorkspaceTab === 'triggers'}
                 />
               </div>

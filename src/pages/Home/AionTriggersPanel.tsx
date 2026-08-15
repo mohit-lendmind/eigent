@@ -13,15 +13,33 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import AionTriggers from './AionTriggers';
-import { useHomeHub } from './context';
+import { useAionProjects } from './hooks/useAionProjects';
+import { useAionSchedules } from './hooks/useAionSchedules';
 
-export default function Triggers() {
-  const { searchQuery, aionProjects, aionSchedules } = useHomeHub();
+/**
+ * The workspace's own triggers tab. It owns the two reads because it mounts on
+ * a different route than the Home hub, so the two screens are never in one
+ * tree at once — see the note on `AionTriggers` for why a second caller in the
+ * same tree would be a duplicate ledger fan-out.
+ */
+export default function AionTriggersPanel({
+  className,
+  openCreateRequestId,
+  createTaskPrompt,
+}: {
+  className?: string;
+  openCreateRequestId?: number;
+  createTaskPrompt?: string;
+}) {
+  const aionSchedules = useAionSchedules();
+  const aionProjects = useAionProjects();
   return (
     <AionTriggers
       aionSchedules={aionSchedules}
       aionProjects={aionProjects}
-      searchQuery={searchQuery}
+      className={className}
+      openCreateRequestId={openCreateRequestId}
+      createTaskPrompt={createTaskPrompt}
     />
   );
 }

@@ -23,9 +23,8 @@ import { Tag } from '@/components/ui/tag';
 import { getSpaceStatusLabel } from '@/lib/spaceLabel';
 import { cn } from '@/lib/utils';
 import type { Space } from '@/store/spaceStore';
-import { Trigger } from '@/types';
 import { ProjectGroup as ProjectGroupType } from '@/types/history';
-import { Folder, MoreHorizontal, Zap } from 'lucide-react';
+import { Folder, MoreHorizontal } from 'lucide-react';
 import {
   Fragment,
   useState,
@@ -36,12 +35,11 @@ import {
 import { useTranslation } from 'react-i18next';
 import { formatHubRelativeAgo } from '../utils';
 
-export type HomeHubItemKind = 'space' | 'project' | 'trigger';
+export type HomeHubItemKind = 'space' | 'project';
 
 export const HOME_HUB_LIST_GRID_CLASS: Record<HomeHubItemKind, string> = {
   space: 'grid-cols-[minmax(0,2fr)_112px_72px_72px_72px_96px]',
   project: 'grid-cols-[minmax(0,2fr)_112px_72px_72px_80px_96px]',
-  trigger: 'grid-cols-[minmax(0,2fr)_112px_100px_96px_96px]',
 };
 
 export type HomeHubMenuItem = {
@@ -608,96 +606,6 @@ export function HomeHubProjectBoardCardBody({
   );
 }
 
-type HomeHubTriggerCardBodyProps = {
-  title: string;
-  triggerTypeLabel: string;
-  executionCount: number;
-  spaceLabel: string;
-  isActive: boolean;
-  activeLabel: string;
-  inactiveLabel: string;
-  updatedAt?: string | number | null;
-  menuItems: HomeHubMenuItem[];
-};
-
-export function HomeHubTriggerCardBody({
-  title,
-  triggerTypeLabel,
-  executionCount,
-  spaceLabel,
-  isActive,
-  activeLabel,
-  inactiveLabel,
-  updatedAt,
-  menuItems,
-}: HomeHubTriggerCardBodyProps) {
-  const { t } = useTranslation();
-  const statItems = [
-    triggerTypeLabel,
-    t('layout.home-trigger-stat-executions', { count: executionCount }),
-  ];
-
-  return (
-    <HomeHubHubCardBody
-      title={title}
-      icon={<Zap />}
-      menuItems={menuItems}
-      statItems={statItems}
-      updatedAt={updatedAt}
-      footerTags={
-        <>
-          <HomeHubToneTag
-            label={isActive ? activeLabel : inactiveLabel}
-            tone={isActive ? 'success' : 'neutral'}
-          />
-          <HomeHubHeaderTag label={spaceLabel} />
-        </>
-      }
-    />
-  );
-}
-
-export function HomeHubTriggerBoardCardBody({
-  title,
-  triggerTypeLabel,
-  executionCount,
-  spaceLabel,
-  isActive,
-  activeLabel,
-  inactiveLabel,
-  menuItems,
-}: Omit<HomeHubTriggerCardBodyProps, 'updatedAt'>) {
-  const { t } = useTranslation();
-
-  return (
-    <HomeHubBoardCardBody
-      title={title}
-      icon={<Zap />}
-      menuItems={menuItems}
-      statRows={[
-        { label: t('layout.home-list-type'), value: triggerTypeLabel },
-        {
-          label: t('layout.home-board-stat-executions'),
-          value: executionCount,
-        },
-      ]}
-      otherContent={
-        <>
-          <HomeHubToneTag
-            label={isActive ? activeLabel : inactiveLabel}
-            tone={isActive ? 'success' : 'neutral'}
-          />
-          <HomeHubHeaderTag
-            label={spaceLabel}
-            emphasis="default"
-            tone="default"
-          />
-        </>
-      }
-    />
-  );
-}
-
 type HomeHubItemShellProps = {
   onClick: () => void;
   layout: 'card' | 'list' | 'board';
@@ -806,12 +714,3 @@ export type HomeHubProjectItemProps = {
   onProjectRename?: (projectId: string, newName: string) => void;
 };
 
-export type HomeHubTriggerItemProps = {
-  layout: 'card' | 'list' | 'board';
-  trigger: Trigger;
-  spaceLabel: string;
-  triggerTypeLabel: string;
-  onEdit: (trigger: Trigger) => void;
-  onDelete: (trigger: Trigger) => void;
-  onToggleActive: (trigger: Trigger) => void;
-};

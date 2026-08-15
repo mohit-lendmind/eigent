@@ -29,13 +29,11 @@ import {
   setProjectAchievedState,
 } from '@/lib/projectAchievement';
 import { inferSessionModeFromTask, resolveSessionMode } from '@/lib/sessionMode';
-import { proxyUpdateTriggerExecution } from '@/service/triggerApi';
 import { getAionRemoteConfig } from '@/store/aionChatBridge';
 import { useAuthStore } from '@/store/authStore';
 import { buildProjectContinuationContext } from '@/store/chatStore';
 import { usePageTabStore } from '@/store/pageTabStore';
 import { useSpaceStore } from '@/store/spaceStore';
-import { ExecutionStatus } from '@/types';
 import { AgentStep, ChatTaskStatus, SessionMode } from '@/types/constants';
 import {
   useCallback,
@@ -1252,42 +1250,13 @@ export default function ChatBox(): JSX.Element {
     return 'input';
   };
 
-  const handleRemoveTaskQueue = async (task_id: string) => {
+  const handleRemoveTaskQueue = (task_id: string) => {
     const project_id = projectStore.activeProjectId;
     if (!project_id) {
       console.error('No active project ID found');
       return;
     }
-
-    // Remove from projectStore's queuedMessages
-    const removed = projectStore.removeQueuedMessage(project_id, task_id);
-    if (!removed || !removed.task_id) {
-      console.error(`Task with id ${task_id} not found in project queue`);
-      return;
-    }
-
-    try {
-      // Update the backend execution status if it has an executionId
-      if (removed.executionId) {
-        await proxyUpdateTriggerExecution(
-          removed.executionId,
-          {
-            status: ExecutionStatus.Cancelled,
-            error_message: 'Task was removed from queue by user.',
-          },
-          {
-            projectId: project_id,
-          }
-        );
-      }
-    } catch (error) {
-      console.error(`[ChatBox] Failed to cancel task ${task_id}:`, error);
-      // Restore the message if backend update failed
-      projectStore.restoreQueuedMessage(project_id, removed);
-      toast.error('Failed to cancel task', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
+    projectStore.removeQueuedMessage(project_id, task_id);
   };
 
   const chatColumn = (

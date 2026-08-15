@@ -355,6 +355,7 @@
   "aion-submit": "Créer le déclencheur",
   "aion-once": "Une fois",
   "aion-empty": "Aucun déclencheur. Un déclencheur exécute une tâche selon une cadence pendant votre absence.",
+  "aion-local": "Les déclencheurs nécessitent un backend connecté. Ce poste n’en a aucun, donc rien ne planifie encore de tâches pour vous.",
   "aion-no-projects": "Créez d’abord un projet — un déclencheur exécute sa tâche dans un projet.",
   "aion-backend-too-old": "Les déclencheurs sont indisponibles : le backend connecté (API edge {{version}}) ne les fournit pas. Mettez à jour le backend pour les gérer ici.",
   "aion-remote-error": "Vos déclencheurs n’ont pas pu être chargés : {{message}}",

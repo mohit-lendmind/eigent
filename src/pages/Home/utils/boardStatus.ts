@@ -19,7 +19,6 @@ import {
   type SessionNavLeadKind,
 } from '@/lib/sessionNavLead';
 import type { ChatStore } from '@/store/chatStore';
-import { ExecutionStatus, type Trigger } from '@/types';
 import type { HistoryTask, ProjectGroup } from '@/types/history';
 
 export type HomeBoardColumn = 'default' | 'running' | 'awaiting_review';
@@ -175,29 +174,14 @@ export function getProjectBoardColumn(
   return 'default';
 }
 
-export function getTriggerBoardColumn(trigger: Trigger): HomeBoardColumn {
-  const status = trigger.last_execution_status?.toLowerCase();
-  if (status === ExecutionStatus.Pending) {
-    return 'awaiting_review';
-  }
-  if (status === ExecutionStatus.Running) {
-    return 'running';
-  }
-  return 'default';
-}
-
 export function getSpaceBoardColumn(
   spaceProjects: ProjectGroup[],
-  spaceTriggers: Trigger[],
   chatTasks?: ChatTasksMap
 ): HomeBoardColumn {
   if (
     spaceProjects.some(
       (project) =>
         getProjectBoardColumn(project, chatTasks) === 'awaiting_review'
-    ) ||
-    spaceTriggers.some(
-      (trigger) => getTriggerBoardColumn(trigger) === 'awaiting_review'
     )
   ) {
     return 'awaiting_review';
@@ -206,9 +190,6 @@ export function getSpaceBoardColumn(
   if (
     spaceProjects.some(
       (project) => getProjectBoardColumn(project, chatTasks) === 'running'
-    ) ||
-    spaceTriggers.some(
-      (trigger) => getTriggerBoardColumn(trigger) === 'running'
     )
   ) {
     return 'running';

@@ -14,11 +14,8 @@
 
 import { TooltipSimple } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import type { WebSocketConnectionStatus } from '@/store/triggerStore';
 import { motion } from 'framer-motion';
-import { RefreshCw } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useTranslation } from 'react-i18next';
 
 import {
   PROJECT_SIDEBAR_FOLD_SPRING,
@@ -43,61 +40,6 @@ const SPLIT_MAIN_BUTTON_CLASS =
 
 const SPLIT_OUTER_EXTRA_CLASS =
   'min-w-0 gap-0 !p-0 relative flex items-stretch overflow-visible';
-
-export function triggerListenerLeadIconClass(
-  status: WebSocketConnectionStatus
-): string {
-  switch (status) {
-    case 'connected':
-      return 'text-ds-icon-neutral-muted-default';
-    case 'connecting':
-      return 'text-ds-icon-status-warning-default animate-pulse';
-    case 'unhealthy':
-      return 'text-ds-icon-status-error-default';
-    case 'disconnected':
-    default:
-      return '!text-ds-icon-status-error-default';
-  }
-}
-
-export interface NavTabReconnectSuffixProps {
-  wsConnectionStatus: WebSocketConnectionStatus;
-  onReconnect: () => void;
-}
-
-/** Reconnect button for the triggers tab — direct click, no dropdown. */
-export function NavTabReconnectSuffix({
-  wsConnectionStatus,
-  onReconnect,
-}: NavTabReconnectSuffixProps) {
-  const { t } = useTranslation();
-  const reconnectLabel = t('layout.triggers-reconnect-hint');
-  return (
-    <TooltipSimple content={reconnectLabel} side="top" sideOffset={8}>
-      <button
-        type="button"
-        className={cn(
-          'no-drag flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-ds-icon-neutral-muted-default outline-none transition-colors hover:bg-ds-bg-neutral-strong-default',
-          'focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-ring-neutral-subtle-default'
-        )}
-        aria-label={reconnectLabel}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onReconnect();
-        }}
-      >
-        <RefreshCw
-          className={cn(
-            'h-3.5 w-3.5',
-            wsConnectionStatus === 'connecting' && 'animate-spin'
-          )}
-          aria-hidden
-        />
-      </button>
-    </TooltipSimple>
-  );
-}
 
 export type NavTabLayout = 'simple' | 'split';
 

@@ -355,6 +355,7 @@
   "aion-submit": "Create trigger",
   "aion-once": "Once",
   "aion-empty": "No triggers yet. A trigger runs a task on a cadence while you are away.",
+  "aion-local": "Triggers need a connected backend. This desktop is not connected to one, so there is nothing scheduling tasks for you yet.",
   "aion-no-projects": "Create a project first — a trigger runs its task inside one.",
   "aion-backend-too-old": "Triggers are unavailable: the connected backend (edge API {{version}}) does not serve triggers. Update the backend to manage them here.",
   "aion-remote-error": "Your triggers could not be loaded: {{message}}",
