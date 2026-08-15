@@ -6,7 +6,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import AionConnectors from '@/pages/Connectors/AionConnectors';
+import AionConnectors from '@/pages/Connectors';
 
 const mocks = vi.hoisted(() => ({
   mode: { kind: 'remote' } as unknown,

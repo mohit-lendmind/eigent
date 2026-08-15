@@ -12,14 +12,7 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { fetchConnectedProviders, providerLabel } from '@/api/connectors';
-import { proxyFetchGet } from '@/api/http';
-import ellipseIcon from '@/assets/mcp/Ellipse-25.svg';
 import { Button } from '@/components/ui/button';
-import {
-  useIntegrationManagement,
-  type IntegrationItem,
-} from '@/hooks/useIntegrationManagement';
 import {
   normalizeSkillScopeAgentId,
   SINGLE_AGENT_ID,
@@ -33,10 +26,14 @@ import {
 } from '@/lib/richText';
 import { skillNameToDirName } from '@/lib/skillToolkit';
 import { cn } from '@/lib/utils';
-import { useServerCapabilityStore } from '@/store/serverCapabilityStore';
+import {
+  connectorState,
+  loadAionConnectors,
+  type AionConnector,
+} from '@/store/aionConnectorsStore';
 import { useSkillsStore } from '@/store/skillsStore';
 import { Check, Plus, Wrench } from 'lucide-react';
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
@@ -48,23 +45,13 @@ export interface PickerItem {
   id: string;
   name: string;
   token: string;
-  /** Provider icon URL for hosted connector items. */
-  iconUrl?: string;
   /** One-line description shown under the name (e.g. remote skills). */
   description?: string;
 }
 
-/** A labelled section within a picker (e.g. built-in vs. your own connectors). */
-export interface PickerGroup {
-  id: string;
-  /** Section heading; omit for a single ungrouped list (e.g. skills). */
-  label?: string;
-  items: PickerItem[];
-}
-
 interface PickerPanelProps {
   title: string;
-  groups: PickerGroup[];
+  items: PickerItem[];
   /** Current input text — an item is "added" when its token appears in it. */
   inputValue: string;
   onToggleItem: (item: PickerItem) => void;
@@ -85,7 +72,7 @@ interface PickerPanelProps {
  */
 export function PickerPanel({
   title,
-  groups,
+  items,
   inputValue,
   onToggleItem,
   renderTag,
@@ -95,9 +82,6 @@ export function PickerPanel({
   emptyActionLabel,
   onEmptyAction,
 }: PickerPanelProps) {
-  const nonEmptyGroups = groups.filter((g) => g.items.length > 0);
-  const totalItems = nonEmptyGroups.reduce((n, g) => n + g.items.length, 0);
-
   return (
     <div className="flex w-full flex-col overflow-hidden rounded-2xl border border-solid border-ds-border-neutral-default-default bg-ds-bg-neutral-subtle-default">
       {/* Header */}
@@ -105,9 +89,9 @@ export function PickerPanel({
         <span className="text-xs font-bold text-ds-text-neutral-muted-default">
           {title}
         </span>
-        {totalItems > 0 && (
+        {items.length > 0 && (
           <span className="text-xs font-bold text-ds-text-neutral-muted-default">
-            {totalItems}
+            {items.length}
           </span>
         )}
       </div>
@@ -123,7 +107,7 @@ export function PickerPanel({
               />
             ))}
           </>
-        ) : totalItems === 0 ? (
+        ) : items.length === 0 ? (
           <div className="flex w-full items-center justify-between gap-2 px-2 py-2">
             <span className="text-xs font-normal text-ds-text-neutral-muted-default">
               {emptyLabel}
@@ -138,24 +122,15 @@ export function PickerPanel({
             </Button>
           </div>
         ) : (
-          nonEmptyGroups.map((group) => (
-            <Fragment key={group.id}>
-              {group.label && (
-                <div className="px-2 pb-0.5 pt-1.5 text-xs font-bold text-ds-text-neutral-muted-default">
-                  {group.label}
-                </div>
-              )}
-              {group.items.map((item) => (
-                <PickerPanelItem
-                  key={item.id}
-                  item={item}
-                  tag={renderTag(item)}
-                  logo={renderLogo?.(item)}
-                  added={inputValue.includes(item.token)}
-                  onToggle={() => onToggleItem(item)}
-                />
-              ))}
-            </Fragment>
+          items.map((item) => (
+            <PickerPanelItem
+              key={item.id}
+              item={item}
+              tag={renderTag(item)}
+              logo={renderLogo?.(item)}
+              added={inputValue.includes(item.token)}
+              onToggle={() => onToggleItem(item)}
+            />
           ))
         )}
       </div>
@@ -223,14 +198,12 @@ interface WiredPickerPanelProps {
   onToggleItem: (item: PickerItem) => void;
 }
 
-/** Built-in integrations excluded from the MCP connector list (mirrors settings). */
-const EXCLUDED_BUILTIN_CONNECTORS = ['Search', 'RAG'];
-
 /**
- * Connected connectors only, matching the Connectors page sidebar: connected
- * hosted connectors (when the Connector Gateway is enabled), connected built-in
- * integrations (`/api/v1/config/info` + configs), and the user's enabled MCPs
- * (`/api/v1/mcp/users`), shown as labelled sections.
+ * The connectors this run could actually reach, read from the edge catalog.
+ * Two of the four row states belong here and two do not: a connector this user
+ * has not granted, or one the server has no vault to hold a grant in, has no
+ * tools behind it — naming it in a message would promise the run something it
+ * cannot deliver, and the Connections screen is where that gets fixed.
  */
 export function ConnectorPickerPanel({
   inputValue,
@@ -238,66 +211,18 @@ export function ConnectorPickerPanel({
 }: WiredPickerPanelProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [builtInItems, setBuiltInItems] = useState<IntegrationItem[]>([]);
-  const [openItems, setOpenItems] = useState<PickerItem[]>([]);
-  const [yourMcps, setYourMcps] = useState<PickerItem[]>([]);
+  const [connectors, setConnectors] = useState<AionConnector[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const capabilities = useServerCapabilityStore((state) => state.capabilities);
-  const capabilityStatus = useServerCapabilityStore((state) => state.status);
-  const fetchCapabilities = useServerCapabilityStore(
-    (state) => state.fetchCapabilities
-  );
-  const gatewayEnabled =
-    capabilities.features.connector_gateway.enabled === true;
-
-  // Reuse the Connectors page's connected-state rules (OAuth tokens, config
-  // groups, Google Search defaults) instead of duplicating them here.
-  const { installed } = useIntegrationManagement(builtInItems);
-
-  useEffect(() => {
-    void fetchCapabilities();
-  }, [fetchCapabilities]);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.allSettled([
-      proxyFetchGet('/api/v1/config/info'),
-      proxyFetchGet('/api/v1/mcp/users'),
-    ])
-      .then(([infoRes, usersRes]) => {
-        if (cancelled) return;
-        if (
-          infoRes.status === 'fulfilled' &&
-          infoRes.value &&
-          typeof infoRes.value === 'object'
-        ) {
-          setBuiltInItems(
-            Object.keys(infoRes.value)
-              .filter((key) => !EXCLUDED_BUILTIN_CONNECTORS.includes(key))
-              .map((key) => ({
-                key,
-                name: key,
-                desc: '',
-                env_vars: [],
-                onInstall: () => undefined,
-              }))
-          );
-        }
-        if (usersRes.status === 'fulfilled') {
-          const list = Array.isArray(usersRes.value)
-            ? usersRes.value
-            : (usersRes.value?.items ?? []);
-          setYourMcps(
-            list
-              .filter((item: { status?: number }) => Number(item.status) === 1)
-              .map((item: { id: number; mcp_name: string }) => ({
-                id: `user-${item.id}`,
-                name: item.mcp_name,
-                token: connectorNameToToken(item.mcp_name),
-              }))
-          );
-        }
+    loadAionConnectors()
+      .then((catalog) => {
+        if (!cancelled) setConnectors(catalog);
+      })
+      .catch(() => {
+        // The Connections screen reports why; the composer just offers nothing.
+        if (!cancelled) setConnectors([]);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -307,58 +232,25 @@ export function ConnectorPickerPanel({
     };
   }, []);
 
-  useEffect(() => {
-    if (capabilityStatus !== 'ready' || !gatewayEnabled) {
-      setOpenItems([]);
-      return;
-    }
-    let cancelled = false;
-    fetchConnectedProviders()
-      .then((providers) => {
-        if (cancelled) return;
-        setOpenItems(
-          providers.map((provider) => ({
-            id: `open-${provider.service}`,
-            name: providerLabel(provider),
-            token: connectorNameToToken(providerLabel(provider)),
-            iconUrl: provider.iconUrl || undefined,
-          }))
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setOpenItems([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [capabilityStatus, gatewayEnabled]);
-
-  const builtIn = useMemo(
+  const items = useMemo(
     () =>
-      builtInItems
-        .filter((item) => installed[item.key])
-        .map((item) => ({
-          id: `builtin-${item.key}`,
-          name: item.name,
-          token: connectorNameToToken(item.key),
+      connectors
+        .filter((connector) => {
+          const state = connectorState(connector).kind;
+          return state === 'connected' || state === 'provisioned';
+        })
+        .map((connector) => ({
+          id: connector.connectorId,
+          name: connector.displayName,
+          token: connectorNameToToken(connector.displayName),
         })),
-    [builtInItems, installed]
+    [connectors]
   );
-
-  const groups: PickerGroup[] = [
-    { id: 'open', label: t('connectors.gateway-connectors'), items: openItems },
-    {
-      id: 'builtin',
-      label: t('setting.mcp-sidebar-built-in'),
-      items: builtIn,
-    },
-    { id: 'yours', label: t('setting.your-own-mcps'), items: yourMcps },
-  ];
 
   return (
     <PickerPanel
       title={t('chat.input-attach-connectors')}
-      groups={groups}
+      items={items}
       inputValue={inputValue}
       onToggleItem={onToggleItem}
       renderTag={(item) => (
@@ -372,23 +264,11 @@ export function ConnectorPickerPanel({
         </span>
       )}
       renderLogo={(item) => {
-        if (item.id.startsWith('open-')) {
-          return item.iconUrl ? (
-            <img src={item.iconUrl} alt="" className="h-4 w-4 object-contain" />
-          ) : (
-            <img src={ellipseIcon} alt="" className="h-3 w-3" />
-          );
-        }
-        if (!item.id.startsWith('builtin-')) {
-          return (
-            <Wrench size={16} className="text-ds-icon-neutral-muted-default" />
-          );
-        }
         const iconUrl = integrationLeadingIconUrl(item.name);
         return iconUrl ? (
           <img src={iconUrl} alt="" className="h-4 w-4 object-contain" />
         ) : (
-          <img src={ellipseIcon} alt="" className="h-3 w-3" />
+          <Wrench size={16} className="text-ds-icon-neutral-muted-default" />
         );
       }}
       loading={loading}
@@ -437,7 +317,7 @@ export function SkillPickerPanel({
   return (
     <PickerPanel
       title={t('chat.input-attach-skills')}
-      groups={[{ id: 'skills', items }]}
+      items={items}
       inputValue={inputValue}
       onToggleItem={onToggleItem}
       renderTag={(item) => {
