@@ -82,7 +82,6 @@ export function hasStackKeys() {
 }
 
 // Re-export replay utilities
-export { replayProject } from './replay';
 
 export async function uploadLog(taskId: string, type?: string | undefined) {
   if (import.meta.env.VITE_USE_LOCAL_PROXY !== 'true' && !type) {

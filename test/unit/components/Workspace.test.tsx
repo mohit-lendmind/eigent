@@ -247,9 +247,6 @@ describe('Workspace project creation', () => {
     );
     expect(mocks.newStartTask).toHaveBeenCalledWith(
       'new-task',
-      undefined,
-      undefined,
-      undefined,
       'Start fresh work',
       [{ fileName: 'draft.txt', filePath: '/draft.txt' }],
       undefined,

@@ -25,21 +25,19 @@
  * This is the most common user journey and serves as the foundation for all other cases.
  */
 
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateUniqueId } from '../../../src/lib';
 
 // Import proxy mock to enable API mocking
 import '../../mocks/proxy.mock';
-// Also Mock authStore & sse
+// Also Mock authStore
 import '../../mocks/authStore.mock';
-import '../../mocks/sse.mock';
 
 // Import chat store to ensure it's available
 import '../../../src/store/chatStore';
 
 import { useProjectStore } from '../../../src/store/projectStore';
-import { mockFetchEventSource } from '../../mocks/sse.mock';
 
 // Mock electron IPC
 (global as any).ipcRenderer = {
@@ -161,143 +159,6 @@ describe('Integration Test: Case 1 - New Project', () => {
       expect(task.messages).toHaveLength(1);
       expect(task.messages[0].content).toBe('Create a todo app with React');
       expect(task.hasMessages).toBe(true);
-    });
-  });
-
-  it('should create historyId after starting task', async () => {
-    const { result } = renderHook(() => useProjectStore());
-
-    await act(async () => {
-      const projectId = result.current.createProject('Test Project');
-      const chatStore = result.current.getActiveChatStore(projectId)!;
-      const taskId = chatStore.getState().activeTaskId!;
-
-      // Add message
-      chatStore.getState().addMessages(taskId, {
-        id: generateUniqueId(),
-        role: 'user',
-        content: 'Test message',
-      });
-
-      // Mock SSE to immediately close (simulating startTask)
-      mockFetchEventSource.mockImplementation((url: string, options: any) => {
-        // Call onopen
-        if (options.onopen) {
-          options.onopen({ ok: true, status: 200 });
-        }
-        return Promise.resolve();
-      });
-
-      // Step 4: Start task
-      await chatStore.getState().startTask(taskId);
-
-      // Wait for historyId to be set
-      await waitFor(
-        () => {
-          const historyId = result.current.getHistoryId(projectId);
-          expect(historyId).toBeDefined();
-          expect(historyId).toMatch(/^history-/);
-        },
-        { timeout: 2000 }
-      );
-    });
-  });
-
-  it('should handle complete user journey from project creation to task start', async () => {
-    const { result } = renderHook(() => useProjectStore());
-
-    await act(async () => {
-      // Complete Flow Test
-
-      // 1. Create project
-      const projectId = result.current.createProject(
-        'Complete Journey Test',
-        'Testing full flow'
-      );
-      expect(projectId).toBeDefined();
-
-      // 2. Get chatStore (automatically created)
-      const chatStore = result.current.getActiveChatStore(projectId)!;
-      expect(chatStore).toBeDefined();
-
-      const initiatorTaskId = chatStore.getState().activeTaskId!;
-      expect(initiatorTaskId).toBeDefined();
-
-      // 3. Set user message
-      const userMessage = 'Build a calculator app';
-
-      // 4. Verify task ready to start
-      const _initialTask = chatStore.getState().tasks[initiatorTaskId];
-
-      // 5. Mock SSE stream with to_sub_tasks event
-      mockFetchEventSource.mockImplementation((url: string, options: any) => {
-        setTimeout(() => {
-          console.log('Sending to_sub_tasks SSE Event');
-          // Simulate to_sub_tasks event
-          if (options.onmessage) {
-            options.onmessage({
-              data: JSON.stringify({
-                step: 'to_sub_tasks',
-                data: {
-                  summary_task: 'Calculator App|Build a simple calculator',
-                  sub_tasks: [
-                    {
-                      id: 'task-1',
-                      content: 'Create UI components',
-                      status: '',
-                    },
-                    {
-                      id: 'task-2',
-                      content: 'Implement calculator logic',
-                      status: '',
-                    },
-                  ],
-                },
-              }),
-            });
-          }
-        }, 200);
-      });
-
-      // 6. Start task
-      // NOTE: startTask creates a NEW chatStore and switches to it, the old chatStore is no longer active
-      await chatStore
-        .getState()
-        .startTask(
-          initiatorTaskId,
-          undefined,
-          undefined,
-          undefined,
-          userMessage
-        );
-
-      // IMPORTANT: Get the NEW active chatStore after startTask creates it
-      const newChatStore = result.current.getActiveChatStore();
-      expect(newChatStore).toBeDefined();
-      expect(newChatStore).not.toBe(chatStore); // Should be a different instance
-
-      let taskId = newChatStore?.getState().activeTaskId!;
-      const task = newChatStore?.getState().tasks[taskId];
-      expect(taskId).toBeDefined();
-      if (task) {
-        expect(task.hasMessages).toBe(true);
-        expect(task.messages[0].content).toBe('Build a calculator app');
-        expect(task.status).toBe('pending');
-      }
-
-      // 7. Wait for task breakdown
-      await waitFor(
-        () => {
-          const updatedTask = newChatStore?.getState().tasks[taskId];
-          expect(updatedTask?.summaryTask).toBe(
-            'Calculator App|Build a simple calculator'
-          );
-          //Bcz of newTaskInfo { id: '', content: '', status: '' } we have 3 items
-          expect(updatedTask?.taskInfo).toHaveLength(3);
-          expect(updatedTask?.taskRunning).toHaveLength(3);
-        },
-        { timeout: 2000 }
-      );
     });
   });
 

@@ -30,7 +30,6 @@ import {
   FolderClock,
   ListChecks,
   Plus,
-  Share,
   Trash2,
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';

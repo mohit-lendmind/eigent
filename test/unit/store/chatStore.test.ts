@@ -23,60 +23,28 @@
  */
 
 import { act, renderHook } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock dependencies - moved to top before other imports
-vi.mock('@/api/http', async () => {
-  const { fetchEventSource } = await import('@microsoft/fetch-event-source');
-  const getBaseURL = vi.fn(() => Promise.resolve('http://localhost:8000'));
+vi.mock('@/api/http', () => ({
+  fetchPost: vi.fn(),
+  fetchPut: vi.fn(),
+  proxyFetchGet: vi.fn(() =>
+    Promise.resolve({
+      value: '',
+      api_url: '',
+      items: [],
+      warning_code: null,
+    })
+  ),
+  uploadFile: vi.fn(),
+  fetchDelete: vi.fn(),
+}));
 
-  return {
-    fetchPost: vi.fn(),
-    fetchPut: vi.fn(),
-    getBaseURL,
-    proxyFetchPost: vi.fn(() => Promise.resolve({ id: 'mock-history-id' })),
-    proxyFetchPut: vi.fn(),
-    proxyFetchGet: vi.fn(() =>
-      Promise.resolve({
-        value: '',
-        api_url: '',
-        items: [],
-        warning_code: null,
-      })
-    ),
-    uploadFile: vi.fn(),
-    fetchDelete: vi.fn(),
-    waitForBackendReady: vi.fn(() => Promise.resolve(true)),
-    sseTransport: vi.fn(async (options: any) => {
-      const baseURL = await getBaseURL();
-      const fullUrl =
-        options.url.startsWith('http://') || options.url.startsWith('https://')
-          ? options.url
-          : `${baseURL}${options.url}`;
-      const body =
-        typeof options.body === 'string'
-          ? options.body
-          : options.body
-            ? JSON.stringify(options.body)
-            : undefined;
-
-      await fetchEventSource(fullUrl, {
-        method: options.method || 'POST',
-        openWhenHidden: options.openWhenHidden ?? true,
-        signal: options.signal,
-        headers: options.extraHeaders ?? {},
-        body,
-        onmessage: options.onmessage,
-        onopen: options.onopen,
-        onerror: options.onerror,
-        onclose: options.onclose,
-      });
-    }),
-  };
-});
-
-vi.mock('@microsoft/fetch-event-source', () => ({
-  fetchEventSource: vi.fn(),
+vi.mock('@/store/aionChatBridge', () => ({
+  getAionRemoteConfig: vi.fn(() => Promise.resolve(null)),
+  startAionTask: vi.fn(() => Promise.resolve()),
+  stopAionTurn: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('../../../src/store/authStore', () => ({
@@ -121,19 +89,13 @@ vi.mock('../../../src/store/projectStore', () => ({
   },
 }));
 
-import {
-  fetchPost,
-  fetchPut,
-  proxyFetchGet,
-  waitForBackendReady,
-} from '@/api/http';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { fetchPost, fetchPut } from '@/api/http';
+import { getAionRemoteConfig } from '@/store/aionChatBridge';
 import { generateUniqueId } from '../../../src/lib';
 import {
   collectTaskUploadFiles,
   extractEndPayloadText,
   extractFinalOutputFileList,
-  getCloudModelPlatform,
   mergeFileInfoLists,
   resolveConfirmedUserMessageContent,
   resolveEndMessageText,
@@ -479,17 +441,6 @@ describe('ChatStore - Core Functionality', () => {
       ]);
     });
 
-  });
-
-  describe('Cloud Model Platform Mapping', () => {
-    it('maps cloud model ids to backend platforms', () => {
-      expect(getCloudModelPlatform('gpt-5.5')).toBe('azure');
-      expect(getCloudModelPlatform('claude-opus-4-7')).toBe(
-        'aws-bedrock-converse'
-      );
-      expect(getCloudModelPlatform('deepseek-v4-pro')).toBe('deepseek');
-      expect(getCloudModelPlatform('minimax_m2_7')).toBe('minimax');
-    });
   });
 
   describe('Task Creation', () => {
@@ -910,12 +861,12 @@ describe('ChatStore - Core Functionality', () => {
   });
 
   describe('Task startup', () => {
-    it('renders the pending user turn before backend readiness resolves', async () => {
-      let resolveBackendReady!: (ready: boolean) => void;
-      vi.mocked(waitForBackendReady).mockReturnValueOnce(
+    it('renders the pending user turn before the transport resolves', async () => {
+      let resolveConfig!: (config: null) => void;
+      vi.mocked(getAionRemoteConfig).mockReturnValueOnce(
         new Promise((resolve) => {
-          resolveBackendReady = resolve;
-        })
+          resolveConfig = resolve;
+        }) as any
       );
 
       const { result } = renderHook(() => useChatStore());
@@ -950,9 +901,6 @@ describe('ChatStore - Core Functionality', () => {
           .getState()
           .startTask(
             initialTaskId,
-            undefined,
-            undefined,
-            undefined,
             'Resume this project',
             [],
             undefined,
@@ -973,15 +921,19 @@ describe('ChatStore - Core Functionality', () => {
         ],
       });
 
-      resolveBackendReady(false);
+      // A desktop with no transport has nothing to run the turn on: the task
+      // must settle rather than sit pending on a composer that stays locked.
+      resolveConfig(null);
       await act(async () => {
         await startPromise;
       });
 
-      expect(result.current.getState().tasks['optimistic-task']).toMatchObject({
+      const settled = result.current.getState().tasks['optimistic-task'];
+      expect(settled).toMatchObject({
         isPending: false,
         status: ChatTaskStatus.FINISHED,
       });
+      expect(settled.messages.at(-1)?.content).toContain('not connected');
       if (previousProjectStoreImplementation) {
         getProjectStoreState.mockImplementation(
           previousProjectStoreImplementation
@@ -1050,285 +1002,4 @@ describe('ChatStore - Core Functionality', () => {
     });
   });
 
-  /**
-   * Issue #1212: Duplicate task execution after network reconnection / system wake-up.
-   * When the task is already FINISHED, SSE onerror must not retry (throw to stop retry).
-   */
-  describe('SSE onerror - no retry when task already finished (issue #1212)', () => {
-    it('should stop retry when task is already FINISHED (avoids duplicate execution)', async () => {
-      const mockFetchEventSource = vi.mocked(fetchEventSource);
-      mockFetchEventSource.mockImplementation((_url, opts) => {
-        // Simulate connection error; when onerror runs, store checks task status
-        // and throws to stop retry (issue #1212 fix)
-        try {
-          opts.onerror?.(new Error('Failed to fetch'));
-        } catch {
-          // Expected: onerror throws to stop fetch-event-source from retrying
-        }
-        return Promise.resolve();
-      });
-
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      const { result } = renderHook(() => useChatStore());
-
-      let taskId: string;
-      await act(async () => {
-        taskId = result.current.getState().create();
-        result.current.getState().setActiveTaskId(taskId!);
-        result.current.getState().setStatus(taskId!, ChatTaskStatus.FINISHED);
-        result.current.getState().addMessages(taskId!, {
-          id: generateUniqueId(),
-          role: 'user',
-          content: 'Test message',
-        });
-        result.current.getState().setHasMessages(taskId!, true);
-      });
-
-      await act(async () => {
-        await result.current.getState().startTask(taskId!);
-      });
-
-      expect(mockFetchEventSource).toHaveBeenCalledTimes(1);
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining('already finished, stopping retry')
-      );
-
-      logSpy.mockRestore();
-    });
-  });
-
-  describe('SSE request usage events', () => {
-    // clearAllMocks doesn't reset implementations; avoid leaking into later tests.
-    afterEach(() => {
-      vi.mocked(fetchEventSource).mockReset();
-    });
-
-    it('should accumulate tokens from request_usage event in non-stream mode', async () => {
-      vi.mocked(proxyFetchGet).mockImplementation((url: string) =>
-        url?.includes?.('snapshots')
-          ? Promise.resolve([])
-          : Promise.resolve({
-              value: '',
-              api_url: '',
-              items: [],
-              warning_code: null,
-            })
-      );
-
-      const mockFetchEventSource = vi.mocked(fetchEventSource);
-      mockFetchEventSource.mockImplementation(async (_url, opts) => {
-        opts.onmessage?.({
-          data: JSON.stringify({
-            step: 'request_usage',
-            data: { tokens: 11 },
-          }),
-        } as any);
-        opts.onmessage?.({
-          data: JSON.stringify({
-            step: 'deactivate_agent',
-            data: { tokens: 0 },
-          }),
-        } as any);
-        return Promise.resolve();
-      });
-
-      const { result } = renderHook(() => useChatStore());
-      let taskId!: string;
-      await act(async () => {
-        taskId = result.current.getState().create();
-        result.current.getState().setActiveTaskId(taskId);
-        result.current.getState().setHasMessages(taskId, true);
-        result.current.getState().addMessages(taskId, {
-          id: generateUniqueId(),
-          role: 'user',
-          content: 'Test message',
-        });
-      });
-
-      await act(async () => {
-        await result.current
-          .getState()
-          .startTask(taskId, 'replay', undefined, 0.2);
-      });
-
-      expect(result.current.getState().tasks[taskId].tokens).toBe(11);
-    });
-  });
-
-  describe('Replay', () => {
-    const replayProjectState = () => ({
-      activeProjectId: 'proj-replay',
-      getHistoryId: () => null,
-      getProjectById: () => ({
-        id: 'proj-replay',
-        mode: 'single',
-      }),
-    });
-
-    beforeEach(() => {
-      vi.mocked(useProjectStore.getState).mockImplementation(
-        replayProjectState as any
-      );
-      vi.mocked(proxyFetchGet).mockImplementation((url: string) =>
-        url?.includes?.('snapshots')
-          ? Promise.resolve([])
-          : Promise.resolve({
-              value: '',
-              api_url: '',
-              items: [],
-              warning_code: null,
-            })
-      );
-    });
-
-    it('replay() creates task and starts SSE', async () => {
-      vi.mocked(fetchEventSource).mockImplementation(() => Promise.resolve());
-      const { result } = renderHook(() => useChatStore());
-
-      await act(async () => {
-        await result.current.getState().replay('replay-1', 'Q', 0.2);
-      });
-
-      expect(result.current.getState().tasks['replay-1']).toBeDefined();
-      expect(result.current.getState().activeTaskId).toBe('replay-1');
-      expect(fetchEventSource).toHaveBeenCalled();
-    });
-
-    it('replays a recorded human reply without leaving an active wait', async () => {
-      vi.mocked(fetchEventSource).mockImplementation(async (_url, opts) => {
-        for (const event of [
-          {
-            step: 'ask',
-            data: {
-              agent: 'Agents.single_agent',
-              question: 'What kind of script?',
-            },
-          },
-          {
-            step: 'human_reply',
-            data: {
-              agent: 'Agents.single_agent',
-              reply: 'A simple script is enough',
-            },
-          },
-          { step: 'end', data: 'Created the script' },
-        ]) {
-          opts.onmessage?.({ data: JSON.stringify(event) } as any);
-        }
-        return Promise.resolve();
-      });
-      const { result } = renderHook(() => useChatStore());
-      const taskId = result.current.getState().create();
-      result.current.getState().addMessages(taskId, {
-        id: generateUniqueId(),
-        role: 'user',
-        content: 'Create a script',
-      });
-
-      await act(async () => {
-        await result.current
-          .getState()
-          .startTask(taskId, 'replay', undefined, 0);
-      });
-
-      const task = result.current.getState().tasks[taskId];
-      expect(task.messages).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            role: 'agent',
-            step: 'ask',
-            content: 'What kind of script?',
-          }),
-          expect.objectContaining({
-            role: 'user',
-            content: 'A simple script is enough',
-          }),
-        ])
-      );
-      expect(task.activeAsk).toBe('');
-      expect(task.askList).toEqual([]);
-      expect(task.status).toBe(ChatTaskStatus.FINISHED);
-    });
-
-    it('clears legacy replay ASK state when the task ends', async () => {
-      vi.mocked(fetchEventSource).mockImplementation(async (_url, opts) => {
-        opts.onmessage?.({
-          data: JSON.stringify({
-            step: 'ask',
-            data: {
-              agent: 'Agents.single_agent',
-              question: 'Historical question',
-            },
-          }),
-        } as any);
-        opts.onmessage?.({
-          data: JSON.stringify({ step: 'end', data: 'Finished' }),
-        } as any);
-        return Promise.resolve();
-      });
-      const { result } = renderHook(() => useChatStore());
-      const taskId = result.current.getState().create();
-
-      await act(async () => {
-        await result.current
-          .getState()
-          .startTask(taskId, 'replay', undefined, 0);
-      });
-
-      const task = result.current.getState().tasks[taskId];
-      expect(task.activeAsk).toBe('');
-      expect(task.askList).toEqual([]);
-      expect(task.status).toBe(ChatTaskStatus.FINISHED);
-    });
-
-    it('replay SSE: AbortError does not throw', async () => {
-      vi.mocked(fetchEventSource).mockImplementation(() =>
-        Promise.reject(new DOMException('', 'AbortError'))
-      );
-      const { result } = renderHook(() => useChatStore());
-      let taskId!: string;
-      await act(async () => {
-        taskId = result.current.getState().create();
-        result.current.getState().setHasMessages(taskId, true);
-        result.current.getState().addMessages(taskId, {
-          id: generateUniqueId(),
-          role: 'user',
-          content: 'Q',
-        });
-      });
-
-      await expect(
-        result.current.getState().startTask(taskId, 'replay', undefined, 0.2)
-      ).resolves.toBeUndefined();
-    });
-
-    it('replay SSE: unexpected error is logged and rethrown', async () => {
-      const err = new Error('SSE failed');
-      vi.mocked(fetchEventSource).mockImplementation(() => Promise.reject(err));
-      const consoleSpy = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
-      const { result } = renderHook(() => useChatStore());
-      let taskId!: string;
-      await act(async () => {
-        taskId = result.current.getState().create();
-        result.current.getState().setHasMessages(taskId, true);
-        result.current.getState().addMessages(taskId, {
-          id: generateUniqueId(),
-          role: 'user',
-          content: 'Q',
-        });
-      });
-
-      await expect(
-        result.current.getState().startTask(taskId, 'replay', undefined, 0.2)
-      ).rejects.toThrow('SSE failed');
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('SSE stream failed for task'),
-        err
-      );
-      consoleSpy.mockRestore();
-    });
-  });
 });

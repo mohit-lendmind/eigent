@@ -29,7 +29,6 @@ import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import { useWorkerList } from '@/store/authStore';
 import { useWorkflowViewportStore } from '@/store/workflowViewportStore';
 import '@xyflow/react/dist/style.css';
-import { useTranslation } from 'react-i18next';
 
 interface NodeData {
   agent: Agent;
@@ -54,7 +53,6 @@ export default function Workflow({
   taskAssigning: Agent[];
   onMoveViewport?: (direction: 'left' | 'right') => void;
 }) {
-  const { t } = useTranslation();
   //Get Chatstore for the active project's task
   const { chatStore } = useChatStoreAdapter();
   const [isEditMode, _setIsEditMode] = useState(false);

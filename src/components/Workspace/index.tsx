@@ -327,9 +327,6 @@ export default function Workspace({
 
       await targetChatStore.startTask(
         taskId,
-        undefined,
-        undefined,
-        undefined,
         trimmedMessage,
         attachesToSend,
         undefined,

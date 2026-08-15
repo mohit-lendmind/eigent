@@ -21,7 +21,6 @@ import { useSelectedProjectTurn } from '@/hooks/useSelectedProjectTurn';
 import { inferSessionModeFromTask, resolveSessionMode } from '@/lib/sessionMode';
 import { cn } from '@/lib/utils';
 import { getSessionPreviewSlice, usePageTabStore } from '@/store/pageTabStore';
-import { useProjectRuntimeStore } from '@/store/projectRuntimeStore';
 import { useSpaceStore } from '@/store/spaceStore';
 import {
   ChatTaskStatus,

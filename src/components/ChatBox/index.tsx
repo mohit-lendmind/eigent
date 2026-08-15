@@ -242,8 +242,7 @@ export default function ChatBox(): JSX.Element {
     projectStore,
     updateProjectMeta,
   ]);
-  const { hasModel, isConfigLoaded, cloudUsageLimitReached } =
-    useModelConfigCheck();
+  const { hasModel, cloudUsageLimitReached } = useModelConfigCheck();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomBoxOverlayRef = useRef<HTMLDivElement>(null);
   const [scrollBottomInsetPx, setScrollBottomInsetPx] = useState(
@@ -369,7 +368,6 @@ export default function ChatBox(): JSX.Element {
     );
   }, []);
   const [searchParams, setSearchParams] = useSearchParams();
-  const share_token = searchParams.get('share_token');
   const skill_prompt = searchParams.get('skill_prompt');
 
   const handleSendRef = useRef<
@@ -534,68 +532,6 @@ export default function ChatBox(): JSX.Element {
     useCloudModelInDev,
     isTaskBusy,
   ]);
-
-  const handleSendShare = useCallback(
-    async (token: string) => {
-      if (!chatStore) return;
-      if (!token) return;
-      if (!projectStore.activeProjectId) {
-        console.warn("Can't send share due to no active projectId");
-        return;
-      }
-
-      // Check model configuration before starting task
-      if (!hasModel) {
-        if (isCloudUsageLimited) {
-          toast.error(
-            cloudUsageLimitMessage ||
-              t('chat.usage-limit-trial-daily-exhausted')
-          );
-          return;
-        }
-        toast.error('Please select a model first.');
-        navigate('/history?tab=agents');
-        return;
-      }
-
-      let _token: string = token.split('__')[0];
-      let taskId: string = token.split('__')[1];
-      chatStore.create(taskId, 'share');
-      chatStore.setHasMessages(taskId, true);
-      const res = await proxyFetchGet(`/api/v1/chat/share/info/${_token}`);
-      if (res?.question) {
-        chatStore.addMessages(taskId, {
-          id: generateUniqueId(),
-          role: 'user',
-          content: res.question.split('|')[0],
-        });
-        try {
-          await chatStore.startTask(taskId, 'share', _token, 0.1);
-          chatStore.setActiveTaskId(taskId);
-          chatStore.handleConfirmTask(
-            projectStore.activeProjectId,
-            taskId,
-            'share'
-          );
-        } catch (err: any) {
-          console.error('Failed to start shared task:', err);
-          toast.error(
-            err?.message ||
-              'Failed to start task. Please check your model configuration.'
-          );
-        }
-      }
-    },
-    [
-      chatStore,
-      projectStore.activeProjectId,
-      hasModel,
-      isCloudUsageLimited,
-      cloudUsageLimitMessage,
-      navigate,
-      t,
-    ]
-  );
 
   // Handle skill_prompt from URL - pre-fill message when navigating from Skills page
   useEffect(() => {
@@ -853,9 +789,6 @@ export default function ChatBox(): JSX.Element {
               ensureActiveProjectMode();
               await chatStore.startTask(
                 _taskId,
-                undefined,
-                undefined,
-                undefined,
                 tempMessageContent,
                 attachesToSend,
                 executionId,
@@ -892,9 +825,6 @@ export default function ChatBox(): JSX.Element {
                 ensureActiveProjectMode();
                 await chatStore.startTask(
                   _taskId,
-                  undefined,
-                  undefined,
-                  undefined,
                   tempMessageContent,
                   remoteAttaches,
                   executionId,
@@ -961,9 +891,6 @@ export default function ChatBox(): JSX.Element {
             ensureActiveProjectMode();
             await chatStore.startTask(
               _taskId,
-              undefined,
-              undefined,
-              undefined,
               tempMessageContent,
               attachesToSend,
               executionId,
@@ -1007,12 +934,6 @@ export default function ChatBox(): JSX.Element {
       timestamp: m.timestamp,
     }));
   }, [projectStore]);
-
-  useEffect(() => {
-    if (share_token && isConfigLoaded) {
-      handleSendShare(share_token);
-    }
-  }, [share_token, isConfigLoaded, handleSendShare]);
 
   if (!chatStore) {
     return <div>Loading...</div>;
