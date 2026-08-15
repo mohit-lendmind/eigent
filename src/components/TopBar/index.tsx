@@ -27,6 +27,10 @@ import {
   getActiveSpaceTriggerLabel,
   getDefaultNewSpaceName,
 } from '@/lib/spaceLabel';
+import {
+  bindSpaceToAion,
+  renameBoundSpace,
+} from '@/store/aionSpaceBinding';
 import { useAuthStore } from '@/store/authStore';
 import { useInstallationUI } from '@/store/installationStore';
 import { usePageTabStore } from '@/store/pageTabStore';
@@ -251,8 +255,9 @@ function HeaderWin() {
 
   const handleCreateBlankSpace = useCallback(() => {
     try {
+      const name = getDefaultNewSpaceName(t);
       const spaceId = createSpace({
-        name: getDefaultNewSpaceName(t),
+        name,
         sourceType: 'blank',
         setActive: false,
         metadata: {
@@ -260,6 +265,7 @@ function HeaderWin() {
           autoCreatedPlaceholder: true,
         },
       });
+      bindSpaceToAion(spaceId, name);
       setActiveSpace(spaceId);
       projectStore.setActiveProject(null);
       setActiveWorkspaceTab('workforce');
@@ -331,6 +337,7 @@ function HeaderWin() {
     setRenamingSpace(true);
     try {
       updateSpace(activeSpaceId, { name: nextName });
+      await renameBoundSpace(activeSpaceId, nextName);
       toast.success(t('layout.spaces-rename-success'));
       setRenameSpaceDialogOpen(false);
     } catch (error) {

@@ -21,6 +21,10 @@ import {
   getActiveSpaceTriggerLabel,
   getDefaultNewSpaceName,
 } from '@/lib/spaceLabel';
+import {
+  bindSpaceToAion,
+  renameBoundSpace,
+} from '@/store/aionSpaceBinding';
 import { cn } from '@/lib/utils';
 import {
   getVisibleProjectMetasForSpace,
@@ -126,8 +130,9 @@ export function WorkspaceProjectPicker({
 
   const handleNewSpace = useCallback(() => {
     try {
+      const name = getDefaultNewSpaceName(t);
       const spaceId = createSpace({
-        name: getDefaultNewSpaceName(t),
+        name,
         sourceType: 'blank',
         setActive: false,
         metadata: {
@@ -135,6 +140,7 @@ export function WorkspaceProjectPicker({
           autoCreatedPlaceholder: true,
         },
       });
+      bindSpaceToAion(spaceId, name);
       setActiveSpace(spaceId);
       projectStore.setActiveProject(null);
       navigate('/');
@@ -152,12 +158,13 @@ export function WorkspaceProjectPicker({
     setRenameDialogOpen(true);
   };
 
-  const handleRenameSpace = () => {
+  const handleRenameSpace = async () => {
     const nextName = renameValue.trim();
     if (!activeSpaceId || !nextName || renamingSpace) return;
     setRenamingSpace(true);
     try {
       updateSpace(activeSpaceId, { name: nextName });
+      await renameBoundSpace(activeSpaceId, nextName);
       toast.success(t('layout.spaces-rename-success'));
     } catch (error) {
       console.warn('[WorkspaceProjectPicker] Failed to rename Space:', error);
@@ -200,7 +207,7 @@ export function WorkspaceProjectPicker({
           onChange={(event) => setRenameValue(event.target.value)}
           onEnter={() => {
             if (renameValue.trim() && !renamingSpace) {
-              handleRenameSpace();
+              void handleRenameSpace();
               setRenameDialogOpen(false);
             }
           }}

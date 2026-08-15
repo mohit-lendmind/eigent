@@ -41,6 +41,12 @@ export interface Space {
   name: string;
   description?: string;
   userId?: string;
+  /**
+   * The Space on the aion edge this local record stands for. Absent while the
+   * create is in flight, and absent for good on a Space the edge refused — the
+   * local record still works, it just holds nothing the server can file under.
+   */
+  aionSpaceId?: string;
   sourceType: SpaceSourceType;
   rootPath?: string | null;
   rootFingerprint?: Record<string, unknown> | null;
