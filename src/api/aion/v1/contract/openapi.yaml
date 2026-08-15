@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Eigent Desktop Edge API
-  version: 1.8.0
+  version: 1.9.0
   description: |
     Public, additive-only API used by the Eigent desktop application. The edge
     authenticates the device/user, enforces tenant policy, and projects private
@@ -25,6 +25,7 @@ tags:
   - name: artifacts
   - name: catalog
   - name: skills
+  - name: connectors
 paths:
   /projects:
     get:
@@ -453,6 +454,88 @@ paths:
         '401': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
         '501': {$ref: '#/components/responses/Problem'}
+  /connectors:
+    get:
+      operationId: listConnectors
+      tags: [connectors]
+      description: |
+        The tenant's connector catalog with the caller's grant state on each
+        row. Like the skill routes, connectors are served only by an edge
+        connected to a cell; elsewhere they answer 501
+        (`code: not_implemented`).
+
+        A server whose connector vault is not configured still serves this
+        route — the catalog is readable, and every oauth row reports
+        `connectable: false` so a client renders the state instead of
+        offering a Connect action that cannot succeed.
+      responses:
+        '200':
+          description: The tenant's connector catalog
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConnectorCatalog'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '501': {$ref: '#/components/responses/Problem'}
+  /connectors/{connectorId}/auth:
+    parameters:
+      - $ref: '#/components/parameters/ConnectorId'
+    post:
+      operationId: initiateConnectorAuth
+      tags: [connectors]
+      description: |
+        Begin the brokered OAuth flow for this connector and return the
+        provider's consent URL for the caller to open. The URL is the whole
+        result: the edge never follows it and never holds a token. The flow
+        completes on the cell's own callback listener, whose single-use state
+        is the only thing that can redeem it — so a client polls
+        `listConnectors` for `connected: true` rather than expecting a
+        response here to mean the grant exists.
+      responses:
+        '200':
+          description: The authorization URL to open
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConnectorAuthorization'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409':
+          description: |
+            The connector exists but cannot start a flow (`code:
+            connector_not_ready`) — it is not an `oauth` connector, or its
+            catalog row is not active. Neither is fixable by retrying; both
+            are visible on listConnectors before the attempt.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '501':
+          description: |
+            Two shapes share this status, told apart by the problem `code`:
+            `not_implemented` — this edge serves no connector plane at all;
+            `connectors_not_configured` — the plane is there but the server has
+            no connector vault (or cannot resolve a user identity for grants),
+            so no connector can be authorized here. Both are operator
+            configuration states: retrying changes nothing.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /connectors/{connectorId}/grant:
+    parameters:
+      - $ref: '#/components/parameters/ConnectorId'
+    delete:
+      operationId: disconnectConnector
+      tags: [connectors]
+      description: |
+        Revoke the caller's grant for this connector. Soft revoke: the grant
+        row is retained as revoked for audit, the tokens are unusable, and the
+        connector stays in the catalog. Disconnecting an already-disconnected
+        connector succeeds, so this is safe to retry.
+      responses:
+        '204': {description: The caller holds no active grant for this connector}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '501': {$ref: '#/components/responses/Problem'}
 components:
   securitySchemes:
     bearerAuth:
@@ -500,6 +583,11 @@ components:
         counters are a second read the catalog itself never needs. A skill
         with no recorded use omits the field entirely rather than reporting
         zeros, so "never used" stays distinguishable.
+    ConnectorId:
+      name: connectorId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/ConnectorId'}
     SkillIfMatch:
       name: If-Match
       in: header
@@ -942,3 +1030,77 @@ components:
           type: string
           enum: [active, disabled]
           description: Deletion lives on the DELETE method, not here.
+    ConnectorId:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: |
+        Catalog identifier of a connector. Full syntax is validated
+        server-side.
+    Connector:
+      type: object
+      required: [connector_id, display_name, auth_kind, status, connected, connectable]
+      description: |
+        One catalog row plus the caller's own grant state. Grants are
+        per-user; two users of the same tenant see the same catalog with
+        different `connected` values.
+      properties:
+        connector_id: {$ref: '#/components/schemas/ConnectorId'}
+        display_name: {type: string}
+        # auth_kind and status are OPEN string sets (the catalog vocabulary is
+        # additive-only); x-aion-known-values documents what this contract
+        # version emits. Treat an unknown auth_kind as not connectable and an
+        # unknown status as disabled.
+        auth_kind:
+          type: string
+          x-aion-known-values: [none, static_env, oauth]
+          description: |
+            How the connector authenticates: `oauth` = per-user brokered
+            grant (the only kind these routes can connect or disconnect),
+            `static_env` = an operator-provided credential named by
+            environment variable, `none` = no credential.
+        status:
+          type: string
+          x-aion-known-values: [active]
+          description: |
+            Catalog state. This route serves `active` rows only — a
+            self-registered connector of an exfiltration-capable kind is
+            minted `draft` pending operator review, and neither draft nor
+            disabled rows are user-facing. The field is on the wire so that
+            surfacing them later is an additive change rather than a new
+            shape; treat any other value as not usable.
+        connected:
+          type: boolean
+          description: |
+            For `oauth`, whether the caller holds an active grant. For the
+            other kinds always true — they need no grant to be usable.
+        connectable:
+          type: boolean
+          description: |
+            Whether initiateConnectorAuth can succeed for this row on this
+            server. False for an `oauth` connector on a server with no
+            connector vault configured, where `connected` is also false but
+            for a reason the user cannot fix. Always true for the kinds that
+            need no grant. Render the Connect action off this field, not off
+            `connected` alone.
+    ConnectorCatalog:
+      type: object
+      required: [connectors]
+      properties:
+        connectors:
+          type: array
+          items: {$ref: '#/components/schemas/Connector'}
+      additionalProperties: true
+    ConnectorAuthorization:
+      type: object
+      required: [connector_id, authorization_url]
+      properties:
+        connector_id: {$ref: '#/components/schemas/ConnectorId'}
+        authorization_url:
+          type: string
+          format: uri
+          description: |
+            The provider consent URL to open. Single-use and short-lived: it
+            carries the flow state that redeems this attempt, so it is never
+            cached or shared between users.
+      additionalProperties: true

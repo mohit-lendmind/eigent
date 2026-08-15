@@ -12,8 +12,19 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
+import { useAionMode } from '@/hooks/useAionMode';
+import AionConnectors from './AionConnectors';
 import ConnectorGateway from './ConnectorGateway';
 
+/**
+ * Which plane owns this tenant's integrations. The gateway screen registers MCP
+ * servers through Eigent's hosted cloud and validates them against the local
+ * backend this fork removed, so on aion it is inert; the aion catalog is the
+ * operator's and is read from the edge. Rendering nothing while the mode is
+ * still unknown keeps the dead screen from flashing on an aion stack.
+ */
 export default function Connectors() {
-  return <ConnectorGateway />;
+  const aionMode = useAionMode();
+  if (aionMode === 'unknown') return null;
+  return aionMode === 'aion' ? <AionConnectors /> : <ConnectorGateway />;
 }

@@ -1,0 +1,4 @@
+{
+  "connector_id": "linear",
+  "authorization_url": "https://linear.app/oauth/authorize?client_id=cli_01JY00000000000000&code_challenge=1kX9x0m1w3a5b7c9d1e3f5g7h9i1j3k5l7m9n1o3p5q7&code_challenge_method=S256&redirect_uri=https%3A%2F%2Fapi.eternly.example%2Fv1%2Fconnectors%2Fcallback&resource=https%3A%2F%2Fmcp.linear.app%2Fmcp&response_type=code&scope=read&state=cf3a1d9e5b7208461ca0d2f4e6b8a1c3d5e7f90a2b4c6d8e0f1a3b5c7d9e1f30"
+}

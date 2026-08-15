@@ -1,0 +1,44 @@
+{
+  "connectors": [
+    {
+      "connector_id": "github",
+      "display_name": "GitHub",
+      "auth_kind": "oauth",
+      "status": "active",
+      "connected": true,
+      "connectable": true
+    },
+    {
+      "connector_id": "linear",
+      "display_name": "Linear",
+      "auth_kind": "oauth",
+      "status": "active",
+      "connected": false,
+      "connectable": true
+    },
+    {
+      "connector_id": "notion",
+      "display_name": "Notion",
+      "auth_kind": "oauth",
+      "status": "active",
+      "connected": false,
+      "connectable": false
+    },
+    {
+      "connector_id": "internal-search",
+      "display_name": "Internal Search",
+      "auth_kind": "static_env",
+      "status": "active",
+      "connected": true,
+      "connectable": true
+    },
+    {
+      "connector_id": "sandbox-echo",
+      "display_name": "Sandbox Echo",
+      "auth_kind": "none",
+      "status": "active",
+      "connected": true,
+      "connectable": true
+    }
+  ]
+}

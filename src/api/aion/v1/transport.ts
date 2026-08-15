@@ -37,6 +37,9 @@ export type SkillCatalog = Schemas['SkillCatalog'];
 export type PutSkillRequest = Schemas['PutSkillRequest'];
 export type PutSkillResult = Schemas['PutSkillResult'];
 export type SetSkillStatusRequest = Schemas['SetSkillStatusRequest'];
+export type Connector = Schemas['Connector'];
+export type ConnectorCatalog = Schemas['ConnectorCatalog'];
+export type ConnectorAuthorization = Schemas['ConnectorAuthorization'];
 
 export interface EdgeTransportConfig {
   /** Base URL of the mounted contract, e.g. `https://edge.example/eigent/v1`. */
@@ -249,6 +252,41 @@ export class EdgeTransport {
       'POST',
       `/skills/${encodeURIComponent(name)}/status`,
       { body: request }
+    );
+  }
+
+  /**
+   * The tenant's connector catalog with the caller's own grant state on each
+   * row. `connectable` and `connected` are separate answers: a server with no
+   * connector vault serves the same catalog with every oauth row
+   * `connectable: false`, which is a state to render rather than a Connect
+   * action that cannot succeed.
+   */
+  listConnectors(): Promise<ConnectorCatalog> {
+    return this.json('GET', '/connectors');
+  }
+
+  /**
+   * Starts the brokered OAuth flow and returns the consent URL for the caller
+   * to open. The URL is the whole result — the grant lands on the cell's own
+   * callback listener, so a caller polls listConnectors for `connected: true`
+   * rather than treating this response as the grant.
+   */
+  initiateConnectorAuth(connectorId: string): Promise<ConnectorAuthorization> {
+    // Not idempotent by design: each attempt mints its own single-use flow
+    // state, so a retry must be a new flow rather than a replayed receipt.
+    return this.json(
+      'POST',
+      `/connectors/${encodeURIComponent(connectorId)}/auth`,
+      { headers: { 'Idempotency-Key': newIdempotencyKey() } }
+    );
+  }
+
+  disconnectConnector(connectorId: string): Promise<void> {
+    // Soft revoke, idempotent server-side — no Idempotency-Key.
+    return this.json(
+      'DELETE',
+      `/connectors/${encodeURIComponent(connectorId)}/grant`
     );
   }
 

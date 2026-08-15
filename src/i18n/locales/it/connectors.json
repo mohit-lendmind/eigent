@@ -128,5 +128,18 @@
   "search-engine-id": "ID del motore di ricerca",
   "search-engine-id-placeholder": "Inserisci l’ID del motore di ricerca personalizzato associato alla chiave API",
   "google-search-custom-desc": "Connetti Google Custom Search. Sono richiesti una chiave API Google e un ID del motore di ricerca personalizzato (CSE).",
-  "google-search-default-desc": "La Ricerca Google è abilitata per impostazione predefinita. Non è richiesta alcuna chiave API."
+  "google-search-default-desc": "La Ricerca Google è abilitata per impostazione predefinita. Non è richiesta alcuna chiave API.",
+  "aion-state-connected": "Connesso",
+  "aion-state-disconnected": "Non connesso",
+  "aion-state-unavailable": "Non disponibile qui",
+  "aion-state-provisioned": "Fornito dall'operatore",
+  "aion-connect": "Connetti",
+  "aion-disconnect": "Disconnetti",
+  "aion-awaiting": "In attesa del browser",
+  "aion-refresh": "Aggiorna",
+  "aion-empty": "Nessun connettore è registrato per questo spazio di lavoro. Il tuo operatore li aggiunge al catalogo.",
+  "aion-backend-too-old": "I connettori non sono disponibili: il backend connesso (API edge {{version}}) non serve un catalogo di connettori. Aggiorna il backend per gestire le integrazioni qui.",
+  "aion-remote-error": "Non è stato possibile caricare i tuoi connettori: {{message}}",
+  "aion-open-failed": "Non è stato possibile aprire la pagina di consenso nel tuo browser.",
+  "aion-await-timeout": "Nessuna concessione è arrivata. Se hai completato la pagina di consenso, scegli Aggiorna; altrimenti avvia di nuovo la connessione."
 }

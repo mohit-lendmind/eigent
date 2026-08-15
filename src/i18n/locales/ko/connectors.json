@@ -128,5 +128,18 @@
   "search-engine-id": "검색 엔진 ID",
   "search-engine-id-placeholder": "API 키와 연결된 Custom Search Engine ID를 입력하세요",
   "google-search-custom-desc": "Google Custom Search를 연결합니다. Google API 키와 Custom Search Engine(CSE) ID가 필요합니다.",
-  "google-search-default-desc": "Google 검색은 기본적으로 활성화되어 있습니다. API 키가 필요하지 않습니다."
+  "google-search-default-desc": "Google 검색은 기본적으로 활성화되어 있습니다. API 키가 필요하지 않습니다.",
+  "aion-state-connected": "연결됨",
+  "aion-state-disconnected": "연결되지 않음",
+  "aion-state-unavailable": "여기서는 사용할 수 없음",
+  "aion-state-provisioned": "운영자가 제공",
+  "aion-connect": "연결",
+  "aion-disconnect": "연결 해제",
+  "aion-awaiting": "브라우저 대기 중",
+  "aion-refresh": "새로 고침",
+  "aion-empty": "이 워크스페이스에 등록된 커넥터가 없습니다. 운영자가 카탈로그에 추가합니다.",
+  "aion-backend-too-old": "커넥터를 사용할 수 없습니다: 연결된 백엔드(엣지 API {{version}})가 커넥터 카탈로그를 제공하지 않습니다. 여기서 통합을 관리하려면 백엔드를 업데이트하세요.",
+  "aion-remote-error": "커넥터를 불러오지 못했습니다: {{message}}",
+  "aion-open-failed": "브라우저에서 동의 페이지를 열지 못했습니다.",
+  "aion-await-timeout": "권한이 도착하지 않았습니다. 동의 페이지를 완료했다면 새로 고침을 선택하고, 그렇지 않다면 연결을 다시 시작하세요."
 }

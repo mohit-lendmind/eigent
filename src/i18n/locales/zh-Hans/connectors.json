@@ -128,5 +128,18 @@
   "search-engine-id": "搜索引擎 ID",
   "search-engine-id-placeholder": "输入与你的 API 密钥关联的自定义搜索引擎 ID",
   "google-search-custom-desc": "连接 Google 自定义搜索。需要 Google API 密钥和自定义搜索引擎（CSE）ID。",
-  "google-search-default-desc": "Google 搜索默认已启用，无需 API 密钥。"
+  "google-search-default-desc": "Google 搜索默认已启用，无需 API 密钥。",
+  "aion-state-connected": "已连接",
+  "aion-state-disconnected": "未连接",
+  "aion-state-unavailable": "此处不可用",
+  "aion-state-provisioned": "由运营方提供",
+  "aion-connect": "连接",
+  "aion-disconnect": "断开连接",
+  "aion-awaiting": "等待浏览器",
+  "aion-refresh": "刷新",
+  "aion-empty": "此工作区尚未注册任何连接器。由运营方将它们加入目录。",
+  "aion-backend-too-old": "连接器不可用：所连后端（边缘 API {{version}}）不提供连接器目录。请升级后端以在此管理集成。",
+  "aion-remote-error": "无法加载你的连接器：{{message}}",
+  "aion-open-failed": "无法在浏览器中打开授权页面。",
+  "aion-await-timeout": "没有收到授权。如果你已完成授权页面，请选择刷新；否则请重新开始连接。"
 }

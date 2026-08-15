@@ -128,5 +128,18 @@
   "search-engine-id": "Identifiant du moteur de recherche",
   "search-engine-id-placeholder": "Saisissez l’identifiant du moteur de recherche personnalisé associé à votre clé API",
   "google-search-custom-desc": "Connectez Google Custom Search. Une clé API Google et un identifiant de moteur de recherche personnalisé (CSE) sont requis.",
-  "google-search-default-desc": "La recherche Google est activée par défaut. Aucune clé API n’est requise."
+  "google-search-default-desc": "La recherche Google est activée par défaut. Aucune clé API n’est requise.",
+  "aion-state-connected": "Connecté",
+  "aion-state-disconnected": "Non connecté",
+  "aion-state-unavailable": "Indisponible ici",
+  "aion-state-provisioned": "Fourni par l'opérateur",
+  "aion-connect": "Connecter",
+  "aion-disconnect": "Déconnecter",
+  "aion-awaiting": "En attente du navigateur",
+  "aion-refresh": "Actualiser",
+  "aion-empty": "Aucun connecteur n'est enregistré pour cet espace de travail. Votre opérateur les ajoute au catalogue.",
+  "aion-backend-too-old": "Les connecteurs sont indisponibles : le backend connecté (API edge {{version}}) ne fournit pas de catalogue de connecteurs. Mettez à jour le backend pour gérer les intégrations ici.",
+  "aion-remote-error": "Vos connecteurs n'ont pas pu être chargés : {{message}}",
+  "aion-open-failed": "La page de consentement n'a pas pu être ouverte dans votre navigateur.",
+  "aion-await-timeout": "Aucune autorisation n'est arrivée. Si vous avez terminé la page de consentement, choisissez Actualiser ; sinon, relancez la connexion."
 }

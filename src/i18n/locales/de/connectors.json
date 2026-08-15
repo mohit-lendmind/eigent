@@ -128,5 +128,18 @@
   "search-engine-id": "Suchmaschinen-ID",
   "search-engine-id-placeholder": "Die mit deinem API-Schlüssel verknüpfte ID der benutzerdefinierten Suchmaschine eingeben",
   "google-search-custom-desc": "Mit Google Custom Search verbinden. Erfordert einen Google-API-Schlüssel und eine ID der benutzerdefinierten Suchmaschine (CSE).",
-  "google-search-default-desc": "Die Google-Suche ist standardmäßig aktiviert. Kein API-Schlüssel erforderlich."
+  "google-search-default-desc": "Die Google-Suche ist standardmäßig aktiviert. Kein API-Schlüssel erforderlich.",
+  "aion-state-connected": "Verbunden",
+  "aion-state-disconnected": "Nicht verbunden",
+  "aion-state-unavailable": "Hier nicht verfügbar",
+  "aion-state-provisioned": "Vom Betreiber bereitgestellt",
+  "aion-connect": "Verbinden",
+  "aion-disconnect": "Trennen",
+  "aion-awaiting": "Warte auf Browser",
+  "aion-refresh": "Aktualisieren",
+  "aion-empty": "Für diesen Arbeitsbereich sind keine Konnektoren registriert. Ihr Betreiber fügt sie dem Katalog hinzu.",
+  "aion-backend-too-old": "Konnektoren sind nicht verfügbar: Das verbundene Backend (Edge-API {{version}}) liefert keinen Konnektorkatalog. Aktualisieren Sie das Backend, um Integrationen hier zu verwalten.",
+  "aion-remote-error": "Ihre Konnektoren konnten nicht geladen werden: {{message}}",
+  "aion-open-failed": "Die Zustimmungsseite konnte in Ihrem Browser nicht geöffnet werden.",
+  "aion-await-timeout": "Es ist keine Freigabe eingetroffen. Wenn Sie die Zustimmungsseite abgeschlossen haben, wählen Sie Aktualisieren; andernfalls starten Sie die Verbindung erneut."
 }

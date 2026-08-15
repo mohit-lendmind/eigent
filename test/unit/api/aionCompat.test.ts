@@ -9,6 +9,7 @@ import {
   supportsSkillUsage,
   supportsSkills,
   supportsWorkforceEvents,
+  supportsConnectors,
 } from '@/api/aion/v1/compat';
 import {
   DESKTOP_CLIENT_VERSION,
@@ -186,6 +187,27 @@ describe('supportsWorkforceEvents', () => {
       false
     );
     expect(supportsWorkforceEvents(status({ edge_api_version: '1.eight' }))).toBe(
+      false
+    );
+  });
+});
+
+describe('supportsConnectors', () => {
+  it('gates on the 1.9 connectors floor', () => {
+    // Below the floor the route does not exist, and an empty catalog would say
+    // this tenant has no integrations rather than that the backend cannot list
+    // them.
+    expect(supportsConnectors(status({ edge_api_version: '1.8.9' }))).toBe(
+      false
+    );
+    expect(supportsConnectors(status({ edge_api_version: '1.9.0' }))).toBe(true);
+  });
+
+  it('fails closed on garbage and on a foreign major', () => {
+    expect(supportsConnectors(status({ edge_api_version: '2.0.0' }))).toBe(
+      false
+    );
+    expect(supportsConnectors(status({ edge_api_version: '1.nine' }))).toBe(
       false
     );
   });
