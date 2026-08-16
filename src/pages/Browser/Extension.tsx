@@ -34,7 +34,10 @@ export default function Extension() {
       <div className="flex min-h-[200px] w-full flex-col gap-4">
         <div className="flex flex-col items-center justify-center rounded-xl border border-ds-border-neutral-muted-disabled bg-ds-bg-neutral-default-default px-6 py-16">
           <Puzzle className="mb-4 h-12 w-12 text-ds-icon-neutral-muted-default opacity-50" />
-          <div className="text-body-base text-center font-bold text-ds-text-neutral-muted-default">
+          <div
+            className="text-body-base text-center font-bold text-ds-text-neutral-muted-default"
+            data-testid="coming-soon"
+          >
             {t('layout.coming-soon')}
           </div>
           <p className="mt-2 text-center text-label-sm text-ds-text-neutral-muted-default">

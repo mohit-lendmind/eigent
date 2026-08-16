@@ -19,7 +19,6 @@ import {
   GridPatternBackground,
   RuledLinesBackground,
 } from '@/components/Background';
-import { WorkspaceDispatch } from '@/components/Dispatch';
 import Folder from '@/components/Folder';
 import ProjectPageSidebar from '@/components/ProjectPageSidebar';
 import {
@@ -27,7 +26,6 @@ import {
   PROJECT_SIDEBAR_RAIL_WIDTH_PX,
 } from '@/components/ProjectPageSidebar/constants';
 import SessionGroup from '@/components/Session/SessionGroup';
-import TriggerPanel from '@/components/Trigger';
 import Workspace from '@/components/Workspace';
 import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import { useHost } from '@/host';
@@ -49,10 +47,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore, type WorkspaceMainBackground } from '@/store/authStore';
 import { usePageTabStore } from '@/store/pageTabStore';
 import { useSpaceStore } from '@/store/spaceStore';
-import {
-  EXECUTION_LOGS_OPEN_STORAGE_KEY,
-  type TriggerSortKey,
-} from '../components/Trigger/Triggers';
+import AionTriggersPanel from './Home/AionTriggersPanel';
 
 import Session from '@/components/Session';
 import { PreviewBrowserLayer } from '@/components/Session/PreviewPanel/tabs/browser/PreviewBrowserLayer';
@@ -111,11 +106,8 @@ export default function WorkspacePage() {
   const triggerAddDialogRequestId = usePageTabStore(
     (s) => s.triggerAddDialogRequestId
   );
-  const triggerSelectRequestId = usePageTabStore(
-    (s) => s.triggerSelectRequestId
-  );
-  const pendingTriggerSelectId = usePageTabStore(
-    (s) => s.pendingTriggerSelectId
+  const triggerAddDialogPrompt = usePageTabStore(
+    (s) => s.triggerAddDialogPrompt
   );
   const projectSidebarFolded = usePageTabStore((s) => s.projectSidebarFolded);
   const setProjectSidebarFolded = usePageTabStore(
@@ -129,20 +121,6 @@ export default function WorkspacePage() {
   );
 
   const [, setActiveWebviewId] = useState<string | null>(null);
-  const [triggerDialogOpen, setTriggerDialogOpen] = useState(false);
-  const [triggerSortBy, setTriggerSortBy] =
-    useState<TriggerSortKey>('createdAt');
-  const [triggerSelectedId, setTriggerSelectedId] = useState<number | null>(
-    null
-  );
-  const [triggerExecutionLogsOpen, setTriggerExecutionLogsOpen] = useState(
-    () => {
-      if (typeof window === 'undefined') return false;
-      return (
-        window.localStorage.getItem(EXECUTION_LOGS_OPEN_STORAGE_KEY) === 'true'
-      );
-    }
-  );
 
   const shellPanelGroupRef = useRef<HTMLDivElement>(null);
   const shellWidthRef = useRef(0);
@@ -377,29 +355,6 @@ export default function WorkspacePage() {
       }
     };
   }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(
-      EXECUTION_LOGS_OPEN_STORAGE_KEY,
-      String(triggerExecutionLogsOpen)
-    );
-  }, [triggerExecutionLogsOpen]);
-
-  useEffect(() => {
-    if (triggerAddDialogRequestId === 0) return;
-    setTriggerDialogOpen(true);
-  }, [triggerAddDialogRequestId]);
-
-  useEffect(() => {
-    setTriggerSelectedId(null);
-  }, [projectStore.activeProjectId]);
-
-  useEffect(() => {
-    if (triggerSelectRequestId === 0) return;
-    if (pendingTriggerSelectId != null) {
-      setTriggerSelectedId(pendingTriggerSelectId);
-    }
-  }, [pendingTriggerSelectId, triggerSelectRequestId]);
 
   // Project-scoped tabs (except new-project shell) require an active project.
   // When opening inbox/runs/project from the workspace tab without a selection,
@@ -702,12 +657,6 @@ export default function WorkspacePage() {
             </div>
           </div>
         );
-      case 'dispatch':
-        return (
-          <div className={mainPanelContentClass}>
-            <WorkspaceDispatch />
-          </div>
-        );
       case 'inbox':
         return (
           <div className={mainPanelContentClass}>
@@ -716,16 +665,10 @@ export default function WorkspacePage() {
         );
       case 'triggers':
         return (
-          <TriggerPanel
-            className={mainPanelContentClass}
-            sortBy={triggerSortBy}
-            onSortByChange={setTriggerSortBy}
-            selectedTriggerId={triggerSelectedId}
-            onSelectedTriggerIdChange={setTriggerSelectedId}
-            isExecutionLogsOpen={triggerExecutionLogsOpen}
-            onExecutionLogsOpenChange={setTriggerExecutionLogsOpen}
-            isDialogOpen={triggerDialogOpen}
-            onDialogOpenChange={setTriggerDialogOpen}
+          <AionTriggersPanel
+            className={cn(mainPanelContentClass, 'overflow-y-auto px-6')}
+            openCreateRequestId={triggerAddDialogRequestId}
+            createTaskPrompt={triggerAddDialogPrompt}
           />
         );
       case 'runs':

@@ -24,7 +24,6 @@ import { BrowserRouter, HashRouter } from 'react-router-dom';
 import App from './App';
 import { ThemeProvider } from './components/Layout/ThemeProvider';
 import { TooltipProvider } from './components/ui/tooltip';
-import { ConnectionProvider } from './context/ConnectionContext';
 import { createHost, HostProvider } from './host';
 import './i18n';
 import { injectHost } from './store/chatStore';
@@ -35,19 +34,16 @@ import './style/index.css';
 const host = createHost();
 injectHost(host);
 const Router = isWeb() ? BrowserRouter : HashRouter;
-const initialChannel = isWeb() ? 'web' : 'desktop';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <Suspense fallback={<div></div>}>
     <Router>
       <HostProvider host={host}>
-        <ConnectionProvider channel={initialChannel}>
           <ThemeProvider>
             <TooltipProvider>
               <App />
             </TooltipProvider>
           </ThemeProvider>
-        </ConnectionProvider>
       </HostProvider>
     </Router>
   </Suspense>

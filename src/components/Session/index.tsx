@@ -21,7 +21,6 @@ import { useSelectedProjectTurn } from '@/hooks/useSelectedProjectTurn';
 import { inferSessionModeFromTask, resolveSessionMode } from '@/lib/sessionMode';
 import { cn } from '@/lib/utils';
 import { getSessionPreviewSlice, usePageTabStore } from '@/store/pageTabStore';
-import { useProjectRuntimeStore } from '@/store/projectRuntimeStore';
 import { useSpaceStore } from '@/store/spaceStore';
 import {
   ChatTaskStatus,
@@ -74,11 +73,6 @@ export default function Session({ isNewProject = false }: SessionProps) {
     usePageTabStore((s) => getSessionPreviewSlice(s).open) &&
     sessionPreviewProjectId === (projectStore.activeProjectId ?? null);
   const activeProjectId = projectStore.activeProjectId;
-  const isHistoryLoadingActiveProject = useProjectRuntimeStore((s) =>
-    activeProjectId
-      ? Boolean(s.historyLoadingProjectIds[activeProjectId])
-      : false
-  );
   const activeProjectMeta = useSpaceStore((s) =>
     activeProjectId ? s.getProjectMeta(activeProjectId) : null
   );
@@ -128,16 +122,13 @@ export default function Session({ isNewProject = false }: SessionProps) {
 
   const hasSessionStarted = useMemo(() => {
     // The React-mirrored `chatStore` (via useChatStoreAdapter) lags the
-    // underlying vanilla store by one effect flush. When
-    // `loadProjectFromHistory` finishes, `isHistoryLoadingActiveProject`
-    // flips to false synchronously in the project runtime store, but the
-    // chatStore mirror has not yet flushed the replayed tasks into React
-    // state. Without the live-state fallback below, the redirect effect
-    // in this component would observe an empty `chatStore.tasks` here,
-    // assume the project never started, and bounce the user back to the
-    // workforce shell — even though the project chatStore already has
-    // task content. Cross-check live state via `getAllChatStores` (same
-    // pattern as `hasAnyMessages` above) to avoid that race.
+    // underlying vanilla store by one effect flush, so right after a replay
+    // writes its tasks the mirror is still empty. Without the live-state
+    // fallback below, the redirect effect in this component would observe an
+    // empty `chatStore.tasks` here, assume the project never started, and
+    // bounce the user back to the workforce shell — even though the project
+    // chatStore already has task content. Cross-check live state via
+    // `getAllChatStores` (same pattern as `hasAnyMessages` above).
     const checkTasks = (tasksRecord: Record<string, unknown> | undefined) => {
       if (!tasksRecord) return false;
       return Object.values(tasksRecord).some((task) => {
@@ -159,11 +150,10 @@ export default function Session({ isNewProject = false }: SessionProps) {
     );
   }, [chatStore, getAllChatStoresMemoized]);
 
-  // Projects loaded from history carry the `replay` tag and are known to
-  // have task content (or we wouldn't be loading them from history at all).
-  // Used as a belt-and-suspenders signal for the redirect effect below so
-  // it can't bounce a freshly-hydrated project back to the workforce shell
-  // even if the chatStore subscription mirror is still catching up.
+  // Replayed projects carry the `replay` tag and are known to have task
+  // content. Used as a belt-and-suspenders signal for the redirect effect
+  // below so it can't bounce a freshly-hydrated project back to the workforce
+  // shell even if the chatStore subscription mirror is still catching up.
   const activeIsReplayProject = useMemo(
     () => Boolean(activeProjectMeta?.metadata?.tags?.includes('replay')),
     [activeProjectMeta?.metadata?.tags]
@@ -177,15 +167,11 @@ export default function Session({ isNewProject = false }: SessionProps) {
     if (activeWorkspaceTab !== 'project') return;
     // Wait until the project chat store is ready (selectProject still loading).
     if (!chatStore) return;
-    // While history is still replaying, the chat store exists but messages
-    // haven't been written yet. Don't bounce away — selectProject will pick
-    // the correct shell ('project' vs 'new-project') once loading settles.
-    if (isHistoryLoadingActiveProject) return;
-    // A history-loaded project is known to have content. The hasSessionStarted
-    // memo below cross-checks the live chatStore state, but if the project
-    // store transiently rebuilds the project's chatStores (loadProjectFromHistory
-    // does remove+create), there is a render where the live state is also
-    // empty. Trust the project type tag here to avoid the bounce.
+    // A replayed project is known to have content. The hasSessionStarted memo
+    // below cross-checks the live chatStore state, but if the project store
+    // transiently rebuilds the project's chatStores there is a render where
+    // the live state is also empty. Trust the project type tag here to avoid
+    // the bounce.
     if (activeIsReplayProject) return;
     if (!hasSessionStarted) {
       setActiveWorkspaceTab('workforce');
@@ -195,7 +181,6 @@ export default function Session({ isNewProject = false }: SessionProps) {
     activeWorkspaceTab,
     chatStore,
     hasSessionStarted,
-    isHistoryLoadingActiveProject,
     isNewProject,
     setActiveWorkspaceTab,
   ]);

@@ -250,10 +250,15 @@ test('skills CRUD: compose, disable, delete — all server-persisted', async () 
     const chip = (label: string) => row.getByRole('button', { name: label });
     const check = (label: string) =>
       chip(label).locator('svg[class*="lucide-check"]');
-    const scopePut = () =>
+    /** A pending write against this skill's own route, awaited by the caller. */
+    const skillWrite = (method: string, suffix = '') =>
       page.waitForResponse(
-        (r) => r.url().includes('/skills/') && r.request().method() === 'PUT'
+        (r) =>
+          r.request().method() === method &&
+          r.url().includes('/skills/') &&
+          r.url().endsWith(suffix)
       );
+    const scopePut = () => skillWrite('PUT');
     await openScopePopover(page, row, name);
     await expect(check('All Agents')).toBeVisible(); // new skills are global
     // Unselect All Agents (names-nothing still reads as global), then pick
@@ -286,8 +291,13 @@ test('skills CRUD: compose, disable, delete — all server-persisted', async () 
     // re-projected from the remote list, not from optimistic state).
     const toggle = byId(page, `skill-toggle-${name}`);
     await expect(toggle).toHaveAttribute('aria-checked', 'true');
+    // The reload has to lose a race with the status write, not win one: the
+    // unchecked switch is optimistic renderer state, so reloading before the
+    // POST lands re-projects the row from a store that never heard about it.
+    const statusPost = skillWrite('POST', '/status');
     await toggle.click();
     await expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect((await statusPost).ok()).toBe(true);
     await page.reload();
     await expect(byId(page, `skill-row-${name}`)).toBeVisible({
       timeout: 60_000,
@@ -302,8 +312,10 @@ test('skills CRUD: compose, disable, delete — all server-persisted', async () 
     // Delete, and prove the removal also survived a reload.
     await byId(page, `skill-menu-${name}`).click();
     await byId(page, `skill-delete-${name}`).click();
+    const removed = skillWrite('DELETE');
     await page.getByRole('button', { name: 'Delete' }).click();
     await expect(byId(page, `skill-row-${name}`)).toHaveCount(0);
+    expect((await removed).ok()).toBe(true);
     await page.reload();
     await expect(byId(page, 'skills-add')).toBeVisible({ timeout: 60_000 });
     await expect(byId(page, `skill-row-${name}`)).toHaveCount(0);
@@ -366,9 +378,8 @@ test('save-as-skill: scripted echo reply → saved to the store → # picker nex
     await page.reload();
 
     // A fresh profile boots into the read-only legacy Space; create a real one.
-    await page.getByText('Legacy Space', { exact: true }).first().click();
+    await page.locator('#active-space-title-btn').click();
     await page.getByText('Create a new space', { exact: true }).first().click();
-    await page.getByText('Start from scratch', { exact: true }).first().click();
     const composer = page
       .locator('[role="textbox"][contenteditable="true"]')
       .first();

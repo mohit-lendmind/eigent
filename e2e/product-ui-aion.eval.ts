@@ -166,12 +166,8 @@ test('product chat UI serves a real task from the aion edge', async () => {
 
     // A fresh profile boots into the read-only legacy Space; a real user's
     // first step is creating a Space, so the driver does the same.
-    await page.getByText('Legacy Space', { exact: true }).first().click();
+    await page.locator('#active-space-title-btn').click();
     await page.getByText('Create a new space', { exact: true }).first().click();
-    await page
-      .getByText('Start from scratch', { exact: true })
-      .first()
-      .click();
     const composer = page
       .locator('[role="textbox"][contenteditable="true"]')
       .first();

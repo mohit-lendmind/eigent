@@ -95,6 +95,21 @@ export function formatRelativeTime(
   }
 }
 
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB'];
+
+/** A byte count at human scale. Whole bytes below 1 KB, one decimal above. */
+export function formatBytes(bytes: number): string {
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < BYTE_UNITS.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return unit === 0
+    ? `${value} ${BYTE_UNITS[unit]}`
+    : `${value.toFixed(1)} ${BYTE_UNITS[unit]}`;
+}
+
 /**
  * Convert local time to UTC with day offset calculation
  */

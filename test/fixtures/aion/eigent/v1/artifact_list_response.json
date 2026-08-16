@@ -1,0 +1,38 @@
+{
+  "artifacts": [
+    {
+      "artifact_id": "art_01JY0000000000000000000003",
+      "project_id": "prj_01JY0000000000000000000001",
+      "name": "test-report.json",
+      "version": 2,
+      "media_type": "application/json",
+      "size_bytes": "2048",
+      "sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "created_at": "2026-08-08T09:14:02Z",
+      "published_at": "2026-08-08T09:14:05Z"
+    },
+    {
+      "artifact_id": "art_01JY0000000000000000000002",
+      "project_id": "prj_01JY0000000000000000000001",
+      "name": "coverage.html",
+      "version": 1,
+      "media_type": "text/html",
+      "size_bytes": "18344",
+      "sha256": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+      "created_at": "2026-08-08T09:05:08Z",
+      "published_at": "2026-08-08T09:05:11Z"
+    },
+    {
+      "artifact_id": "art_01JY0000000000000000000001",
+      "project_id": "prj_01JY0000000000000000000001",
+      "name": "test-report.json",
+      "version": 1,
+      "media_type": "application/json",
+      "size_bytes": "128",
+      "sha256": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+      "created_at": "2026-08-08T09:00:06Z",
+      "published_at": "2026-08-08T09:00:06Z"
+    }
+  ],
+  "next_page_token": "MTc4NjE3OTYwNjAwMDAwMDAwMCBhcnRfMDFKWTAwMDAwMDAwMDAwMDAwMDAwMDAwMDE"
+}

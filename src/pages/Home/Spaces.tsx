@@ -20,8 +20,9 @@ import {
   type Space,
 } from '@/store/spaceStore';
 import { FolderKanban } from 'lucide-react';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import AionSpaces from './AionSpaces';
 import HomeHubBoard from './components/HomeHubBoard';
 import HomeHubBoardCard from './components/HomeHubBoardCard';
 import HomeHubCard from './components/HomeHubCard';
@@ -43,7 +44,30 @@ const pathBasename = (path?: string | null) => {
   return parts[parts.length - 1] || value;
 };
 
+/**
+ * In aion mode Spaces are rows on the edge; the legacy body below keeps them in
+ * renderer storage and on Eigent's hosted cloud and cannot see them. The switch
+ * is on the mode rather than a merge of the two, because a Space exists in
+ * exactly one of the planes.
+ */
 export default function Spaces() {
+  const { aionSpaces } = useHomeHub();
+  const mode = aionSpaces.mode;
+  const { t } = useTranslation();
+
+  if (mode === null) {
+    return (
+      <div className="flex w-full min-w-0 flex-col">
+        <div className="pb-12 text-body-sm text-ds-text-neutral-muted-default">
+          {t('layout.loading')}
+        </div>
+      </div>
+    );
+  }
+  return mode.kind === 'local' ? <LegacySpaces /> : <AionSpaces mode={mode} />;
+}
+
+function LegacySpaces() {
   const { t } = useTranslation();
   const {
     viewMode,
@@ -51,7 +75,6 @@ export default function Spaces() {
     projects: hubProjects,
     sortBy,
     sortDirection,
-    triggers,
     chatTasks,
   } = useHomeHub();
   const spacesById = useSpaceStore((state) => state.spaces);
@@ -73,25 +96,6 @@ export default function Spaces() {
         })),
     [activeSpaceId, projectsBySpaceId, spacesById]
   );
-
-  const spaceIdsKey = useMemo(
-    () => spaceSections.map(({ space }) => space.id).join('|'),
-    [spaceSections]
-  );
-
-  useEffect(() => {
-    const spaceIds = spaceIdsKey.split('|').filter(Boolean);
-    if (spaceIds.length === 0) return;
-
-    const store = useSpaceStore.getState();
-    for (const spaceId of spaceIds) {
-      const space = store.getSpaceById(spaceId);
-      if (!space) continue;
-      if (isLegacySpace(space) || store.shouldSyncProjects(space.id)) {
-        void store.syncProjectsFromServer(space.id);
-      }
-    }
-  }, [spaceIdsKey]);
 
   const getSubtitle = useCallback(
     (space: Space) => {
@@ -119,20 +123,6 @@ export default function Spaces() {
     }
     return map;
   }, [hubProjects]);
-
-  const triggersBySpaceId = useMemo(() => {
-    const map = new Map<string, typeof triggers>();
-    for (const trigger of triggers) {
-      if (!trigger.space_id) continue;
-      const list = map.get(trigger.space_id);
-      if (list) {
-        list.push(trigger);
-      } else {
-        map.set(trigger.space_id, [trigger]);
-      }
-    }
-    return map;
-  }, [triggers]);
 
   const getSpaceStats = useCallback(
     (spaceId: string, projectCount: number) => {
@@ -191,11 +181,7 @@ export default function Spaces() {
 
   const boardColumns = useMemo(() => {
     const grouped = groupByBoardColumn(filteredSpaceSections, ({ space }) =>
-      getSpaceBoardColumn(
-        hubProjectsBySpaceId.get(space.id) ?? [],
-        triggersBySpaceId.get(space.id) ?? [],
-        chatTasks
-      )
+      getSpaceBoardColumn(hubProjectsBySpaceId.get(space.id) ?? [], chatTasks)
     );
 
     const renderSpaceCard = ({
@@ -228,7 +214,6 @@ export default function Spaces() {
     getSpaceStats,
     getSubtitle,
     hubProjectsBySpaceId,
-    triggersBySpaceId,
   ]);
 
   return (

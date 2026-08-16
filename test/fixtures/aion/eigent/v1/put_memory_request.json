@@ -1,0 +1,3 @@
+{
+  "content": "Deploys go out behind the digest-only gate. Roll back by reversing the cutover, never by editing a live Project's generation."
+}

@@ -4,5 +4,8 @@
   "key-label": "API key",
   "key-placeholder": "Paste your API key",
   "connect": "Connect",
+  "unreachable-title": "No backend to connect to",
+  "no-endpoint": "This desktop has no aion endpoint configured, so there is nothing an API key could connect to. Set an endpoint and restart the app.",
+  "resolve-failed": "This desktop could not resolve its aion endpoint: {{message}}",
   "storage-note": "The key is checked against the backend before it is kept, and stored on this machine readable only by your user account."
 }

@@ -4,5 +4,8 @@
   "key-label": "Chiave API",
   "key-placeholder": "Incolla la tua chiave API",
   "connect": "Connetti",
+  "unreachable-title": "Nessun backend a cui connettersi",
+  "no-endpoint": "Su questo desktop non è configurato alcun endpoint aion, quindi non c’è nulla a cui una chiave API possa connettersi. Imposta un endpoint e riavvia l’app.",
+  "resolve-failed": "Questo desktop non è riuscito a risolvere il proprio endpoint aion: {{message}}",
   "storage-note": "La chiave viene verificata con il backend prima di essere conservata e salvata su questo computer, leggibile solo dal tuo account utente."
 }

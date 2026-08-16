@@ -99,10 +99,6 @@ interface ElectronAPI {
     success: boolean;
     error?: string;
   }>;
-  mcpInstall: (name: string, mcp: any) => Promise<any>;
-  mcpRemove: (name: string) => Promise<any>;
-  mcpUpdate: (name: string, mcp: any) => Promise<any>;
-  mcpList: () => Promise<any>;
   envWrite: (email: string, kv: { key: string; value: string }) => Promise<any>;
   envRemove: (email: string, key: string) => Promise<any>;
   getEnvPath: (email: string) => Promise<string>;

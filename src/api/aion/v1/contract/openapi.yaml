@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Eigent Desktop Edge API
-  version: 1.11.0
+  version: 1.14.0
   description: |
     Public, additive-only API used by the Eigent desktop application. The edge
     authenticates the device/user, enforces tenant policy, and projects private
@@ -28,6 +28,8 @@ tags:
   - name: connectors
   - name: schedules
   - name: account
+  - name: memory
+  - name: spaces
 paths:
   /projects:
     get:
@@ -56,6 +58,18 @@ paths:
             tenant regardless of the token — and one this server cannot decode
             is `400 invalid_cursor`.
           schema: {type: string, maxLength: 512}
+        - name: space_id
+          in: query
+          required: false
+          description: |
+            Narrow the page to one Space. There is deliberately no way to ask
+            for the UNFILED Projects alone: no Space is the default state of a
+            Project rather than a group anyone put it in. Repeat the parameter
+            on every page — `page_token` encodes a position, not the filter
+            that produced it. A Space belonging to another tenant lists
+            nothing rather than being refused, because the narrowing is
+            applied inside the caller's own query.
+          schema: {$ref: '#/components/schemas/Identifier'}
       responses:
         '200':
           description: One page of Projects, newest first
@@ -301,6 +315,52 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/UsageSummary'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /projects/{projectId}/artifacts:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      operationId: listArtifacts
+      tags: [artifacts]
+      description: |
+        The Project's published artifacts, most recently published first.
+
+        Published is the whole set: publication and the `artifact_created`
+        event commit together, so this listing answers with exactly the
+        artifacts the event stream named — re-readable by a client that was
+        not watching when they were produced. A reserved-but-unpublished half
+        is not listed; its size and hash are not yet verified, and it may
+        never become an artifact at all.
+
+        Entries carry no download URL. A URL is a short-lived grant against a
+        default-deny bucket, so one is minted by getArtifact when a person
+        asks for the bytes, not once per row to draw a list.
+      parameters:
+        - name: page_size
+          in: query
+          required: false
+          description: |
+            Entries per page (default 50). A value outside the documented bounds is
+            refused with `400 invalid_argument` rather than clamped, so a client
+            that asks for 5000 learns it instead of silently receiving 200.
+          schema: {type: integer, minimum: 1, maximum: 200}
+        - name: page_token
+          in: query
+          required: false
+          description: |
+            Opaque continuation from a prior response's `next_page_token`. It
+            encodes a position only — every page is scoped to the Project in
+            the path and the authenticated tenant regardless of the token — and
+            one this server cannot decode is `400 invalid_cursor`.
+          schema: {type: string, maxLength: 512}
+      responses:
+        '200':
+          description: One page of published artifacts, newest first
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactList'}
         '400': {$ref: '#/components/responses/Problem'}
         '401': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
@@ -839,6 +899,341 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         '401': {$ref: '#/components/responses/Problem'}
         '501': {$ref: '#/components/responses/Problem'}
+  /memory:
+    parameters:
+      - $ref: '#/components/parameters/MemoryScope'
+    get:
+      operationId: listMemory
+      tags: [memory]
+      description: |
+        What the agent remembers in one scope: every document's metadata, plus
+        the scope's live usage against its caps. Content is omitted from the
+        rows — a list is a table of contents, and returning every document's
+        text would make opening the screen the most expensive request in the
+        API. Read one document with getMemory.
+
+        Usage rides this response rather than a route of its own, because a
+        client that renders what is stored also has to say whether another
+        write would fit, and splitting that would draw the list before it knew.
+
+        `scopes` names every scope this server exposes, most-default first.
+        The `scope` query parameter selects one; omitted, it is the first
+        entry. Like skills and connectors, memory is served only by an edge
+        connected to a cell.
+      responses:
+        '200':
+          description: The scope's documents and its usage
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MemoryCatalog'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/MemoryScopeDenied'}
+        '501': {$ref: '#/components/responses/MemoryUnavailable'}
+  /memory/search:
+    parameters:
+      - $ref: '#/components/parameters/MemoryScope'
+      - $ref: '#/components/parameters/MemoryQuery'
+      - $ref: '#/components/parameters/MemorySearchK'
+    get:
+      operationId: searchMemory
+      tags: [memory]
+      description: |
+        Rank the scope's documents against a query and return the top hits with
+        content, most relevant first. This is the same ranking the agent's own
+        memory search uses, so what a user finds here is what the agent finds.
+
+        The score is comparable only WITHIN one response: it is lexical (BM25)
+        when the server has no embedder and a fused hybrid score when it does,
+        so a client renders order, never a percentage.
+      responses:
+        '200':
+          description: Ranked hits, most relevant first
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MemorySearchResult'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/MemoryScopeDenied'}
+        '501': {$ref: '#/components/responses/MemoryUnavailable'}
+  /memory/clear:
+    parameters:
+      - $ref: '#/components/parameters/MemoryScope'
+    post:
+      operationId: clearMemory
+      tags: [memory]
+      description: |
+        Forget everything in the scope, and report how many documents were
+        removed. A named action rather than a DELETE on the collection:
+        forgetting everything is a different act from forgetting one thing, and
+        a bare collection DELETE is one missing path segment away from a client
+        that meant the other.
+
+        There is no undo — the agent's memory of this scope is gone.
+      responses:
+        '200':
+          description: The scope is empty
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MemoryCleared'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/MemoryScopeDenied'}
+        '501': {$ref: '#/components/responses/MemoryUnavailable'}
+  /memory/{key}:
+    parameters:
+      - $ref: '#/components/parameters/MemoryKey'
+      - $ref: '#/components/parameters/MemoryScope'
+    get:
+      operationId: getMemory
+      tags: [memory]
+      description: One document, with its content.
+      responses:
+        '200':
+          description: The document
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MemoryDoc'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/MemoryScopeDenied'}
+        '501': {$ref: '#/components/responses/MemoryUnavailable'}
+    put:
+      operationId: putMemory
+      tags: [memory]
+      description: |
+        Write a document, creating it or replacing it whole. Memory is
+        overwrite-in-place by key, so the body carries the new text rather than
+        a patch, and an empty body is refused rather than treated as a delete —
+        a caller that means "forget this" has deleteMemory.
+
+        The response carries the scope's usage after the write when the server
+        reports it, because the moment a client most needs to know a scope is
+        nearly full is the moment it just added to it. An absent `usage` is a
+        missing reading, never a full scope.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MemoryWriteRequest'}
+      responses:
+        '200':
+          description: The stored document
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MemoryWriteResult'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '413': {$ref: '#/components/responses/Problem'}
+        '422':
+          description: |
+            Two shapes share this status, told apart by the problem `code`:
+            `memory_scope_denied` — the `scope` parameter names a scope this
+            server does not expose; `memory_invalid` — the document itself is
+            refused (empty content, an illegal key, or a document past the
+            server's per-document cap).
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '429':
+          description: |
+            The scope is full (`code: memory_quota_exceeded`). A DURABLE quota,
+            not a rate limit — retrying never succeeds until something is
+            deleted. The caps are on the usage object.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '501': {$ref: '#/components/responses/MemoryUnavailable'}
+    delete:
+      operationId: deleteMemory
+      tags: [memory]
+      description: |
+        Forget one document. Idempotent: a key that was never stored answers
+        204 exactly like one that was just removed, because deleting what is
+        already gone is the state the caller asked for.
+      responses:
+        '204': {description: The key is not stored}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/MemoryScopeDenied'}
+        '501': {$ref: '#/components/responses/MemoryUnavailable'}
+  /spaces:
+    get:
+      operationId: listSpaces
+      tags: [spaces]
+      description: |
+        The caller's own Spaces, newest first, each with how many Projects it
+        holds. The count includes CLOSED Projects: a Space whose work is
+        finished still holds it, and rendering that Space as empty would
+        invite deleting the only thing grouping it.
+      parameters:
+        - name: page_size
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 200}
+        - name: page_token
+          in: query
+          required: false
+          schema: {type: string, maxLength: 512}
+      responses:
+        '200':
+          description: One page of Spaces, newest first
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SpaceList'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createSpace
+      tags: [spaces]
+      description: |
+        Create a Space. `Idempotency-Key` is required and scoped to the
+        tenant: a retried create replays the Space the key already made, and
+        reusing a key with a different name or description is `409 conflict`.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateSpaceRequest'}
+      responses:
+        '201':
+          description: The created Space
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Space'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /spaces/{spaceId}:
+    parameters:
+      - $ref: '#/components/parameters/SpaceId'
+    get:
+      operationId: getSpace
+      tags: [spaces]
+      responses:
+        '200':
+          description: The Space
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Space'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: updateSpace
+      tags: [spaces]
+      description: |
+        Replace the editable fields whole. Status is deliberately not among
+        them: archiving is its own transition, so renaming a shelved Space
+        can never quietly return it to the sidebar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateSpaceRequest'}
+      responses:
+        '200':
+          description: The edited Space
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Space'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteSpace
+      tags: [spaces]
+      description: |
+        Remove an EMPTY Space. One that still holds Projects is refused with
+        `409 space_in_use` rather than deleted: the Projects would keep
+        working while losing the only thing grouping them, silently and in one
+        unrecoverable step. Archive the Space to put it away, or move its
+        Projects out first.
+      responses:
+        '204': {description: The Space no longer exists}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/SpaceInUse'}
+  /spaces/{spaceId}/archive:
+    parameters:
+      - $ref: '#/components/parameters/SpaceId'
+    post:
+      operationId: archiveSpace
+      tags: [spaces]
+      description: |
+        Put a Space away without touching what it holds. Its Projects stay
+        filed under it and stay listable through listProjects; only the Space
+        itself is shelved. Archiving something already archived answers with
+        the same Space rather than failing.
+      responses:
+        '200':
+          description: The Space as it stands after the transition
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Space'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /spaces/{spaceId}/unarchive:
+    parameters:
+      - $ref: '#/components/parameters/SpaceId'
+    post:
+      operationId: unarchiveSpace
+      tags: [spaces]
+      description: Return an archived Space to service.
+      responses:
+        '200':
+          description: The Space as it stands after the transition
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Space'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /projects/{projectId}/space:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    put:
+      operationId: setProjectSpace
+      tags: [spaces]
+      description: |
+        File this Project under a Space. Filing changes what a listing shows,
+        never what a run does — no run, epoch or event is touched. A Space
+        belonging to another tenant is `404`, exactly like one that does not
+        exist.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SetProjectSpaceRequest'}
+      responses:
+        '200':
+          description: The Project as it stands after the write
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Project'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: clearProjectSpace
+      tags: [spaces]
+      description: |
+        Unfile this Project. A separate verb rather than a PUT carrying an
+        empty `space_id`, so each request means exactly one thing and an
+        accidentally blank field cannot read as "unfile". Idempotent: a
+        Project that was already unfiled answers the same way.
+      responses:
+        '200':
+          description: The Project as it stands after the write
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Project'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
 components:
   securitySchemes:
     bearerAuth:
@@ -896,6 +1291,11 @@ components:
       in: path
       required: true
       schema: {$ref: '#/components/schemas/Identifier'}
+    SpaceId:
+      name: spaceId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Identifier'}
     KeyId:
       name: keyId
       in: path
@@ -913,6 +1313,35 @@ components:
         conditioned on. The write succeeds only while that is still the
         latest version (any status); otherwise 409 `skill_stale`. Omitted =
         unconditional write.
+    MemoryScope:
+      name: scope
+      in: query
+      required: false
+      schema: {type: string, minLength: 1, maxLength: 256}
+      description: |
+        Which memory scope to address. Omitted = the server's first configured
+        scope, which is what an ordinary client sends. A scope outside the
+        served set is refused with `memory_scope_denied` carrying the set, so a
+        client never has to guess; the served set is also on listMemory.
+    MemoryKey:
+      name: key
+      in: path
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 256}
+    MemoryQuery:
+      name: q
+      in: query
+      required: true
+      schema: {type: string, minLength: 1}
+    MemorySearchK:
+      name: k
+      in: query
+      required: false
+      schema: {type: integer, minimum: 1, maximum: 100}
+      description: |
+        How many hits to return. A scope holds at most a few hundred documents,
+        so a larger number could not return more — it would only misreport the
+        ceiling.
   headers:
     EdgeApiVersion:
       description: Semantic version of the edge API contract serving this response.
@@ -937,6 +1366,14 @@ components:
       content:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problem'}
+    SpaceInUse:
+      description: |
+        The Space still holds Projects (`code: space_in_use`). Not fixable by
+        retrying the same request: move the Projects out, or archive the Space
+        instead of deleting it.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
     ScheduleWrongStatus:
       description: |
         The trigger is not in a status this transition applies to (`code:
@@ -951,6 +1388,25 @@ components:
         The tenant already holds the maximum number of ACTIVE keys (`code:
         key_ceiling_reached`). This is a durable limit, not a rate limit —
         retrying without revoking a key never succeeds.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    MemoryScopeDenied:
+      description: |
+        The `scope` parameter names a memory scope this server does not expose
+        (`code: memory_scope_denied`). The problem carries the served set in
+        `scopes`; retrying the same value never succeeds.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    MemoryUnavailable:
+      description: |
+        Two shapes share this status, told apart by the problem `code`:
+        `not_implemented` — this edge serves no memory plane at all;
+        `memory_not_configured` — the plane is there but this deployment
+        exposes no memory scope on the product API (or the configured scope
+        does not resolve on its cell). Both are operator configuration states:
+        retrying changes nothing.
       content:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problem'}
@@ -975,6 +1431,12 @@ components:
         title: {type: string}
         model_alias: {$ref: '#/components/schemas/ModelAlias'}
         status: {type: string, enum: [active, closed]}
+        space_id:
+          $ref: '#/components/schemas/Identifier'
+          description: |
+            The Space this Project is filed under. OMITTED when it is filed
+            nowhere, which is the default state of a Project rather than a
+            group anyone put it in.
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
       additionalProperties: true
@@ -1146,15 +1608,47 @@ components:
           additionalProperties: true
     Artifact:
       type: object
-      required: [artifact_id, project_id, name, media_type, size_bytes, sha256, created_at]
+      required: [artifact_id, project_id, name, version, media_type, size_bytes, sha256, created_at]
       properties:
         artifact_id: {$ref: '#/components/schemas/Identifier'}
         project_id: {$ref: '#/components/schemas/Identifier'}
         name: {type: string}
+        version:
+          type: integer
+          description: |
+            Which version of this name the artifact is, counting from 1. Names
+            repeat within a Project by design — a run that writes report.md
+            twice produces two artifacts — so name alone does not identify one.
+            A number, like a skill version; the 64-bit size is a string.
         media_type: {type: string}
         size_bytes: {type: string, pattern: '^[0-9]+$'}
         sha256: {type: string, pattern: '^[a-f0-9]{64}$'}
-        created_at: {type: string, format: date-time}
+        created_at:
+          type: string
+          format: date-time
+          description: When the metadata half was reserved, before the bytes were durable.
+        published_at:
+          type: string
+          format: date-time
+          description: |
+            When the artifact became downloadable, and the order listArtifacts
+            serves. ABSENT on an artifact_created event, where the event's own
+            arrival is the publication; absent never means the epoch. For a
+            half a reconciler completed this can be far later than created_at.
+      additionalProperties: true
+    ArtifactList:
+      type: object
+      required: [artifacts]
+      properties:
+        artifacts:
+          type: array
+          items: {$ref: '#/components/schemas/Artifact'}
+        next_page_token:
+          type: string
+          description: |
+            Absent on the last page. When present there are entries behind it —
+            the server reads one row past the page to know — so a client may
+            offer "load more" without a speculative fetch.
       additionalProperties: true
     ArtifactAccess:
       type: object
@@ -1688,3 +2182,193 @@ components:
         events:
           type: array
           items: {$ref: '#/components/schemas/ScheduleEvent'}
+    Space:
+      type: object
+      required: [space_id, name, status, project_count, created_at, updated_at]
+      additionalProperties: true
+      description: |
+        A grouping a Project is filed under. A Space carries no execution:
+        filing changes what a listing shows, never what a run does.
+      properties:
+        space_id: {$ref: '#/components/schemas/Identifier'}
+        name: {type: string, minLength: 1, maxLength: 200}
+        description:
+          type: string
+          description: Omitted when the Space has none.
+        # status is an OPEN string set (additive-only); x-aion-known-values
+        # documents what this contract version emits.
+        status:
+          type: string
+          x-aion-known-values: [active, archived, unknown]
+          description: |
+            `active` = in the sidebar. `archived` = put away; the Projects it
+            holds are untouched and still listable. An unrecognized value
+            renders as `unknown` rather than as `active`, so a Space this
+            client predates is never drawn as though it were in service.
+        project_count:
+          type: integer
+          minimum: 0
+          description: |
+            How many Projects are filed here, CLOSED ones included. A Space
+            whose work is finished still holds it, and reporting zero would
+            invite deleting the only thing grouping it.
+        user_id:
+          type: string
+          description: |
+            Who created the Space. Omitted rather than emitted empty on a
+            deployment that records no subject.
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    SpaceList:
+      type: object
+      required: [spaces]
+      additionalProperties: true
+      properties:
+        spaces:
+          type: array
+          items: {$ref: '#/components/schemas/Space'}
+        next_page_token:
+          type: string
+          description: Absent on the last page.
+    CreateSpaceRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        description: {type: string, maxLength: 2000}
+    UpdateSpaceRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      description: |
+        A whole replacement of the editable fields, not a patch: omitting
+        `description` clears it.
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        description: {type: string, maxLength: 2000}
+    SetProjectSpaceRequest:
+      type: object
+      additionalProperties: false
+      required: [space_id]
+      properties:
+        space_id: {$ref: '#/components/schemas/Identifier'}
+    MemoryCatalog:
+      type: object
+      required: [scope, scopes, docs, usage]
+      properties:
+        scope:
+          type: string
+          description: The scope these documents belong to.
+        scopes:
+          type: array
+          items: {type: string}
+          description: |
+            Every scope this server exposes, most-default first. A client
+            renders a switcher from this rather than hardcoding names.
+        docs:
+          type: array
+          items: {$ref: '#/components/schemas/MemoryDoc'}
+          description: |
+            Metadata only — `content` is absent on every row here. An empty
+            array is a scope the agent has stored nothing in.
+        usage: {$ref: '#/components/schemas/MemoryUsage'}
+      additionalProperties: true
+    MemoryDoc:
+      type: object
+      required: [scope, key, bytes]
+      properties:
+        scope: {type: string}
+        key: {type: string}
+        bytes:
+          type: string
+          pattern: '^-?[0-9]+$'
+          description: |
+            Size of the stored content. A decimal string like every other
+            64-bit quantity on this contract.
+        content:
+          type: string
+          description: |
+            The document text. ABSENT on listMemory rows, present on
+            getMemory, putMemory and search hits. Absent is "not returned by
+            this route", never "the document is empty" — an empty document
+            cannot be stored.
+        created_at: {type: string, format: date-time}
+        updated_at:
+          type: string
+          format: date-time
+          description: |
+            Absent on a document that has never been rewritten, rather than
+            repeating `created_at`, so a client can show what actually changed.
+        updated_by_session:
+          type: string
+          description: |
+            The session that last wrote this document, when the server recorded
+            one. Absent for a document written outside a session.
+      additionalProperties: true
+    MemoryUsage:
+      type: object
+      required: [doc_count, total_bytes, cap_doc_bytes, cap_docs_per_scope, cap_scope_bytes]
+      description: |
+        A scope's live usage and the caps enforced on it. Every field is
+        present even at zero: an empty scope really has stored nothing, and the
+        caps are what a client needs to render how much room is left. A zero
+        cap means that dimension is uncapped, matching the store's convention.
+      properties:
+        doc_count: {type: string, pattern: '^-?[0-9]+$'}
+        total_bytes: {type: string, pattern: '^-?[0-9]+$'}
+        cap_doc_bytes: {type: string, pattern: '^-?[0-9]+$'}
+        cap_docs_per_scope: {type: string, pattern: '^-?[0-9]+$'}
+        cap_scope_bytes: {type: string, pattern: '^-?[0-9]+$'}
+      additionalProperties: true
+    MemorySearchResult:
+      type: object
+      required: [scope, hits]
+      properties:
+        scope: {type: string}
+        hits:
+          type: array
+          items: {$ref: '#/components/schemas/MemorySearchHit'}
+      additionalProperties: true
+    MemorySearchHit:
+      type: object
+      required: [doc, score]
+      properties:
+        doc: {$ref: '#/components/schemas/MemoryDoc'}
+        score:
+          type: number
+          description: |
+            Relevance, higher is better. Comparable only within one response —
+            the scale differs between lexical and hybrid ranking, so render
+            order, not a percentage.
+      additionalProperties: true
+    MemoryWriteRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          description: |
+            The whole document. A write replaces what was stored; an empty
+            string is refused rather than treated as a delete.
+      additionalProperties: false
+    MemoryWriteResult:
+      type: object
+      required: [doc]
+      properties:
+        doc: {$ref: '#/components/schemas/MemoryDoc'}
+        usage: {$ref: '#/components/schemas/MemoryUsage'}
+      additionalProperties: true
+    MemoryCleared:
+      type: object
+      required: [scope, deleted]
+      properties:
+        scope: {type: string}
+        deleted:
+          type: integer
+          description: |
+            How many documents were removed. A JSON number rather than a
+            decimal string: unlike a byte total this is a 32-bit count, bounded
+            by the scope's document cap.
+      additionalProperties: true

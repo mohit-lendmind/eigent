@@ -53,7 +53,6 @@ import {
 } from 'react';
 import FolderComponent from './FolderComponent';
 
-import { fetchGet, getBaseURL } from '@/api/http';
 import { MarkDown } from '@/components/ChatBox/MessageItem/MarkDown';
 import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import { useSelectedProjectTurn } from '@/hooks/useSelectedProjectTurn';
@@ -1267,91 +1266,46 @@ export default function Folder({ data: _data }: { data?: Agent }) {
       }
 
       let res: FileInfo[] = [];
-      const primaryProjectId = fetchTargets[0]?.id || projectId;
+      const spaceScoped = useSpaceScopedRemoteFiles || useBrainWorkspaceFiles;
 
-      if (
-        ipcRenderer &&
-        !useSpaceScopedRemoteFiles &&
-        !useBrainWorkspaceFiles
-      ) {
-        try {
-          const localFiles = await ipcRenderer.invoke(
-            'get-project-file-list',
-            authStore.email,
-            primaryProjectId,
-            authStore.user_id
-          );
-          if (cancelled || signal?.aborted) return false;
-          if (Array.isArray(localFiles)) {
-            res = localFiles.map((file: FileInfo) => ({
+      // Every target is scanned, not just the first: a space-scoped tree is
+      // several Projects side by side, and each one's files are prefixed with
+      // its name so the tree keeps a folder per Project.
+      if (ipcRenderer) {
+        const lists = await Promise.all(
+          fetchTargets.map(async (target) => {
+            try {
+              const localFiles = await ipcRenderer.invoke(
+                'get-project-file-list',
+                authStore.email,
+                target.id,
+                authStore.user_id
+              );
+              return { target, localFiles };
+            } catch (error) {
+              console.warn(
+                '[Folder] Failed to fetch local project files:',
+                error
+              );
+              return { target, localFiles: [] };
+            }
+          })
+        );
+        if (cancelled || signal?.aborted) return false;
+
+        res = lists.flatMap(({ target, localFiles }) => {
+          if (!Array.isArray(localFiles)) return [];
+          return localFiles.map((file: FileInfo) => {
+            const relativePath = file.relativePath || file.name;
+            return {
               ...file,
-              projectId: file.projectId || primaryProjectId,
-            }));
-          }
-        } catch (error) {
-          console.warn('[Folder] Failed to fetch local project files:', error);
-        }
-      }
-
-      if (
-        !res.length ||
-        !ipcRenderer ||
-        import.meta.env.VITE_USE_LOCAL_PROXY === 'true' ||
-        useSpaceScopedRemoteFiles ||
-        useBrainWorkspaceFiles
-      ) {
-        try {
-          const baseURL = await getBaseURL();
-          if (!baseURL) {
-            console.warn('[Folder] Brain not connected, cannot fetch files');
-          } else {
-            const lists = await Promise.all(
-              fetchTargets.map(async (target) => {
-                const listRes = await fetchGet(
-                  '/files',
-                  {
-                    project_id: target.id,
-                    email: authStore.email,
-                    ...(fileSpaceId ? { space_id: fileSpaceId } : {}),
-                    ...(authStore.user_id != null
-                      ? { user_id: String(authStore.user_id) }
-                      : {}),
-                  },
-                  undefined,
-                  { signal }
-                );
-                return { target, listRes };
-              })
-            );
-            if (cancelled || signal?.aborted) return false;
-
-            res = lists.flatMap(({ target, listRes }) => {
-              if (!Array.isArray(listRes)) return [];
-              return listRes.map((item: any) => {
-                const filename = item.filename || '';
-                const url = item.url?.startsWith('http')
-                  ? item.url
-                  : `${baseURL}${item.url || ''}`;
-                const relativePath = item.relativePath || filename;
-                return {
-                  name: filename,
-                  type: filename.split('.').pop() || '',
-                  path: url,
-                  projectId: target.id,
-                  relativePath: useSpaceScopedRemoteFiles
-                    ? `${target.name}/${relativePath}`
-                    : relativePath,
-                  isRemote: true,
-                };
-              });
-            });
-          }
-        } catch (error: any) {
-          if (cancelled || signal?.aborted || error?.name === 'AbortError') {
-            return false;
-          }
-          console.warn('[Folder] Failed to fetch files from Brain:', error);
-        }
+              projectId: file.projectId || target.id,
+              relativePath: spaceScoped
+                ? `${target.name}/${relativePath}`
+                : relativePath,
+            };
+          });
+        });
       }
 
       if (cancelled || signal?.aborted) return false;

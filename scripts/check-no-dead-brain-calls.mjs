@@ -1,21 +1,21 @@
 #!/usr/bin/env node
-// Ratchet on the two non-aion HTTP clients in src/api/http.ts.
+// Keeps the two retired HTTP clients from coming back.
 //
-// `getBaseURL()` resolves a backend this fork no longer ships: the
-// `get-backend-port` IPC answers nothing, VITE_BRAIN_ENDPOINT is unset, and the
-// fallback is the empty string — so every fetchGet/fetchPost/… lands on a
-// relative URL that fails without a visible error. A screen built on it is
-// clickable and inert, which is the worst failure mode a UI has: it looks like
-// it worked. `getProxyBaseURL()` is the separate hosted cloud, still live but
-// not part of the aion product plane, and it retires the same way.
+// One resolved a backend this fork no longer ships: its endpoint IPC answered
+// nothing and the fallback was the empty string, so every call landed on a
+// relative URL that failed without a visible error. A screen built on it was
+// clickable and inert, which is the worst failure mode a UI has — it looks like
+// it worked. The other read Eigent's hosted cloud, which holds no aion tenant's
+// data. Both are deleted; the aion edge (src/api/aion/v1/transport.ts) is the
+// only remote this app has.
 //
-// Neither can be deleted in one pass, so this gate freezes the blast radius
-// instead: every file that reaches either client today is listed below with its
-// reference count, and the gate fails when a file gains references or a new
-// file appears. Each milestone that re-points a surface at the edge lowers its
-// number here; the finish line is both tables empty.
+// The tables below are empty and must stay that way. Naming one of these
+// exports anywhere in git-tracked source — a comment counts, because naming one
+// is how the next call site gets written — fails the gate. The per-file ceiling
+// machinery is kept so a deliberate, reviewed exception is recordable rather
+// than requiring the gate to be switched off.
 //
-// A count that DROPS also fails. A stale ceiling is how a ratchet rots into
+// A count that DROPS also fails. A stale ceiling is how a gate rots into
 // decoration — if you retired a call, record it.
 //
 // Its subject is git-tracked source, and it runs from `pnpm lint` rather than as
@@ -23,7 +23,7 @@
 //
 // Usage:
 //   node scripts/check-no-dead-brain-calls.mjs
-//   node scripts/check-no-dead-brain-calls.mjs --update   # after re-pointing a surface
+//   node scripts/check-no-dead-brain-calls.mjs --update   # only to record a reviewed exception
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -36,17 +36,8 @@ const repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
 
 const SELF = 'scripts/check-no-dead-brain-calls.mjs';
 
-// The client definitions themselves, and the test that pins their behaviour.
-// Exempt as whole files: they are what the ratchet counts down to, and counting
-// them would report progress every time the implementation is refactored.
-const EXEMPT_FILE = [
-  new RegExp(`^${SELF.replace('.', '\\.')}$`),
-  /^src\/api\/http\.ts$/,
-  /^test\/unit\/api\/http\.test\.ts$/,
-  // Fetch doubles: they exist to keep these clients out of a test's real
-  // network path, so a reference here is the opposite of a new call site.
-  /^test\/mocks\//,
-];
+// This file names every export it forbids, so it cannot be its own subject.
+const EXEMPT_FILE = [new RegExp(`^${SELF.replace('.', '\\.')}$`)];
 
 const RULES = [
   {
@@ -54,12 +45,12 @@ const RULES = [
     // Named exports of the getBaseURL() client. Matched on the identifier so a
     // re-export or a renamed import still counts.
     re: /\b(fetchGet|fetchPost|fetchPut|fetchPatch|fetchDelete|fetchPostForm|uploadFileToBrain|sseTransport|getBaseURL|resetBaseURL)\b/,
-    why: 'resolves the local backend this fork removed — the call fails silently',
+    why: 'names the deleted local-backend client — a call on it fails silently',
   },
   {
     key: 'hosted',
     re: /\b(proxyFetchGet|proxyFetchPost|proxyFetchPut|proxyFetchPatch|proxyFetchDelete|getProxyBaseURL|uploadFile)\b/,
-    why: "reads Eigent's hosted cloud, which holds no aion tenant's data",
+    why: "names the deleted hosted-cloud client, which held no aion tenant's data",
   },
 ];
 
@@ -113,10 +104,11 @@ if (process.argv.includes('--update')) {
     `${JSON.stringify(
       {
         _comment:
-          'Ceiling for references to the two non-aion HTTP clients, per file. ' +
-          'Regenerate with `node scripts/check-no-dead-brain-calls.mjs --update` ' +
-          'when a milestone re-points a surface at the aion edge, and say which ' +
-          'surface moved in the PR. Both tables empty is the goal.',
+          'Both HTTP clients are deleted, so both tables are empty and are ' +
+          'meant to stay that way. Regenerate with ' +
+          '`node scripts/check-no-dead-brain-calls.mjs --update` only to record ' +
+          'a reviewed exception, and say in the PR why the reference is not a ' +
+          'new call site.',
         ...Object.fromEntries(
           RULES.map(({ key }) => [
             key,
@@ -175,9 +167,9 @@ if (regressions.length > 0 || stale.length > 0) {
   }
   if (regressions.length > 0) {
     console.error(
-      '\n  A new call site on either client is a new surface that cannot serve an\n' +
-        '  aion tenant. Read the data from the edge (src/api/aion/v1/transport.ts)\n' +
-        '  instead.\n' +
+      '\n  Both clients are deleted. A reference to one is either a call site that\n' +
+        '  cannot serve an aion tenant, or a name that invites one — read the data\n' +
+        '  from the edge (src/api/aion/v1/transport.ts) instead.\n' +
         '\n  A mention in a comment counts as a reference and is meant to: naming one\n' +
         '  of these functions is how the next call site gets written. Describe the\n' +
         '  client rather than naming its exports.\n'
@@ -202,6 +194,8 @@ const remaining = Object.fromEntries(
   ])
 );
 console.log(
-  `check-no-dead-brain-calls: at baseline (dead: ${remaining.dead}, ` +
-    `hosted: ${remaining.hosted} reference(s))`
+  remaining.dead === 0 && remaining.hosted === 0
+    ? 'check-no-dead-brain-calls: clean (both clients retired)'
+    : `check-no-dead-brain-calls: at baseline (dead: ${remaining.dead}, ` +
+        `hosted: ${remaining.hosted} reference(s))`
 );

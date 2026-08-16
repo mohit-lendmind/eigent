@@ -161,6 +161,27 @@ const SCHEDULES_MINIMUM_EDGE = [1, 10];
 // render a key manager whose every action 404s.
 const ACCOUNT_MINIMUM_EDGE = [1, 11];
 
+// The memory routes shipped in edge API 1.12.0. Below the floor the agent still
+// remembers across sessions — the cell has served these RPCs all along — and
+// nothing above it can read or forget any of it. An empty list would claim the
+// agent remembers nothing about you, which is the one answer a memory screen
+// must never give when it simply cannot see.
+const MEMORY_MINIMUM_EDGE = [1, 12];
+
+// The artifact listing shipped in edge API 1.13.0. Below the floor an artifact
+// is reachable only by the client that watched its artifact_created event go
+// by, so a session reopened later can download nothing it produced earlier.
+// The single-artifact fetch predates this floor and stays available, which is
+// why this gates the listing rather than the whole artifact surface.
+const ARTIFACT_LIST_MINIMUM_EDGE = [1, 13];
+
+// The Space routes shipped in edge API 1.14.0. Below the floor `space_id` is a
+// tag this backend stores and cannot resolve: there is no list of Spaces to
+// read, no name to render, and filing a Project would write a reference to
+// nothing. An empty list would claim the tenant has organized nothing, so the
+// switcher must say the backend cannot report Spaces instead.
+const SPACES_MINIMUM_EDGE = [1, 14];
+
 function meetsEdgeFloor(status: IntegrationStatus, floor: number[]): boolean {
   if (!negotiateCompatibility(status).compatible) {
     return false;
@@ -199,4 +220,16 @@ export function supportsSchedules(status: IntegrationStatus): boolean {
 
 export function supportsAccount(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, ACCOUNT_MINIMUM_EDGE);
+}
+
+export function supportsMemory(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, MEMORY_MINIMUM_EDGE);
+}
+
+export function supportsArtifactList(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, ARTIFACT_LIST_MINIMUM_EDGE);
+}
+
+export function supportsSpaces(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, SPACES_MINIMUM_EDGE);
 }

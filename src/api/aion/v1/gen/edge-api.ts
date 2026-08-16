@@ -199,6 +199,38 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * @description The Project's published artifacts, most recently published first.
+         *
+         *     Published is the whole set: publication and the `artifact_created`
+         *     event commit together, so this listing answers with exactly the
+         *     artifacts the event stream named — re-readable by a client that was
+         *     not watching when they were produced. A reserved-but-unpublished half
+         *     is not listed; its size and hash are not yet verified, and it may
+         *     never become an artifact at all.
+         *
+         *     Entries carry no download URL. A URL is a short-lived grant against a
+         *     default-deny bucket, so one is minted by getArtifact when a person
+         *     asks for the bytes, not once per row to draw a list.
+         */
+        get: operations["listArtifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/artifacts/{artifactId}": {
         parameters: {
             query?: never;
@@ -626,6 +658,292 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/memory": {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description What the agent remembers in one scope: every document's metadata, plus
+         *     the scope's live usage against its caps. Content is omitted from the
+         *     rows — a list is a table of contents, and returning every document's
+         *     text would make opening the screen the most expensive request in the
+         *     API. Read one document with getMemory.
+         *
+         *     Usage rides this response rather than a route of its own, because a
+         *     client that renders what is stored also has to say whether another
+         *     write would fit, and splitting that would draw the list before it knew.
+         *
+         *     `scopes` names every scope this server exposes, most-default first.
+         *     The `scope` query parameter selects one; omitted, it is the first
+         *     entry. Like skills and connectors, memory is served only by an edge
+         *     connected to a cell.
+         */
+        get: operations["listMemory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/memory/search": {
+        parameters: {
+            query: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+                q: components["parameters"]["MemoryQuery"];
+                /**
+                 * @description How many hits to return. A scope holds at most a few hundred documents,
+                 *     so a larger number could not return more — it would only misreport the
+                 *     ceiling.
+                 */
+                k?: components["parameters"]["MemorySearchK"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Rank the scope's documents against a query and return the top hits with
+         *     content, most relevant first. This is the same ranking the agent's own
+         *     memory search uses, so what a user finds here is what the agent finds.
+         *
+         *     The score is comparable only WITHIN one response: it is lexical (BM25)
+         *     when the server has no embedder and a fused hybrid score when it does,
+         *     so a client renders order, never a percentage.
+         */
+        get: operations["searchMemory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/memory/clear": {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Forget everything in the scope, and report how many documents were
+         *     removed. A named action rather than a DELETE on the collection:
+         *     forgetting everything is a different act from forgetting one thing, and
+         *     a bare collection DELETE is one missing path segment away from a client
+         *     that meant the other.
+         *
+         *     There is no undo — the agent's memory of this scope is gone.
+         */
+        post: operations["clearMemory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/memory/{key}": {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path: {
+                key: components["parameters"]["MemoryKey"];
+            };
+            cookie?: never;
+        };
+        /** @description One document, with its content. */
+        get: operations["getMemory"];
+        /**
+         * @description Write a document, creating it or replacing it whole. Memory is
+         *     overwrite-in-place by key, so the body carries the new text rather than
+         *     a patch, and an empty body is refused rather than treated as a delete —
+         *     a caller that means "forget this" has deleteMemory.
+         *
+         *     The response carries the scope's usage after the write when the server
+         *     reports it, because the moment a client most needs to know a scope is
+         *     nearly full is the moment it just added to it. An absent `usage` is a
+         *     missing reading, never a full scope.
+         */
+        put: operations["putMemory"];
+        post?: never;
+        /**
+         * @description Forget one document. Idempotent: a key that was never stored answers
+         *     204 exactly like one that was just removed, because deleting what is
+         *     already gone is the state the caller asked for.
+         */
+        delete: operations["deleteMemory"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/spaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description The caller's own Spaces, newest first, each with how many Projects it
+         *     holds. The count includes CLOSED Projects: a Space whose work is
+         *     finished still holds it, and rendering that Space as empty would
+         *     invite deleting the only thing grouping it.
+         */
+        get: operations["listSpaces"];
+        put?: never;
+        /**
+         * @description Create a Space. `Idempotency-Key` is required and scoped to the
+         *     tenant: a retried create replays the Space the key already made, and
+         *     reusing a key with a different name or description is `409 conflict`.
+         */
+        post: operations["createSpace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/spaces/{spaceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        get: operations["getSpace"];
+        /**
+         * @description Replace the editable fields whole. Status is deliberately not among
+         *     them: archiving is its own transition, so renaming a shelved Space
+         *     can never quietly return it to the sidebar.
+         */
+        put: operations["updateSpace"];
+        post?: never;
+        /**
+         * @description Remove an EMPTY Space. One that still holds Projects is refused with
+         *     `409 space_in_use` rather than deleted: the Projects would keep
+         *     working while losing the only thing grouping them, silently and in one
+         *     unrecoverable step. Archive the Space to put it away, or move its
+         *     Projects out first.
+         */
+        delete: operations["deleteSpace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/spaces/{spaceId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Put a Space away without touching what it holds. Its Projects stay
+         *     filed under it and stay listable through listProjects; only the Space
+         *     itself is shelved. Archiving something already archived answers with
+         *     the same Space rather than failing.
+         */
+        post: operations["archiveSpace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/spaces/{spaceId}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Return an archived Space to service. */
+        post: operations["unarchiveSpace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/space": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * @description File this Project under a Space. Filing changes what a listing shows,
+         *     never what a run does — no run, epoch or event is touched. A Space
+         *     belonging to another tenant is `404`, exactly like one that does not
+         *     exist.
+         */
+        put: operations["setProjectSpace"];
+        post?: never;
+        /**
+         * @description Unfile this Project. A separate verb rather than a PUT carrying an
+         *     empty `space_id`, so each request means exactly one thing and an
+         *     accidentally blank field cannot read as "unfile". Idempotent: a
+         *     Project that was already unfiled answers the same way.
+         */
+        delete: operations["clearProjectSpace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 };
 export type webhooks = Record<string, never>;
 export type components = {
@@ -643,6 +961,12 @@ export type components = {
             model_alias: components["schemas"]["ModelAlias"];
             /** @enum {string} */
             status: "active" | "closed";
+            /**
+             * @description The Space this Project is filed under. OMITTED when it is filed
+             *     nowhere, which is the default state of a Project rather than a
+             *     group anyone put it in.
+             */
+            space_id?: components["schemas"]["Identifier"];
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -777,11 +1101,40 @@ export type components = {
             artifact_id: components["schemas"]["Identifier"];
             project_id: components["schemas"]["Identifier"];
             name: string;
+            /**
+             * @description Which version of this name the artifact is, counting from 1. Names
+             *     repeat within a Project by design — a run that writes report.md
+             *     twice produces two artifacts — so name alone does not identify one.
+             *     A number, like a skill version; the 64-bit size is a string.
+             */
+            version: number;
             media_type: string;
             size_bytes: string;
             sha256: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the metadata half was reserved, before the bytes were durable.
+             */
             created_at: string;
+            /**
+             * Format: date-time
+             * @description When the artifact became downloadable, and the order listArtifacts
+             *     serves. ABSENT on an artifact_created event, where the event's own
+             *     arrival is the publication; absent never means the epoch. For a
+             *     half a reconciler completed this can be far later than created_at.
+             */
+            published_at?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        ArtifactList: {
+            artifacts: components["schemas"]["Artifact"][];
+            /**
+             * @description Absent on the last page. When present there are entries behind it —
+             *     the server reads one row past the page to know — so a client may
+             *     offer "load more" without a speculative fetch.
+             */
+            next_page_token?: string;
         } & {
             [key: string]: unknown;
         };
@@ -1247,6 +1600,166 @@ export type components = {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * @description A grouping a Project is filed under. A Space carries no execution:
+         *     filing changes what a listing shows, never what a run does.
+         */
+        Space: {
+            space_id: components["schemas"]["Identifier"];
+            name: string;
+            /** @description Omitted when the Space has none. */
+            description?: string;
+            /**
+             * @description `active` = in the sidebar. `archived` = put away; the Projects it
+             *     holds are untouched and still listable. An unrecognized value
+             *     renders as `unknown` rather than as `active`, so a Space this
+             *     client predates is never drawn as though it were in service.
+             */
+            status: string;
+            /**
+             * @description How many Projects are filed here, CLOSED ones included. A Space
+             *     whose work is finished still holds it, and reporting zero would
+             *     invite deleting the only thing grouping it.
+             */
+            project_count: number;
+            /**
+             * @description Who created the Space. Omitted rather than emitted empty on a
+             *     deployment that records no subject.
+             */
+            user_id?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        } & {
+            [key: string]: unknown;
+        };
+        SpaceList: {
+            spaces: components["schemas"]["Space"][];
+            /** @description Absent on the last page. */
+            next_page_token?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        CreateSpaceRequest: {
+            name: string;
+            description?: string;
+        };
+        /**
+         * @description A whole replacement of the editable fields, not a patch: omitting
+         *     `description` clears it.
+         */
+        UpdateSpaceRequest: {
+            name: string;
+            description?: string;
+        };
+        SetProjectSpaceRequest: {
+            space_id: components["schemas"]["Identifier"];
+        };
+        MemoryCatalog: {
+            /** @description The scope these documents belong to. */
+            scope: string;
+            /**
+             * @description Every scope this server exposes, most-default first. A client
+             *     renders a switcher from this rather than hardcoding names.
+             */
+            scopes: string[];
+            /**
+             * @description Metadata only — `content` is absent on every row here. An empty
+             *     array is a scope the agent has stored nothing in.
+             */
+            docs: components["schemas"]["MemoryDoc"][];
+            usage: components["schemas"]["MemoryUsage"];
+        } & {
+            [key: string]: unknown;
+        };
+        MemoryDoc: {
+            scope: string;
+            key: string;
+            /**
+             * @description Size of the stored content. A decimal string like every other
+             *     64-bit quantity on this contract.
+             */
+            bytes: string;
+            /**
+             * @description The document text. ABSENT on listMemory rows, present on
+             *     getMemory, putMemory and search hits. Absent is "not returned by
+             *     this route", never "the document is empty" — an empty document
+             *     cannot be stored.
+             */
+            content?: string;
+            /** Format: date-time */
+            created_at?: string;
+            /**
+             * Format: date-time
+             * @description Absent on a document that has never been rewritten, rather than
+             *     repeating `created_at`, so a client can show what actually changed.
+             */
+            updated_at?: string;
+            /**
+             * @description The session that last wrote this document, when the server recorded
+             *     one. Absent for a document written outside a session.
+             */
+            updated_by_session?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * @description A scope's live usage and the caps enforced on it. Every field is
+         *     present even at zero: an empty scope really has stored nothing, and the
+         *     caps are what a client needs to render how much room is left. A zero
+         *     cap means that dimension is uncapped, matching the store's convention.
+         */
+        MemoryUsage: {
+            doc_count: string;
+            total_bytes: string;
+            cap_doc_bytes: string;
+            cap_docs_per_scope: string;
+            cap_scope_bytes: string;
+        } & {
+            [key: string]: unknown;
+        };
+        MemorySearchResult: {
+            scope: string;
+            hits: components["schemas"]["MemorySearchHit"][];
+        } & {
+            [key: string]: unknown;
+        };
+        MemorySearchHit: {
+            doc: components["schemas"]["MemoryDoc"];
+            /**
+             * @description Relevance, higher is better. Comparable only within one response —
+             *     the scale differs between lexical and hybrid ranking, so render
+             *     order, not a percentage.
+             */
+            score: number;
+        } & {
+            [key: string]: unknown;
+        };
+        MemoryWriteRequest: {
+            /**
+             * @description The whole document. A write replaces what was stored; an empty
+             *     string is refused rather than treated as a delete.
+             */
+            content: string;
+        };
+        MemoryWriteResult: {
+            doc: components["schemas"]["MemoryDoc"];
+            usage?: components["schemas"]["MemoryUsage"];
+        } & {
+            [key: string]: unknown;
+        };
+        MemoryCleared: {
+            scope: string;
+            /**
+             * @description How many documents were removed. A JSON number rather than a
+             *     decimal string: unlike a byte total this is a 32-bit count, bounded
+             *     by the scope's document cap.
+             */
+            deleted: number;
+        } & {
+            [key: string]: unknown;
+        };
     };
     responses: {
         /** @description RFC 9457 problem detail */
@@ -1267,6 +1780,19 @@ export type components = {
          *     fixable by retrying the same body.
          */
         ScheduleCadenceRefused: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /**
+         * @description The Space still holds Projects (`code: space_in_use`). Not fixable by
+         *     retrying the same request: move the Projects out, or archive the Space
+         *     instead of deleting it.
+         */
+        SpaceInUse: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1301,6 +1827,35 @@ export type components = {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /**
+         * @description The `scope` parameter names a memory scope this server does not expose
+         *     (`code: memory_scope_denied`). The problem carries the served set in
+         *     `scopes`; retrying the same value never succeeds.
+         */
+        MemoryScopeDenied: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /**
+         * @description Two shapes share this status, told apart by the problem `code`:
+         *     `not_implemented` — this edge serves no memory plane at all;
+         *     `memory_not_configured` — the plane is there but this deployment
+         *     exposes no memory scope on the product API (or the configured scope
+         *     does not resolve on its cell). Both are operator configuration states:
+         *     retrying changes nothing.
+         */
+        MemoryUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
     };
     parameters: {
         IdempotencyKey: string;
@@ -1318,6 +1873,7 @@ export type components = {
         SkillUsageFlag: boolean;
         ConnectorId: components["schemas"]["ConnectorId"];
         ScheduleId: components["schemas"]["Identifier"];
+        SpaceId: components["schemas"]["Identifier"];
         KeyId: string;
         /**
          * @description Optimistic-concurrency fence: the decimal skill version this write is
@@ -1326,6 +1882,21 @@ export type components = {
          *     unconditional write.
          */
         SkillIfMatch: string;
+        /**
+         * @description Which memory scope to address. Omitted = the server's first configured
+         *     scope, which is what an ordinary client sends. A scope outside the
+         *     served set is refused with `memory_scope_denied` carrying the set, so a
+         *     client never has to guess; the served set is also on listMemory.
+         */
+        MemoryScope: string;
+        MemoryKey: string;
+        MemoryQuery: string;
+        /**
+         * @description How many hits to return. A scope holds at most a few hundred documents,
+         *     so a larger number could not return more — it would only misreport the
+         *     ceiling.
+         */
+        MemorySearchK: number;
     };
     requestBodies: never;
     headers: {
@@ -1354,6 +1925,16 @@ export interface operations {
                  *     is `400 invalid_cursor`.
                  */
                 page_token?: string;
+                /**
+                 * @description Narrow the page to one Space. There is deliberately no way to ask
+                 *     for the UNFILED Projects alone: no Space is the default state of a
+                 *     Project rather than a group anyone put it in. Repeat the parameter
+                 *     on every page — `page_token` encodes a position, not the filter
+                 *     that produced it. A Space belonging to another tenant lists
+                 *     nothing rather than being refused, because the narrowing is
+                 *     applied inside the caller's own query.
+                 */
+                space_id?: components["schemas"]["Identifier"];
             };
             header?: never;
             path?: never;
@@ -1654,6 +2235,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UsageSummary"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    listArtifacts: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Entries per page (default 50). A value outside the documented bounds is
+                 *     refused with `400 invalid_argument` rather than clamped, so a client
+                 *     that asks for 5000 learns it instead of silently receiving 200.
+                 */
+                page_size?: number;
+                /**
+                 * @description Opaque continuation from a prior response's `next_page_token`. It
+                 *     encodes a position only — every page is scoped to the Project in
+                 *     the path and the authenticated tenant regardless of the token — and
+                 *     one this server cannot decode is `400 invalid_cursor`.
+                 */
+                page_token?: string;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of published artifacts, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactList"];
                 };
             };
             400: components["responses"]["Problem"];
@@ -2348,6 +2968,476 @@ export interface operations {
             400: components["responses"]["Problem"];
             401: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
+        };
+    };
+    listMemory: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The scope's documents and its usage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryCatalog"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            422: components["responses"]["MemoryScopeDenied"];
+            501: components["responses"]["MemoryUnavailable"];
+        };
+    };
+    searchMemory: {
+        parameters: {
+            query: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+                q: components["parameters"]["MemoryQuery"];
+                /**
+                 * @description How many hits to return. A scope holds at most a few hundred documents,
+                 *     so a larger number could not return more — it would only misreport the
+                 *     ceiling.
+                 */
+                k?: components["parameters"]["MemorySearchK"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ranked hits, most relevant first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemorySearchResult"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            422: components["responses"]["MemoryScopeDenied"];
+            501: components["responses"]["MemoryUnavailable"];
+        };
+    };
+    clearMemory: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The scope is empty */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryCleared"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            422: components["responses"]["MemoryScopeDenied"];
+            501: components["responses"]["MemoryUnavailable"];
+        };
+    };
+    getMemory: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path: {
+                key: components["parameters"]["MemoryKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The document */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryDoc"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            422: components["responses"]["MemoryScopeDenied"];
+            501: components["responses"]["MemoryUnavailable"];
+        };
+    };
+    putMemory: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path: {
+                key: components["parameters"]["MemoryKey"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemoryWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description The stored document */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryWriteResult"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            /**
+             * @description Two shapes share this status, told apart by the problem `code`:
+             *     `memory_scope_denied` — the `scope` parameter names a scope this
+             *     server does not expose; `memory_invalid` — the document itself is
+             *     refused (empty content, an illegal key, or a document past the
+             *     server's per-document cap).
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description The scope is full (`code: memory_quota_exceeded`). A DURABLE quota,
+             *     not a rate limit — retrying never succeeds until something is
+             *     deleted. The caps are on the usage object.
+             */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            501: components["responses"]["MemoryUnavailable"];
+        };
+    };
+    deleteMemory: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which memory scope to address. Omitted = the server's first configured
+                 *     scope, which is what an ordinary client sends. A scope outside the
+                 *     served set is refused with `memory_scope_denied` carrying the set, so a
+                 *     client never has to guess; the served set is also on listMemory.
+                 */
+                scope?: components["parameters"]["MemoryScope"];
+            };
+            header?: never;
+            path: {
+                key: components["parameters"]["MemoryKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The key is not stored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            422: components["responses"]["MemoryScopeDenied"];
+            501: components["responses"]["MemoryUnavailable"];
+        };
+    };
+    listSpaces: {
+        parameters: {
+            query?: {
+                page_size?: number;
+                page_token?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of Spaces, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpaceList"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+        };
+    };
+    createSpace: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSpaceRequest"];
+            };
+        };
+        responses: {
+            /** @description The created Space */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Space"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    getSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Space */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Space"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    updateSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSpaceRequest"];
+            };
+        };
+        responses: {
+            /** @description The edited Space */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Space"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    deleteSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Space no longer exists */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["SpaceInUse"];
+        };
+    };
+    archiveSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Space as it stands after the transition */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Space"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    unarchiveSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: components["parameters"]["SpaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Space as it stands after the transition */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Space"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    setProjectSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetProjectSpaceRequest"];
+            };
+        };
+        responses: {
+            /** @description The Project as it stands after the write */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    clearProjectSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Project as it stands after the write */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
         };
     };
 }

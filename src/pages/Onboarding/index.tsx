@@ -12,10 +12,14 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-// The first screen on a profile that has an aion endpoint and no credential.
-// It asks for exactly one thing, and it checks that thing before keeping it:
-// a key is verified against the account route and only then handed to the main
-// process to store. Storing first would leave a mistyped key on disk with
+// The first screen on a profile that is not connected yet. Usually that means
+// an endpoint with no credential, and the screen asks for a key. It is also
+// where a profile with no endpoint at all, or one the main process could not
+// resolve, lands — so it names those instead of asking for a key that cannot
+// reach anything.
+//
+// It checks the key before keeping it: a key is verified against the account
+// route and only then handed to the main process to store. Storing first would leave a mistyped key on disk with
 // every screen failing 401 and no way back that does not need the key.
 //
 // The key is typed here and never held here — no renderer storage, no state
@@ -77,6 +81,35 @@ export default function Onboarding() {
     state && (state.kind === 'needs-key' || state.kind === 'ready')
       ? state.edgeBaseUrl
       : '';
+
+  // No endpoint, or one that failed to resolve: a key is not the missing
+  // piece, so offering the field would send the user round a loop they
+  // cannot finish.
+  if (state && (state.kind === 'local' || state.kind === 'error')) {
+    return (
+      <div
+        className="flex h-screen w-full items-center justify-center px-6"
+        data-testid="aion-onboarding"
+      >
+        <div className="flex w-full max-w-[480px] flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-5 w-5 text-ds-icon-status-error-default-default" />
+            <h1 className="text-heading-h4 text-ds-text-neutral-default-default">
+              {t('onboarding.unreachable-title')}
+            </h1>
+          </div>
+          <p
+            className="text-body-sm text-ds-text-neutral-muted-default"
+            data-testid="aion-onboarding-unreachable"
+          >
+            {state.kind === 'local'
+              ? t('onboarding.no-endpoint')
+              : t('onboarding.resolve-failed', { message: state.message })}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

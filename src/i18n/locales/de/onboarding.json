@@ -4,5 +4,8 @@
   "key-label": "API-Schlüssel",
   "key-placeholder": "API-Schlüssel einfügen",
   "connect": "Verbinden",
+  "unreachable-title": "Kein Backend zum Verbinden",
+  "no-endpoint": "Auf diesem Desktop ist kein aion-Endpunkt konfiguriert, mit dem sich ein API-Schlüssel verbinden könnte. Richte einen Endpunkt ein und starte die App neu.",
+  "resolve-failed": "Dieser Desktop konnte seinen aion-Endpunkt nicht auflösen: {{message}}",
   "storage-note": "Der Schlüssel wird vor dem Speichern gegen das Backend geprüft und auf diesem Rechner so abgelegt, dass nur Ihr Benutzerkonto ihn lesen kann."
 }

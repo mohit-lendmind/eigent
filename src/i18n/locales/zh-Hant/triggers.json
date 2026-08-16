@@ -355,6 +355,7 @@
   "aion-submit": "建立觸發器",
   "aion-once": "一次",
   "aion-empty": "還沒有觸發器。觸發器會在你不在時依節奏執行任務。",
+  "aion-local": "觸發器需要已連線的後端。此桌面端尚未連線，因此還沒有任何東西為你安排任務。",
   "aion-no-projects": "請先建立專案——觸發器在專案內執行任務。",
   "aion-backend-too-old": "觸發器無法使用：所連接的後端（邊緣 API {{version}}）不提供觸發器。請升級後端以在此管理。",
   "aion-remote-error": "無法載入你的觸發器：{{message}}",

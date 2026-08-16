@@ -96,6 +96,12 @@ const edgeBaseUrl = bootstrap
   ? `${bootstrap.edge_url.replace(/\/+$/, '')}/eigent/v1`
   : null;
 let edgeReady = false;
+// Separate from edgeReady: both rows have to be in the catalog this stack
+// actually serves, and an overlay is free to replace that catalog wholesale.
+// Binding an alias the catalog does not carry is refused with 422
+// model_alias_denied, which would read as a product failure rather than the
+// stack being the wrong one.
+let aliasesServed = false;
 let workDir: string;
 let keyFile: string;
 
@@ -113,10 +119,25 @@ test.beforeAll(async () => {
     keyFile = path.join(workDir, 'edge-api-key');
     fs.writeFileSync(keyFile, bootstrap.api_key, { mode: 0o600 });
   }
+  if (edgeReady) {
+    aliasesServed = await catalogServes(PRICED_ALIAS, UNPRICED_ALIAS);
+  }
   if (PACKAGED_SOURCE) {
     packaged = installPackagedApp(PACKAGED_SOURCE);
   }
 });
+
+/** Whether every named alias is a row the edge would accept on a project. */
+async function catalogServes(...aliases: string[]): Promise<boolean> {
+  const response = await edgeFetch('GET', '/models');
+  if (!response.ok) return false;
+  const served = new Set(
+    ((await response.json()) as { aliases: { alias: string }[] }).aliases.map(
+      (option) => option.alias
+    )
+  );
+  return aliases.every((alias) => served.has(alias));
+}
 
 test.afterAll(() => {
   if (workDir) {
@@ -392,6 +413,10 @@ test('the cost the desktop shows is the cost the edge settled', async () => {
   test.skip(
     !bootstrap || !edgeReady || !APP_BUILT,
     'eigent-local stack not running or app not built'
+  );
+  test.skip(
+    !aliasesServed,
+    `this stack's catalog does not serve both "${PRICED_ALIAS}" and "${UNPRICED_ALIAS}" — the three cost states are not all reachable on it`
   );
   test.setTimeout(300_000);
   const stamp = Date.now();

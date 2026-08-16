@@ -162,12 +162,6 @@ vi.mock('../../../../electron/main/webview', () => ({
 vi.mock('../../../../electron/main/fileReader', () => ({
   FileReader: vi.fn(),
 }));
-vi.mock('../../../../electron/main/utils/mcpConfig', () => ({
-  addMcp: vi.fn(),
-  removeMcp: vi.fn(),
-  updateMcp: vi.fn(),
-  readMcpConfig: vi.fn(),
-}));
 vi.mock('../../../../electron/main/utils/envUtil', () => ({
   getEnvPath: vi.fn(),
   updateEnvBlock: vi.fn(),
@@ -180,11 +174,9 @@ vi.mock('tree-kill', () => ({ default: vi.fn() }));
 
 // Import the mocked functions
 import * as envUtil from '../../../../electron/main/utils/envUtil';
-import * as mcpConfig from '../../../../electron/main/utils/mcpConfig';
 
 // Cast the imports to mocked versions
 const mockedEnvUtil = vi.mocked(envUtil);
-const mockedMcpConfig = vi.mocked(mcpConfig);
 
 describe('Electron Main Index Functions', () => {
   beforeEach(() => {
@@ -895,58 +887,6 @@ describe('Electron Main Index Functions', () => {
         : mockPath.join(MAIN_DIST, 'dist');
 
       expect(VITE_PUBLIC_PROD).toContain('dist');
-    });
-  });
-
-  describe('MCP Handlers', () => {
-    it('should handle mcp-install', () => {
-      const mockHandler = vi.fn((_event, name, mcp) => {
-        mockedMcpConfig.addMcp(name, mcp);
-        return { success: true };
-      });
-      mockIpcMain.handle('mcp-install', mockHandler);
-
-      mockHandler({}, 'test-mcp', { data: 'data' });
-      expect(mockedMcpConfig.addMcp).toHaveBeenCalledWith('test-mcp', {
-        data: 'data',
-      });
-    });
-
-    it('should handle mcp-remove', () => {
-      const mockHandler = vi.fn((_event, name) => {
-        mockedMcpConfig.removeMcp(name);
-        return { success: true };
-      });
-      mockIpcMain.handle('mcp-remove', mockHandler);
-
-      mockHandler({}, 'test-mcp');
-      expect(mockedMcpConfig.removeMcp).toHaveBeenCalledWith('test-mcp');
-    });
-
-    it('should handle mcp-update', () => {
-      const mockHandler = vi.fn((_event, name, mcp) => {
-        mockedMcpConfig.updateMcp(name, mcp);
-        return { success: true };
-      });
-      mockIpcMain.handle('mcp-update', mockHandler);
-
-      mockHandler({}, 'test-mcp', { data: 'new-data' });
-      expect(mockedMcpConfig.updateMcp).toHaveBeenCalledWith('test-mcp', {
-        data: 'new-data',
-      });
-    });
-
-    it('should handle mcp-list', async () => {
-      const mockData = {
-        mcpServers: { mcp1: { command: 'echo', args: [] } },
-      };
-      mockedMcpConfig.readMcpConfig.mockResolvedValue(mockData);
-      const mockHandler = vi.fn(() => mockedMcpConfig.readMcpConfig());
-      mockIpcMain.handle('mcp-list', mockHandler);
-
-      const result = await mockHandler();
-      expect(mockedMcpConfig.readMcpConfig).toHaveBeenCalled();
-      expect(result).toEqual(mockData);
     });
   });
 

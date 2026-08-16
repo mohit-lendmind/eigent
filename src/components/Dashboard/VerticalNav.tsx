@@ -75,6 +75,7 @@ export function VerticalNavigation({
             disabled={item.disabled}
             appearance="ghost"
             className={triggerClassName}
+            data-nav-item={item.value}
           >
             {item.icon ? (
               <span className="inline-flex h-4 w-4 items-center justify-center">

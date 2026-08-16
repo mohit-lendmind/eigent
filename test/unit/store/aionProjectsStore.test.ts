@@ -132,6 +132,7 @@ describe('aionProjectsStore page walk', () => {
       title: 'Investigate the build failure',
       modelAlias: 'coding_balanced',
       status: 'active',
+      spaceId: 'spc_01JY0000000000000000000001',
       createdAt: Date.parse('2026-08-08T09:00:00Z'),
       updatedAt: Date.parse('2026-08-08T09:12:31Z'),
       activeRun: {
@@ -197,5 +198,44 @@ describe('aionProjectsStore page walk', () => {
     await expect(store.listAionProjects()).rejects.toThrow('edge returned 503');
     const page = await store.listAionProjects();
     expect(page.projects).toHaveLength(2);
+  });
+});
+
+describe('aionProjectsStore filing', () => {
+  beforeEach(() => {
+    setRemoteConfig();
+    getIntegrationStatus.mockResolvedValue(remoteStatus('1.14.0'));
+    listProjects.mockResolvedValue(fixture('project_list_response.json'));
+  });
+
+  it('carries the Space a Project is filed under, and omits it when it is filed nowhere', async () => {
+    const store = await freshModule();
+    const [filed, unfiled] = (await store.listAionProjects()).projects;
+    expect(filed.spaceId).toBe('spc_01JY0000000000000000000001');
+    // Filed nowhere is an omitted field, not an empty string: a surface draws
+    // "no Space" differently from a Space whose name happens to be blank.
+    expect(unfiled).not.toHaveProperty('spaceId');
+  });
+
+  it('serves a Space-filtered walk from the edge rather than from the cached head', async () => {
+    const store = await freshModule();
+    await store.listAionProjects();
+    expect(listProjects).toHaveBeenCalledTimes(1);
+
+    await store.listAionProjects({ spaceId: 'spc_01JY0000000000000000000001' });
+    // The cache holds the tenant's unfiltered head; answering a filtered read
+    // from it would show the whole list under one Space's name.
+    expect(listProjects).toHaveBeenCalledTimes(2);
+    expect(listProjects).toHaveBeenLastCalledWith({
+      pageToken: undefined,
+      pageSize: undefined,
+      spaceId: 'spc_01JY0000000000000000000001',
+    });
+
+    await store.listAionProjects({ spaceId: 'spc_01JY0000000000000000000001' });
+    expect(listProjects).toHaveBeenCalledTimes(3);
+    // ...and a filtered read never becomes the head either.
+    await store.listAionProjects();
+    expect(listProjects).toHaveBeenCalledTimes(3);
   });
 });

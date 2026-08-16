@@ -29,7 +29,6 @@ export const WorkspaceTab = {
   Triggers: 'triggers',
   Runs: 'runs',
   Project: 'project',
-  Dispatch: 'dispatch',
   NewProject: 'new-project',
 } as const;
 
@@ -356,13 +355,11 @@ interface PageTabState {
    */
   workspaceChatFocusRequestId: number;
   requestWorkspaceChatFocus: () => void;
-  /** Incremented to open the add-trigger dialog from the sidebar (Home owns dialog state). */
+  /** Incremented to open the triggers screen's create form from elsewhere. */
   triggerAddDialogRequestId: number;
-  requestOpenTriggerAddDialog: () => void;
-  /** Pending trigger to select after navigating to the triggers workspace tab. */
-  pendingTriggerSelectId: number | null;
-  triggerSelectRequestId: number;
-  requestSelectTrigger: (triggerId: number) => void;
+  /** Prompt the requesting surface wants the new trigger to run. */
+  triggerAddDialogPrompt: string;
+  requestOpenTriggerAddDialog: (taskPrompt?: string) => void;
 
   // ── TurnTabs: per-project turn selection ─────────────────────────────────
   /**
@@ -620,7 +617,8 @@ export const usePageTabStore = create<PageTabState>()(
           };
         }),
       triggerAddDialogRequestId: 0,
-      requestOpenTriggerAddDialog: () =>
+      triggerAddDialogPrompt: '',
+      requestOpenTriggerAddDialog: (taskPrompt = '') =>
         set((state) => {
           const newUnviewedTabs = new Set(state.unviewedTabs);
           newUnviewedTabs.delete('triggers');
@@ -628,16 +626,9 @@ export const usePageTabStore = create<PageTabState>()(
             activeWorkspaceTab: 'triggers',
             unviewedTabs: newUnviewedTabs,
             triggerAddDialogRequestId: state.triggerAddDialogRequestId + 1,
+            triggerAddDialogPrompt: taskPrompt,
           };
         }),
-      pendingTriggerSelectId: null,
-      triggerSelectRequestId: 0,
-      requestSelectTrigger: (triggerId) =>
-        set((state) => ({
-          pendingTriggerSelectId: triggerId,
-          triggerSelectRequestId: state.triggerSelectRequestId + 1,
-        })),
-
       sidePanelSelectedTurnByProject: {},
       sidePanelManualUntilByProject: {},
       sidePanelViewedTurnByProject: {},

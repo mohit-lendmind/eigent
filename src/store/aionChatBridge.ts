@@ -21,6 +21,7 @@ import {
 import { ProjectSession, newCommandId } from '@/api/aion/v1/session';
 import { EdgeTransport, type ModelAliasCatalog } from '@/api/aion/v1/transport';
 import { useAionModelStore } from './aionModelStore';
+import { fileProjectUnderBoundSpace } from './aionSpaceBinding';
 import {
   AgentMessageStatus,
   AgentStatusValue,
@@ -30,8 +31,19 @@ import {
   type AgentStatusType,
 } from '@/types/constants';
 import type { ChatStore } from './chatStore';
+import { useSpaceStore } from './spaceStore';
 
 type ChatStoreHandle = { getState: () => ChatStore };
+
+/**
+ * The Space the renderer had open for this conversation. Falls back to the
+ * active Space for a Project whose metadata has not landed yet, which is the
+ * common case: the first turn creates the Project and its metadata together.
+ */
+function localSpaceIdForProject(eigentProjectId: string): string | null {
+  const spaces = useSpaceStore.getState();
+  return spaces.getProjectMeta(eigentProjectId)?.spaceId ?? spaces.activeSpaceId;
+}
 
 export type AionRemoteConfig =
   | { edgeBaseUrl: string; apiKey: string }
@@ -249,6 +261,13 @@ async function createBinding(
     title,
     model_alias: alias,
   });
+  // A Project is created unfiled — `CreateProjectRequest` carries only a title
+  // and an alias — so the Space it belongs to is attached right after, from the
+  // Space the user was actually in when they asked.
+  fileProjectUnderBoundSpace(
+    localSpaceIdForProject(eigentProjectId),
+    project.project_id
+  );
   const binding: ProjectBinding = {
     transport,
     session: null as unknown as ProjectSession,

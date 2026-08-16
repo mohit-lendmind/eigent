@@ -16,24 +16,18 @@ import VerticalNavigation, {
   HISTORY_VERTICAL_SIDEBAR_CLASSNAME,
   type VerticalNavItem,
 } from '@/components/Dashboard/VerticalNav';
-import { useAionMode, visibleInMode } from '@/hooks/useAionMode';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import CDP from './CDP';
-import Cookies from './Cookies';
 import Extension from './Extension';
 
-const BROWSER_SECTIONS = ['cdp', 'extension', 'cookies'] as const;
+// The cookie jar lived in the local backend this fork removed — every button on
+// that screen read or wrote `/browser/*` on it — so it is gone. CDP stays: it
+// drives real Chrome instances over IPC, which is how a browser task reaches a
+// browser here.
+const BROWSER_SECTIONS = ['cdp', 'extension'] as const;
 type BrowserSection = (typeof BROWSER_SECTIONS)[number];
-
-/**
- * The cookie jar lives in the local backend this fork removed — every button on
- * that screen reads or writes `/browser/*` on it. The CDP screen stays: it
- * drives real Chrome instances over IPC, which is how browser tasks reach a
- * browser on either plane.
- */
-const LEGACY_ONLY_SECTIONS: readonly BrowserSection[] = ['cookies'];
 
 function isBrowserSection(value: string | null): value is BrowserSection {
   return value !== null && BROWSER_SECTIONS.includes(value as BrowserSection);
@@ -43,7 +37,6 @@ export default function Browser() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const sectionFromUrl = searchParams.get('browserSection');
-  const aionMode = useAionMode();
   const [activeTab, setActiveTab] = useState<BrowserSection>(() =>
     isBrowserSection(sectionFromUrl) ? sectionFromUrl : 'cdp'
   );
@@ -62,34 +55,16 @@ export default function Browser() {
     setSearchParams(next, { replace: true });
   }, [sectionFromUrl, searchParams, setSearchParams]);
 
-  const menuItems = visibleInMode(
-    [
-      {
-        id: 'cdp' as const,
-        name: t('layout.browser-connections'),
-      },
-      {
-        id: 'extension' as const,
-        name: t('layout.browser-plugins'),
-      },
-      {
-        id: 'cookies' as const,
-        name: t('layout.browser-cookie'),
-      },
-    ],
-    aionMode,
-    LEGACY_ONLY_SECTIONS
-  );
-
-  // Hidden sections are unreachable by URL too, and stay unrendered while the
-  // mode is unknown rather than flashing a substitute screen.
-  const shownTab: BrowserSection | null = menuItems.some(
-    (menu) => menu.id === activeTab
-  )
-    ? activeTab
-    : aionMode === 'unknown'
-      ? null
-      : (menuItems[0]?.id ?? null);
+  const menuItems = [
+    {
+      id: 'cdp' as const,
+      name: t('layout.browser-connections'),
+    },
+    {
+      id: 'extension' as const,
+      name: t('layout.browser-plugins'),
+    },
+  ];
 
   const handleTabChange = (tabId: string) => {
     if (!menuItems.some((menu) => menu.id === tabId)) return;
@@ -108,7 +83,7 @@ export default function Browser() {
               ),
             })) as VerticalNavItem[]
           }
-          value={shownTab ?? ''}
+          value={activeTab}
           onValueChange={handleTabChange}
           className="h-full min-h-0 w-full flex-1 gap-0"
           listClassName="w-full h-full overflow-y-auto"
@@ -118,9 +93,8 @@ export default function Browser() {
 
       <div className="flex h-auto w-full flex-1 flex-col">
         <div className="flex flex-col gap-4">
-          {shownTab === 'cdp' && <CDP />}
-          {shownTab === 'extension' && <Extension />}
-          {shownTab === 'cookies' && <Cookies />}
+          {activeTab === 'cdp' && <CDP />}
+          {activeTab === 'extension' && <Extension />}
         </div>
       </div>
     </div>

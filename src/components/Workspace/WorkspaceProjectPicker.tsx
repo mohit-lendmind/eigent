@@ -17,35 +17,22 @@ import AlertDialog from '@/components/ui/alertDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
-import { useHost } from '@/host';
-import {
-  createSpaceFromFolderPicker,
-  getFolderSpaceErrorMessage,
-} from '@/lib/createSpaceFromFolder';
-import { ensureScratchSpaceWorkspaceBinding } from '@/lib/scratchSpaceWorkspace';
 import {
   getActiveSpaceTriggerLabel,
   getDefaultNewSpaceName,
-  isLocalWorkspaceSpace,
 } from '@/lib/spaceLabel';
-import { resolveServerBackedSpaceId } from '@/lib/spaceProject';
-import { cn } from '@/lib/utils';
 import {
-  proxyApplySpaceProjectRun,
-  proxyDiscardSpaceProjectOverlays,
-  proxyFetchSpaceProjectOverlays,
-  type SpaceOverlay,
-} from '@/service/spaceApi';
-import { useAuthStore } from '@/store/authStore';
-import { usePageTabStore } from '@/store/pageTabStore';
+  bindSpaceToAion,
+  renameBoundSpace,
+} from '@/store/aionSpaceBinding';
+import { cn } from '@/lib/utils';
 import {
   getVisibleProjectMetasForSpace,
   isDisposableBlankSpace,
   useSpaceStore,
 } from '@/store/spaceStore';
-import { ChatTaskStatus } from '@/types/constants';
 import { ChevronsUpDown, FolderIcon } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -61,88 +48,27 @@ export interface WorkspaceProjectPickerProps {
 
 /**
  * Space switcher for the workspace landing. Project switching lives in the
- * left sidebar; this control only creates/switches Spaces and exposes current
- * Project workdir actions.
+ * left sidebar; this control only creates, renames and switches Spaces.
  */
 export function WorkspaceProjectPicker({
   readOnly = false,
 }: WorkspaceProjectPickerProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const host = useHost();
-  const email = useAuthStore((s) => s.email);
-  const userId = useAuthStore((s) => s.user_id);
   const activeSpaceId = useSpaceStore((s) => s.activeSpaceId);
   const spacesById = useSpaceStore((s) => s.spaces);
   const projectsBySpaceId = useSpaceStore((s) => s.projectsBySpaceId);
   const setActiveSpace = useSpaceStore((s) => s.setActiveSpace);
-  const createSpaceOnServer = useSpaceStore((s) => s.createSpaceOnServer);
-  const renameSpaceOnServer = useSpaceStore((s) => s.renameSpaceOnServer);
-  const refreshProjectOnServer = useSpaceStore((s) => s.refreshProjectOnServer);
+  const createSpace = useSpaceStore((s) => s.createSpace);
+  const updateSpace = useSpaceStore((s) => s.updateSpace);
   const { projectStore } = useChatStoreAdapter();
-  const setActiveWorkspaceTab = usePageTabStore((s) => s.setActiveWorkspaceTab);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [switchingSpaceId, setSwitchingSpaceId] = useState<string | null>(null);
-  const [pendingOverlays, setPendingOverlays] = useState<SpaceOverlay[]>([]);
-  const [pendingLoading, setPendingLoading] = useState(false);
-  const [pendingLoadFailed, setPendingLoadFailed] = useState(false);
-  const [pendingAction, setPendingAction] = useState<
-    'apply' | 'discard' | 'refresh' | null
-  >(null);
-  const [applyProgress, setApplyProgress] = useState<{
-    current: number;
-    total: number;
-  } | null>(null);
-  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
-  const [applyIssueDialog, setApplyIssueDialog] = useState<{
-    title: string;
-    message: string;
-  } | null>(null);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [renamingSpace, setRenamingSpace] = useState(false);
 
-  const activeProjectId = projectStore.activeProjectId;
-  const activeProject = activeProjectId
-    ? projectStore.getProjectById(activeProjectId)
-    : null;
-  const activeProjectChatStore = activeProjectId
-    ? projectStore.peekActiveChatStore(activeProjectId)
-    : null;
-  const activeProjectChatState = activeProjectChatStore?.getState();
-  const activeProjectTask =
-    activeProjectChatState?.activeTaskId &&
-    activeProjectChatState.tasks[activeProjectChatState.activeTaskId]
-      ? activeProjectChatState.tasks[activeProjectChatState.activeTaskId]
-      : null;
-  const activeProjectRunActive = Boolean(
-    activeProjectTask &&
-    (activeProjectTask.status === ChatTaskStatus.RUNNING ||
-      activeProjectTask.isPending)
-  );
-  const activeProjectMeta = useSpaceStore((s) =>
-    activeProjectId ? s.getProjectMeta(activeProjectId) : null
-  );
-  const activeProjectSpaceId =
-    activeProjectMeta?.spaceId ||
-    activeProject?.spaceId ||
-    activeSpaceId ||
-    null;
-  const activeProjectSpace = activeProjectSpaceId
-    ? spacesById[activeProjectSpaceId]
-    : null;
-  const activeProjectWorkdirMode =
-    activeProjectMeta?.workdirMode || activeProject?.workdirMode || null;
-  const activeProjectDirectWrite =
-    activeProjectWorkdirMode === 'direct-write' ||
-    (!activeProjectWorkdirMode && isLocalWorkspaceSpace(activeProjectSpace));
-  const activeProjectServerBacked = Boolean(
-    activeProjectMeta?.metadata?.serverSynced ||
-    activeProjectMeta?.metadata?.historyId ||
-    activeProject?.metadata?.serverSynced ||
-    activeProject?.metadata?.historyId
-  );
   const activeSpace = activeSpaceId ? spacesById[activeSpaceId] : null;
   const canRenameActiveSpace = Boolean(
     activeSpace &&
@@ -169,55 +95,6 @@ export function WorkspaceProjectPicker({
     [activeSpaceId, projectsBySpaceId, spacesById]
   );
 
-  const loadPendingOverlays = useCallback(async () => {
-    if (
-      !activeProjectSpaceId ||
-      !activeProjectId ||
-      !activeProjectServerBacked ||
-      activeProjectSpaceId.startsWith('legacy_') ||
-      !activeProjectSpace ||
-      activeProjectDirectWrite
-    ) {
-      setPendingOverlays([]);
-      setPendingLoadFailed(false);
-      setPendingLoading(false);
-      return;
-    }
-    setPendingLoading(true);
-    try {
-      const response = await proxyFetchSpaceProjectOverlays(
-        activeProjectSpaceId,
-        activeProjectId
-      );
-      setPendingOverlays(response.overlays);
-      setPendingLoadFailed(false);
-    } catch (error) {
-      console.warn(
-        '[WorkspaceProjectPicker] Failed to load pending changes:',
-        error
-      );
-      setPendingLoadFailed(true);
-    } finally {
-      setPendingLoading(false);
-    }
-  }, [
-    activeProjectDirectWrite,
-    activeProjectId,
-    activeProjectServerBacked,
-    activeProjectSpace,
-    activeProjectSpaceId,
-  ]);
-
-  useEffect(() => {
-    void loadPendingOverlays();
-  }, [loadPendingOverlays]);
-
-  useEffect(() => {
-    if (menuOpen) {
-      void loadPendingOverlays();
-    }
-  }, [loadPendingOverlays, menuOpen]);
-
   const activeSpaceTitle = useMemo(
     () =>
       getActiveSpaceTriggerLabel(activeSpace?.name, t, {
@@ -232,28 +109,13 @@ export function WorkspaceProjectPicker({
     async (spaceId: string) => {
       setSwitchingSpaceId(spaceId);
       try {
-        const resolvedSpaceId = await resolveServerBackedSpaceId(
-          projectStore,
-          spaceId
-        );
-        const spaceStore = useSpaceStore.getState();
-        if (
-          resolvedSpaceId.startsWith('legacy_') ||
-          spaceStore.shouldSyncProjects(resolvedSpaceId)
-        ) {
-          await spaceStore.syncProjectsFromServer(resolvedSpaceId);
-        }
         const projectsInSpace = useSpaceStore
           .getState()
-          .getProjectsForSpace(resolvedSpaceId);
-        if (projectsInSpace.length > 0) {
-          setActiveSpace(resolvedSpaceId);
-          const nextProject = projectsInSpace[0];
-          projectStore.setActiveProject(nextProject.id);
-        } else {
-          setActiveSpace(resolvedSpaceId);
-          projectStore.setActiveProject(null);
-        }
+          .getProjectsForSpace(spaceId);
+        setActiveSpace(spaceId);
+        projectStore.setActiveProject(
+          projectsInSpace.length > 0 ? projectsInSpace[0].id : null
+        );
         navigate('/');
         setMenuOpen(false);
       } catch (error) {
@@ -266,10 +128,11 @@ export function WorkspaceProjectPicker({
     [navigate, projectStore, setActiveSpace, t]
   );
 
-  const handleNewSpace = useCallback(async () => {
+  const handleNewSpace = useCallback(() => {
     try {
-      const spaceId = await createSpaceOnServer({
-        name: getDefaultNewSpaceName(t),
+      const name = getDefaultNewSpaceName(t);
+      const spaceId = createSpace({
+        name,
         sourceType: 'blank',
         setActive: false,
         metadata: {
@@ -277,11 +140,7 @@ export function WorkspaceProjectPicker({
           autoCreatedPlaceholder: true,
         },
       });
-      await ensureScratchSpaceWorkspaceBinding({
-        email,
-        userId,
-        space: useSpaceStore.getState().getSpaceById(spaceId),
-      });
+      bindSpaceToAion(spaceId, name);
       setActiveSpace(spaceId);
       projectStore.setActiveProject(null);
       navigate('/');
@@ -290,15 +149,7 @@ export function WorkspaceProjectPicker({
       console.error('Failed to create Space:', error);
       toast.error(t('layout.spaces-create-failed'));
     }
-  }, [
-    createSpaceOnServer,
-    email,
-    navigate,
-    projectStore,
-    setActiveSpace,
-    t,
-    userId,
-  ]);
+  }, [createSpace, navigate, projectStore, setActiveSpace, t]);
 
   const openRenameDialog = () => {
     if (!canRenameActiveSpace || !activeSpace) return;
@@ -312,7 +163,8 @@ export function WorkspaceProjectPicker({
     if (!activeSpaceId || !nextName || renamingSpace) return;
     setRenamingSpace(true);
     try {
-      await renameSpaceOnServer(activeSpaceId, nextName);
+      updateSpace(activeSpaceId, { name: nextName });
+      await renameBoundSpace(activeSpaceId, nextName);
       toast.success(t('layout.spaces-rename-success'));
     } catch (error) {
       console.warn('[WorkspaceProjectPicker] Failed to rename Space:', error);
@@ -320,214 +172,6 @@ export function WorkspaceProjectPicker({
     } finally {
       setRenamingSpace(false);
     }
-  };
-
-  const pendingRunIds = useMemo(
-    () => Array.from(new Set(pendingOverlays.map((overlay) => overlay.run_id))),
-    [pendingOverlays]
-  );
-
-  const pendingPathSummary = (paths: string[]) => {
-    const maxVisiblePaths = 8;
-    const visible = paths.slice(0, maxVisiblePaths).join(', ');
-    const rest = paths.length - maxVisiblePaths;
-    if (rest <= 0) return visible;
-    return `${visible} ${t('layout.workspace-path-summary-more', {
-      count: rest,
-    })}`;
-  };
-
-  const handleApplyPending = async () => {
-    if (
-      !activeProjectSpaceId ||
-      !activeProjectId ||
-      pendingRunIds.length === 0
-    ) {
-      return;
-    }
-    setPendingAction('apply');
-    setApplyProgress({ current: 0, total: pendingRunIds.length });
-    try {
-      const conflictPaths: string[] = [];
-      const failedPaths: string[] = [];
-      const failedRuns: string[] = [];
-      let appliedCount = 0;
-
-      for (const [index, runId] of pendingRunIds.entries()) {
-        setApplyProgress({ current: index + 1, total: pendingRunIds.length });
-        try {
-          const response = await proxyApplySpaceProjectRun(
-            activeProjectSpaceId,
-            activeProjectId,
-            {
-              run_id: runId,
-            }
-          );
-          appliedCount += response.applied.length;
-          conflictPaths.push(
-            ...response.conflicts.map(
-              (conflict) => `${runId}: ${conflict.path}`
-            )
-          );
-          failedPaths.push(
-            ...response.failed.map((failure) => `${runId}: ${failure.path}`)
-          );
-          if (response.conflicts.length === 0 && response.failed.length === 0) {
-            setPendingOverlays((current) =>
-              current.filter((overlay) => overlay.run_id !== runId)
-            );
-          }
-          if (response.conflicts.length > 0) {
-            break;
-          }
-        } catch (error) {
-          console.warn(
-            `[WorkspaceProjectPicker] Failed to apply pending run ${runId}:`,
-            error
-          );
-          failedRuns.push(runId);
-        }
-      }
-
-      if (conflictPaths.length > 0) {
-        setApplyIssueDialog({
-          title: t('layout.workspace-apply-conflict-title'),
-          message: t('layout.workspace-apply-conflict-message', {
-            count: conflictPaths.length,
-            paths: pendingPathSummary(conflictPaths),
-          }),
-        });
-      } else if (failedPaths.length > 0 || failedRuns.length > 0) {
-        const failedCount = failedPaths.length + failedRuns.length;
-        setApplyIssueDialog({
-          title: t('layout.workspace-apply-partial-title'),
-          message: t('layout.workspace-apply-partial-message', {
-            count: failedCount,
-            paths: pendingPathSummary([...failedPaths, ...failedRuns]),
-          }),
-        });
-      } else {
-        toast.success(
-          t('layout.workspace-pending-applied-with-count', {
-            count: appliedCount,
-          })
-        );
-      }
-      await loadPendingOverlays();
-    } finally {
-      setApplyProgress(null);
-      setPendingAction(null);
-    }
-  };
-
-  const executeDiscardPending = async () => {
-    if (!activeProjectSpaceId || !activeProjectId) return;
-    setPendingAction('discard');
-    try {
-      const response = await proxyDiscardSpaceProjectOverlays(
-        activeProjectSpaceId,
-        activeProjectId,
-        {
-          // Empty payload intentionally means "discard all pending overlays".
-        }
-      );
-      toast.success(
-        t('layout.workspace-discarded-pending', {
-          count: response.discarded,
-        })
-      );
-      await loadPendingOverlays();
-    } catch (error) {
-      console.warn(
-        '[WorkspaceProjectPicker] Failed to discard pending changes:',
-        error
-      );
-      toast.error(t('layout.workspace-discard-failed'));
-    } finally {
-      setPendingAction(null);
-    }
-  };
-
-  const handleDiscardPending = () => {
-    if (
-      !activeProjectSpaceId ||
-      !activeProjectId ||
-      pendingOverlays.length === 0
-    ) {
-      return;
-    }
-    setMenuOpen(false);
-    setDiscardConfirmOpen(true);
-  };
-
-  const getErrorCode = (error: unknown) => {
-    const err = error as {
-      response?: { data?: { detail?: unknown } };
-      detail?: unknown;
-    };
-    const detail = err.response?.data?.detail ?? err.detail;
-    if (typeof detail === 'object' && detail !== null) {
-      return String((detail as { code?: unknown }).code || '');
-    }
-    return '';
-  };
-
-  const handleRefreshWorkdir = async () => {
-    if (!activeProjectSpaceId || !activeProjectId) return;
-    if (activeProjectRunActive) {
-      toast.error(t('layout.workspace-refresh-failed'));
-      return;
-    }
-    setPendingAction('refresh');
-    try {
-      await refreshProjectOnServer(activeProjectSpaceId, activeProjectId);
-      toast.success(t('layout.workspace-refresh-success'));
-      await loadPendingOverlays();
-    } catch (error) {
-      console.warn(
-        '[WorkspaceProjectPicker] Failed to refresh project workdir:',
-        error
-      );
-      const code = getErrorCode(error);
-      toast.error(
-        code === 'pending_overlays'
-          ? t('layout.workspace-refresh-before-refresh')
-          : t('layout.workspace-refresh-failed')
-      );
-    } finally {
-      setPendingAction(null);
-    }
-  };
-
-  const handleCreateSpaceFromFolder = async () => {
-    try {
-      const spaceId = await createSpaceFromFolderPicker({
-        host,
-        email,
-        userId,
-        activeSpaceId,
-        projectStore,
-        createdFrom: 'workspace_folder_space_picker',
-        onUnavailable: openAgentFolderTab,
-      });
-      if (!spaceId) return;
-      navigate('/');
-      setMenuOpen(false);
-    } catch (error) {
-      console.warn(
-        '[WorkspaceProjectPicker] Failed to create folder Space:',
-        error
-      );
-      toast.error(getFolderSpaceErrorMessage(error, t));
-    }
-  };
-
-  const openAgentFolderTab = () => {
-    const pid = projectStore.activeProjectId;
-    setActiveWorkspaceTab('inbox', {
-      clearInboxForProjectId: pid ?? undefined,
-    });
-    setMenuOpen(false);
   };
 
   if (readOnly) {
@@ -547,31 +191,9 @@ export function WorkspaceProjectPicker({
   return (
     <>
       <AlertDialog
-        isOpen={discardConfirmOpen}
-        onClose={() => setDiscardConfirmOpen(false)}
-        onConfirm={() => void executeDiscardPending()}
-        title={t('layout.workspace-discard-confirm-title')}
-        message={t('layout.workspace-discard-confirm-message', {
-          count: pendingOverlays.length,
-        })}
-        confirmText={t('layout.workspace-discard-pending-changes')}
-        cancelText={t('layout.cancel')}
-      />
-      <AlertDialog
-        isOpen={applyIssueDialog !== null}
-        onClose={() => setApplyIssueDialog(null)}
-        onConfirm={() => setApplyIssueDialog(null)}
-        title={applyIssueDialog?.title}
-        message={applyIssueDialog?.message}
-        confirmText={t('layout.close')}
-        cancelText={t('layout.cancel')}
-        confirmVariant="primary"
-        hideCancel
-      />
-      <AlertDialog
         isOpen={renameDialogOpen}
         onClose={() => setRenameDialogOpen(false)}
-        onConfirm={() => void handleRenameSpace()}
+        onConfirm={handleRenameSpace}
         title={t('layout.spaces-rename-title')}
         confirmText={t('layout.save')}
         cancelText={t('layout.cancel')}
@@ -626,34 +248,9 @@ export function WorkspaceProjectPicker({
         activeSpaceId={activeSpaceId}
         switchingSpaceId={switchingSpaceId}
         canRenameActiveSpace={canRenameActiveSpace}
-        createSpaceMenu={{
-          onStartFromScratch: handleNewSpace,
-          onSelectFolder: handleCreateSpaceFromFolder,
-        }}
+        createSpaceMenu={{ onCreateSpace: handleNewSpace }}
         onRenameSpace={openRenameDialog}
         onSpaceSelect={activateSpace}
-        pendingChangesMenu={
-          activeProjectId && !activeProjectDirectWrite
-            ? {
-                loading: pendingLoading,
-                loadFailed: pendingLoadFailed,
-                overlayCount: pendingOverlays.length,
-                action: pendingAction,
-                applyProgress,
-                applyDisabled:
-                  pendingOverlays.length === 0 || pendingAction !== null,
-                discardDisabled:
-                  pendingOverlays.length === 0 || pendingAction !== null,
-                refreshDisabled:
-                  pendingOverlays.length > 0 ||
-                  pendingAction !== null ||
-                  activeProjectRunActive,
-                onApply: handleApplyPending,
-                onDiscard: handleDiscardPending,
-                onRefresh: handleRefreshWorkdir,
-              }
-            : undefined
-        }
       />
     </>
   );

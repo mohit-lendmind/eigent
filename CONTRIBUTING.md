@@ -66,20 +66,18 @@ These are enforced by gates because they are easy to break by accident:
   Legitimate today: skill payloads under `resources/example-skills/` (they run
   in the aion cell, not on the desktop) and `camel_task_id`, a wire-format field
   of a hosted API this fork does not own.
-- **No new call site on either non-aion HTTP client.**
-  `src/api/http.ts` holds two clients that are not the aion edge. The
-  `getBaseURL()` one resolves the local backend this fork removed, so every
-  `fetchGet`/`fetchPost`/… call fails silently — a screen built on it looks like
-  it worked. The `getProxyBaseURL()` one reads Eigent's hosted cloud, which holds
-  no aion tenant's data. Neither can be deleted in one pass, so
-  `scripts/check-no-dead-brain-calls.mjs` freezes the per-file reference counts
-  in `test/dead-brain-calls-baseline.json` and fails when one grows. Read the
-  data from `src/api/aion/v1/transport.ts` instead. Retiring a call site fails
-  the gate too — that is progress, so record it with
-  `pnpm check:no-dead-brain-calls -- --update` and name the surface that moved.
-  It counts a mention in a comment as a reference, deliberately: naming one of
-  these functions is how the next call site gets written, so describe the client
-  rather than naming its exports.
+- **The aion edge is the only remote.** Two other HTTP clients used to ship
+  here. One resolved the local backend this fork removed, so every call on it
+  failed silently — a screen built on it looked like it worked. The other read
+  Eigent's hosted cloud, which holds no aion tenant's data. Both are deleted, and
+  `scripts/check-no-dead-brain-calls.mjs` keeps them deleted: the tables in
+  `test/dead-brain-calls-baseline.json` are empty and naming one of those exports
+  anywhere in tracked source fails the gate. Read the data from
+  `src/api/aion/v1/transport.ts` instead. A mention in a comment counts as a
+  reference, deliberately: naming one of these functions is how the next call
+  site gets written. If a reference is genuinely not a call site, record the
+  exception with `pnpm check:no-dead-brain-calls -- --update` and say why in the
+  PR.
 - **A screen only one plane can serve is hidden on the other.** Nav registries
   gate on `useAionMode()` (`src/hooks/useAionMode.ts`), and an unresolved mode
   counts as aion, so a dead entry can never flash into the nav. Deep links to a
@@ -87,7 +85,10 @@ These are enforced by gates because they are easy to break by accident:
 - **The packaged app carries no runtime of its own.**
   `scripts/inspect-package.mjs` runs inside `//:package_pipeline` and rejects an
   embedded interpreter, service payload, local database, provider key material
-  or internal service endpoint.
+  or internal service endpoint. A dependency that vendors its own build-time
+  scripts (koffi's C generators, node-pty's winpty tooling) is excluded in
+  `electron-builder.json`'s `files` rather than exempted in the gate — the
+  scripts never run in the app, so the fix is to stop shipping them.
 - **`src/api/aion/v1/gen/` is generated.** Never hand-edit it. Change the
   contract mirror and run `pnpm gen:aion-edge`; see
   [The aion contract](./README.md#the-aion-contract).

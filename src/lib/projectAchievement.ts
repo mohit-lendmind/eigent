@@ -12,7 +12,6 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { proxyUpdateSpaceProject } from '@/service/spaceApi';
 import type { ProjectRuntimeStore } from '@/store/projectRuntimeStore';
 import { useSpaceStore } from '@/store/spaceStore';
 
@@ -47,27 +46,4 @@ export const setProjectAchievedState = async ({
   spaceStore.updateProjectMeta(projectId, {
     metadata,
   });
-
-  try {
-    const updated = await proxyUpdateSpaceProject(
-      projectMeta.spaceId,
-      projectId,
-      { metadata }
-    );
-    spaceStore.updateProjectMeta(projectId, {
-      status: updated.status,
-      metadata,
-    });
-  } catch (error) {
-    if (projectStore.getProjectById(projectId)) {
-      projectStore.updateProject(projectId, {
-        metadata: projectMeta.metadata,
-      });
-    }
-    spaceStore.updateProjectMeta(projectId, {
-      status: projectMeta.status,
-      metadata: projectMeta.metadata,
-    });
-    throw error;
-  }
 };

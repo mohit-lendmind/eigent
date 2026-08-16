@@ -41,12 +41,6 @@ function normalizeKey(name: string): string {
     .replace(/[\s_-]+/g, '');
 }
 
-function categoryFromCategoryName(
-  categoryName: string | undefined
-): 'skill' | 'connector' {
-  return (categoryName ?? '').toLowerCase() === 'skill' ? 'skill' : 'connector';
-}
-
 const SKILL_TOOLKIT_NAME = 'SkillToolkit';
 /**
  * Method names show up in two flavors depending on which path emitted the
@@ -184,13 +178,15 @@ function forEachRuntimeToolkit(
 }
 
 /**
- * Collect classification hints from per-agent `workerInfo` and the skills
- * store. These are used **only** to bucket runtime toolkit names into
+ * Collect classification hints from the skills store and the connector
+ * catalog. These are used **only** to bucket runtime toolkit names into
  * skill vs connector — configured items are not surfaced until they
  * actually fire at runtime, so the panel stays scoped to "what was used in
- * this task".
+ * this task". The name heuristics below catch `SkillToolkit` / `XxxMCP`
+ * shapes; a connector's tools are named after the connector, which no
+ * heuristic can guess, which is why the catalog is read at all.
  */
-function collectHints(agents: Agent[], skills: ContextSkill[]) {
+function collectHints(skills: ContextSkill[], connectorNames: string[]) {
   const skillHints = new Set<string>();
   const connectorHints = new Set<string>();
 
@@ -199,42 +195,13 @@ function collectHints(agents: Agent[], skills: ContextSkill[]) {
     if (k) set.add(k);
   };
 
-  for (const agent of agents) {
-    const info = agent.workerInfo;
-    if (!info) continue;
-
-    const mcp: unknown = info.mcp_tools;
-    if (mcp && typeof mcp === 'object') {
-      const servers = (mcp as { mcpServers?: Record<string, unknown> })
-        .mcpServers;
-      if (servers && typeof servers === 'object') {
-        for (const name of Object.keys(servers)) add(connectorHints, name);
-      }
-    }
-
-    const selected: unknown = info.selectedTools;
-    if (Array.isArray(selected)) {
-      for (const raw of selected) {
-        if (!raw || typeof raw !== 'object') continue;
-        const item = raw as {
-          name?: string;
-          key?: string;
-          toolkit?: string;
-          category?: { name?: string };
-        };
-        const label = item.name ?? item.key ?? item.toolkit;
-        if (!label) continue;
-        const cat = categoryFromCategoryName(item.category?.name);
-        const set = cat === 'skill' ? skillHints : connectorHints;
-        add(set, label);
-        if (item.toolkit) add(set, item.toolkit);
-      }
-    }
-  }
-
   for (const skill of skills) {
     if (!skill.enabled) continue;
     add(skillHints, skill.name);
+  }
+
+  for (const name of connectorNames) {
+    add(connectorHints, name);
   }
 
   return { skillHints, connectorHints };
@@ -257,7 +224,7 @@ function collectHints(agents: Agent[], skills: ContextSkill[]) {
  *      hints.
  *   2. Uploaded files referenced on user messages.
  *
- * The `skills` and `workerInfo` data are read **only** to seed
+ * The `skills` and `connectorNames` data are read **only** to seed
  * classification hints for ambiguous toolkit names — they never produce
  * standalone rows.
  */
@@ -265,7 +232,8 @@ export function buildContextItems(
   agents: Agent[],
   taskRunning?: TaskInfo[],
   uploadedFiles: File[] = [],
-  skills: ContextSkill[] = []
+  skills: ContextSkill[] = [],
+  connectorNames: string[] = []
 ): ContextItem[] {
   const seen = new Set<string>();
   const out: ContextItem[] = [];
@@ -277,7 +245,7 @@ export function buildContextItems(
     out.push(item);
   };
 
-  const { skillHints, connectorHints } = collectHints(agents, skills);
+  const { skillHints, connectorHints } = collectHints(skills, connectorNames);
 
   forEachRuntimeToolkit(
     agents,

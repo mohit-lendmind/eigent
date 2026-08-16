@@ -82,21 +82,17 @@ here:
 | Local backend port, health poll, restart          | edge endpoint validated once at startup            |
 | CAMEL multi-agent framework                       | aion orchestrator + workforce                      |
 
-Two upstream surfaces deliberately remain, because they are URL-addressed HTTP
-clients with no local runtime behind them and cutting them is a separate
-migration:
+Both of the upstream HTTP clients are gone with them. Eigent's hosted cloud API
+reached a real service that holds no aion tenant's data, and the Brain-shaped
+client resolved the removed local backend, so its calls failed without surfacing
+an error — a screen built on it stayed clickable and inert.
+`scripts/check-no-dead-brain-calls.mjs` now keeps both retired: naming one of
+their exports anywhere in tracked source fails the gate, so the aion edge
+(`src/api/aion/v1/transport.ts`) stays the only remote this app has.
 
-- `src/api/http.ts` still carries clients for Eigent's **hosted** cloud API and
-  for a Brain-shaped endpoint. Neither serves an aion tenant: the hosted client
-  reaches a real service that holds none of your data, and the Brain-shaped one
-  resolves the removed local backend, so its calls fail without surfacing an
-  error. Call sites are frozen at their current counts by
-  `scripts/check-no-dead-brain-calls.mjs` and come down milestone by milestone;
-  the nav entries that lead only to such a screen are hidden in aion mode rather
-  than left clickable.
-- `camel_task_id` appears in `src/pages/Workspace.tsx` and
-  `src/store/chatStore.ts`. It is a wire-format field of that hosted API, so it
-  cannot be renamed unilaterally.
+One upstream name deliberately remains: `camel_task_id`, in
+`src/pages/Workspace.tsx` and `src/store/chatStore.ts`. It is a wire-format
+field, so it cannot be renamed unilaterally.
 
 ## Prerequisites
 
@@ -245,6 +241,22 @@ video and logs into a directory, and `EIGENT_E2E_PACKAGED_APP` pointed at an
 unsigned package to drive the packaged build instead of the dev one. Each suite
 allocates its own throwaway Electron profile, so runs do not share state.
 
+### Recorded evaluations
+
+`e2e/*.eval.ts` are the real-model counterpart: one long run through the product
+UI against a stack holding real provider keys, recorded to video. They are not
+part of any CI gate — a run costs provider tokens and takes minutes — so they
+run by hand:
+
+```bash
+EIGENT_EVAL_DIR=/abs/path/to/output npx playwright test --config e2e/eval.config.ts parity
+```
+
+Set `EIGENT_E2E_PACKAGED_APP=release` to record the shipping artifact rather
+than dev Electron. Playwright's `recordVideo` works through
+`executablePath`, so the packaged bundle records exactly like the dev build; the
+video only flushes on `app.close()`, so resolve `video.path()` after teardown.
+
 **Known-failing baselines inherited from upstream.** These fail on a clean
 checkout and are not caused by your change — compare against them rather than
 expecting green:
@@ -289,7 +301,7 @@ src/i18n/locales/       11 locales, parity-checked
 
 scripts/                gates and generators
   check-no-legacy-backend.mjs   no CAMEL / Python service may re-enter
-  check-no-dead-brain-calls.mjs ratchet on the two non-aion HTTP clients
+  check-no-dead-brain-calls.mjs the two retired HTTP clients stay retired
   inspect-package.mjs           the packaged app carries no runtime
   gen-aion-edge-client.mjs      regenerate the edge client
   package-pipeline.mjs          package + report

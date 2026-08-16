@@ -13,7 +13,9 @@
     "resources",
     "!resources/example-skills",
     "!dist/images",
-    "!docs"
+    "!docs",
+    "!node_modules/koffi/lib/native/**/*.py",
+    "!node_modules/node-pty/deps/**/*.py"
   ],
   "protocols": [
     {

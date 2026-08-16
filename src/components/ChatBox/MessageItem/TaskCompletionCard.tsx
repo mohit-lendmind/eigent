@@ -12,11 +12,11 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { TriggerDialog } from '@/components/Trigger/TriggerDialog';
 import { Button } from '@/components/ui/button';
+import { usePageTabStore } from '@/store/pageTabStore';
 import { motion } from 'framer-motion';
 import { Plus, X } from 'lucide-react';
-import React, { useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 interface TaskCompletionCardProps {
   taskPrompt?: string;
@@ -29,10 +29,14 @@ export const TaskCompletionCard: React.FC<TaskCompletionCardProps> = ({
   onDismiss,
 }) => {
   const { t } = useTranslation();
-  const [isTriggerDialogOpen, setIsTriggerDialogOpen] = useState(false);
+  const requestOpenTriggerAddDialog = usePageTabStore(
+    (s) => s.requestOpenTriggerAddDialog
+  );
 
+  // Opening the triggers tab carries the finished task's prompt into the
+  // create form, so scheduling a repeat of what just ran needs no retyping.
   const handleAddTrigger = () => {
-    setIsTriggerDialogOpen(true);
+    requestOpenTriggerAddDialog(taskPrompt);
   };
 
   return (
@@ -79,14 +83,6 @@ export const TaskCompletionCard: React.FC<TaskCompletionCardProps> = ({
           {t('triggers.add-trigger')}
         </Button>
       </motion.div>
-
-      {/* Trigger Dialog */}
-      <TriggerDialog
-        selectedTrigger={null}
-        isOpen={isTriggerDialogOpen}
-        onOpenChange={setIsTriggerDialogOpen}
-        initialTaskPrompt={taskPrompt}
-      />
     </>
   );
 };

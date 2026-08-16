@@ -12,10 +12,8 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { checkBackendHealth } from '@/api/http';
 import { useHost } from '@/host';
 import { useAuthStore } from '@/store/authStore';
-import { getConnectionConfig } from '@/store/connectionStore';
 import { useInstallationStore } from '@/store/installationStore';
 import { getSkillsStore } from '@/store/skillsStore';
 import { useCallback, useEffect, useRef } from 'react';
@@ -31,7 +29,7 @@ export const useInstallationSetup = () => {
 
   const hasCheckedOnMount = useRef(false);
   const backendReady = useRef(false);
-  const syncedSkillsConfigKey = useRef<string | null>(null);
+  const syncedSkillsKey = useRef<string | null>(null);
   const setSuccess = useInstallationStore((state) => state.setSuccess);
   const setBackendError = useInstallationStore(
     (state) => state.setBackendError
@@ -46,27 +44,23 @@ export const useInstallationSetup = () => {
     (state) => state.setNeedsBackendRestart
   );
 
-  const syncSkillsConfigOnOpen = useCallback(async () => {
+  // Warm the skills list once per signed-in user, so the first visit to the
+  // Skills screen — or a composer picker opened before it — already has rows.
+  const syncSkillsOnOpen = useCallback(async () => {
     const currentAuth = useAuthStore.getState();
     if (currentAuth.user_id === null || currentAuth.user_id === undefined) {
       return;
     }
 
-    const endpoint = getConnectionConfig().brainEndpoint;
-    if (!endpoint) return;
-
-    const syncKey = `${currentAuth.user_id}:${endpoint}`;
-    if (syncedSkillsConfigKey.current === syncKey) return;
+    const syncKey = String(currentAuth.user_id);
+    if (syncedSkillsKey.current === syncKey) return;
 
     try {
-      await getSkillsStore().syncFromDisk();
-      syncedSkillsConfigKey.current = syncKey;
-      console.log(
-        `[useInstallationSetup] Skills config synced for user ${currentAuth.user_id}`
-      );
+      await getSkillsStore().refresh();
+      syncedSkillsKey.current = syncKey;
     } catch (error) {
       console.warn(
-        '[useInstallationSetup] Failed to sync skills config on open:',
+        '[useInstallationSetup] Failed to load skills on open:',
         error
       );
     }
@@ -82,26 +76,11 @@ export const useInstallationSetup = () => {
   const startBackendPolling = useCallback(() => {
     console.log('[useInstallationSetup] Starting backend polling');
 
-    // Web mode: no Electron host, so Brain health is the readiness signal.
-    const checkViaHealth = async (): Promise<boolean> => {
-      try {
-        const ok = await checkBackendHealth();
-        if (ok) {
-          markReady();
-          void syncSkillsConfigOnOpen();
-          return true;
-        }
-      } catch (e) {
-        console.log('[useInstallationSetup] Health check failed:', e);
-      }
-      return false;
-    };
-
     // Desktop: the main process validated the edge endpoint at startup;
     // reachability is the aion session layer's concern, not a readiness gate.
     // The one-shot backend-ready event can race the listener mount, so this
     // poll is the recovery path.
-    const checkEdgeConfigured = async (): Promise<boolean> => {
+    const doCheck = async (): Promise<boolean> => {
       try {
         const transportConfig =
           await host?.electronAPI?.getAionTransportConfig?.();
@@ -122,9 +101,6 @@ export const useInstallationSetup = () => {
       return false;
     };
 
-    const hasDesktop = !!(host?.electronAPI && host?.ipcRenderer);
-    const doCheck = hasDesktop ? checkEdgeConfigured : checkViaHealth;
-
     doCheck().then((isReady) => {
       if (isReady) {
         console.log('[useInstallationSetup] Backend ready, skipping polling');
@@ -138,7 +114,7 @@ export const useInstallationSetup = () => {
       }, 2000);
       setTimeout(() => clearInterval(pollInterval), 30000);
     });
-  }, [markReady, host, syncSkillsConfigOnOpen]);
+  }, [markReady, host]);
 
   // Monitor for backend restart after logout
   useEffect(() => {
@@ -155,9 +131,9 @@ export const useInstallationSetup = () => {
 
   useEffect(() => {
     if (backendReady.current && user_id !== null && user_id !== undefined) {
-      void syncSkillsConfigOnOpen();
+      void syncSkillsOnOpen();
     }
-  }, [user_id, syncSkillsConfigOnOpen]);
+  }, [user_id, syncSkillsOnOpen]);
 
   useEffect(() => {
     if (hasCheckedOnMount.current) {

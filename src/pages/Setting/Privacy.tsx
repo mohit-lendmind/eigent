@@ -12,32 +12,14 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { proxyFetchGet, proxyFetchPut } from '@/api/http';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
 import { SITE_URL } from '@/lib';
 import { ChevronDown } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 export default function SettingPrivacy() {
-  const [helpImprove, setHelpImprove] = useState(false);
   const { t } = useTranslation();
   const [isHowWeHandleOpen, setIsHowWeHandleOpen] = useState(false);
-
-  useEffect(() => {
-    proxyFetchGet('/api/v1/user/privacy')
-      .then((res) => {
-        setHelpImprove(res.help_improve || false);
-      })
-      .catch((err) => console.error('Failed to fetch settings:', err));
-  }, []);
-
-  const handleToggleHelpImprove = (checked: boolean) => {
-    setHelpImprove(checked);
-    proxyFetchPut('/api/v1/user/privacy', { help_improve: checked }).catch(
-      (err) => console.error('Failed to update settings:', err)
-    );
-  };
 
   return (
     <div className="m-auto h-auto w-full flex-1">
@@ -113,25 +95,6 @@ export default function SettingPrivacy() {
           )}
         </div>
 
-        {/* Help Improve Eigent Section */}
-        <div className="rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
-          <div className="gap-md flex items-center justify-between">
-            <div className="gap-2 flex flex-col">
-              <div className="text-body-base font-bold text-ds-text-neutral-default-default">
-                {t('setting.help-improve-eigent')}
-              </div>
-              <div className="text-body-sm font-normal text-ds-text-neutral-default-default">
-                {t('setting.help-improve-eigent-description')}
-              </div>
-            </div>
-            <div className="flex items-center justify-center">
-              <Switch
-                checked={helpImprove}
-                onCheckedChange={handleToggleHelpImprove}
-              />
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

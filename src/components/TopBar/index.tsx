@@ -12,13 +12,9 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { proxyFetchGet } from '@/api/http';
-import giftWhiteIcon from '@/assets/custom/gift-white.svg';
-import giftIcon from '@/assets/custom/gift.svg';
 import eigentAppIconBlack from '@/assets/logo/icon_black.svg';
 import eigentAppIconWhite from '@/assets/logo/icon_white.svg';
 import { type HistoryTabId } from '@/components/Dashboard/HistoryTabsNav';
-import InviteCodeDialog from '@/components/Dialog/InviteCodeDialog';
 import ReportBugDialog from '@/components/Dialog/ReportBugDialog';
 import { SpaceSwitchDropdown } from '@/components/ProjectPageSidebar/SpaceSwitchDropdown';
 import UpdateButton from '@/components/TopBar/UpdateButton';
@@ -28,20 +24,13 @@ import { Input } from '@/components/ui/input';
 import { TooltipSimple } from '@/components/ui/tooltip';
 import { useHost } from '@/host';
 import {
-  createSpaceFromFolderPicker,
-  getFolderSpaceErrorMessage,
-} from '@/lib/createSpaceFromFolder';
-import {
-  buildTaskQuestionsById,
-  computeProjectFreshnessAnchor,
-} from '@/lib/replay';
-import { ensureScratchSpaceWorkspaceBinding } from '@/lib/scratchSpaceWorkspace';
-import { getSessionNavLeadFromHistoryProject } from '@/lib/sessionNavLead';
-import {
   getActiveSpaceTriggerLabel,
   getDefaultNewSpaceName,
 } from '@/lib/spaceLabel';
-import { resolveServerBackedSpaceId } from '@/lib/spaceProject';
+import {
+  bindSpaceToAion,
+  renameBoundSpace,
+} from '@/store/aionSpaceBinding';
 import { useAuthStore } from '@/store/authStore';
 import { useInstallationUI } from '@/store/installationStore';
 import { usePageTabStore } from '@/store/pageTabStore';
@@ -145,7 +134,6 @@ function HeaderWin() {
   const location = useLocation();
   const { canGoBack } = useStackNavigationBounds();
   const [reportBugOpen, setReportBugOpen] = useState(false);
-  const [inviteCodeDialogOpen, setInviteCodeDialogOpen] = useState(false);
   const [renameSpaceDialogOpen, setRenameSpaceDialogOpen] = useState(false);
   const [renameSpaceValue, setRenameSpaceValue] = useState('');
   const [renamingSpace, setRenamingSpace] = useState(false);
@@ -154,9 +142,9 @@ function HeaderWin() {
   const activeSpaceId = useSpaceStore((s) => s.activeSpaceId);
   const spacesById = useSpaceStore((s) => s.spaces);
   const projectsBySpaceId = useSpaceStore((s) => s.projectsBySpaceId);
-  const createSpaceOnServer = useSpaceStore((s) => s.createSpaceOnServer);
+  const createSpace = useSpaceStore((s) => s.createSpace);
   const setActiveSpace = useSpaceStore((s) => s.setActiveSpace);
-  const renameSpaceOnServer = useSpaceStore((s) => s.renameSpaceOnServer);
+  const updateSpace = useSpaceStore((s) => s.updateSpace);
   const setActiveWorkspaceTab = usePageTabStore((s) => s.setActiveWorkspaceTab);
   const requestWorkspaceChatFocus = usePageTabStore(
     (s) => s.requestWorkspaceChatFocus
@@ -166,8 +154,6 @@ function HeaderWin() {
     (s) => s.toggleProjectSidebarFolded
   );
   const appearance = useAuthStore((state) => state.appearance);
-  const email = useAuthStore((s) => s.email);
-  const userId = useAuthStore((s) => s.user_id);
   const { installationState } = useInstallationUI();
   const _isInstallationActive = installationState === 'waiting-backend';
 
@@ -234,9 +220,6 @@ function HeaderWin() {
     [activeSpaceId, projectsBySpaceId, spacesById]
   );
 
-  const openInviteCodeDialog = () => {
-    setInviteCodeDialogOpen(true);
-  };
 
   const navigateToHistoryTab = useCallback(
     (tab: HistoryTabId) => {
@@ -257,82 +240,24 @@ function HeaderWin() {
     [navigate, projectStore]
   );
 
+  /**
+   * Give a Project a chat store to render into. The conversation itself is
+   * replayed by the aion chat bridge off the Project's own event stream, so
+   * there is nothing to fetch here — only the empty shell to open.
+   */
   const ensureProjectLoaded = useCallback(
     async (projectId: string) => {
-      const project = projectStore.getProjectById(projectId);
-      const needsRemoteHistoryHydration =
-        project?.metadata?.remoteHistoryHydrationPending === true;
-      if (
-        projectStore.peekActiveChatStore(projectId) &&
-        !needsRemoteHistoryHydration
-      ) {
-        return;
-      }
-
-      try {
-        const historyProject = await proxyFetchGet(
-          `/api/v1/chat/histories/grouped/${projectId}`,
-          { include_tasks: true }
-        );
-        const taskIdsList = (historyProject?.tasks ?? [])
-          .map((task: { task_id?: string | null }) => task.task_id)
-          .filter((taskId: string | null | undefined): taskId is string =>
-            Boolean(taskId)
-          );
-
-        if (taskIdsList.length === 0) {
-          if (needsRemoteHistoryHydration) {
-            projectStore.updateProject(projectId, {
-              metadata: { remoteHistoryHydrationPending: false },
-            });
-            return;
-          }
-          projectStore.appendInitChatStore(projectId);
-          return;
-        }
-
-        projectStore.setProjectNavLead(
-          projectId,
-          getSessionNavLeadFromHistoryProject(historyProject)
-        );
-
-        const firstTask = historyProject.tasks[0];
-        const taskQuestionsById = buildTaskQuestionsById(historyProject?.tasks);
-        if (needsRemoteHistoryHydration) {
-          await projectStore.mergeProjectHistory(
-            projectId,
-            historyProject.tasks,
-            firstTask?.question || historyProject.last_prompt || ''
-          );
-          return;
-        }
-        await projectStore.loadProjectFromHistory(
-          taskIdsList,
-          firstTask?.question || historyProject.last_prompt || '',
-          projectId,
-          firstTask?.id != null ? String(firstTask.id) : undefined,
-          historyProject.project_name,
-          undefined,
-          taskQuestionsById,
-          computeProjectFreshnessAnchor(historyProject)
-        );
-      } catch (error) {
-        console.error(
-          `Failed to load Project ${projectId} from history:`,
-          error
-        );
-        if (!projectStore.peekActiveChatStore(projectId)) {
-          projectStore.appendInitChatStore(projectId);
-        }
-      }
+      if (projectStore.peekActiveChatStore(projectId)) return;
+      projectStore.appendInitChatStore(projectId);
     },
     [projectStore]
   );
 
-  const handleCreateBlankSpace = useCallback(async () => {
+  const handleCreateBlankSpace = useCallback(() => {
     try {
-      const spaceId = await createSpaceOnServer({
-        name: getDefaultNewSpaceName(t),
+      const name = getDefaultNewSpaceName(t);
+      const spaceId = createSpace({
+        name,
         sourceType: 'blank',
         setActive: false,
         metadata: {
@@ -340,11 +265,7 @@ function HeaderWin() {
           autoCreatedPlaceholder: true,
         },
       });
-      await ensureScratchSpaceWorkspaceBinding({
-        email,
-        userId,
-        space: useSpaceStore.getState().getSpaceById(spaceId),
-      });
+      bindSpaceToAion(spaceId, name);
       setActiveSpace(spaceId);
       projectStore.setActiveProject(null);
       setActiveWorkspaceTab('workforce');
@@ -356,68 +277,24 @@ function HeaderWin() {
       });
     }
   }, [
-    createSpaceOnServer,
-    email,
+    createSpace,
     projectStore,
     requestWorkspaceChatFocus,
     setActiveSpace,
     setActiveWorkspaceTab,
     t,
-    userId,
-  ]);
-
-  const handleCreateSpaceFromFolder = useCallback(async () => {
-    try {
-      const spaceId = await createSpaceFromFolderPicker({
-        host,
-        email,
-        userId,
-        activeSpaceId,
-        projectStore,
-        createdFrom: 'top_bar_space_selector',
-      });
-      if (!spaceId) return;
-      setActiveWorkspaceTab('workforce');
-      requestWorkspaceChatFocus();
-    } catch (error) {
-      console.warn('[TopBar] Failed to create folder Space:', error);
-      toast.error(getFolderSpaceErrorMessage(error, t), {
-        closeButton: true,
-      });
-    }
-  }, [
-    activeSpaceId,
-    email,
-    host,
-    projectStore,
-    requestWorkspaceChatFocus,
-    setActiveWorkspaceTab,
-    t,
-    userId,
   ]);
 
   const handleTopBarSpaceSelect = useCallback(
     async (spaceId: string) => {
       setSwitchingSpaceId(spaceId);
       try {
-        const resolvedSpaceId = await resolveServerBackedSpaceId(
-          projectStore,
-          spaceId
-        );
         const spaceStore = useSpaceStore.getState();
-        if (
-          resolvedSpaceId.startsWith('legacy_') ||
-          spaceStore.shouldSyncProjects(resolvedSpaceId)
-        ) {
-          await spaceStore.syncProjectsFromServer(resolvedSpaceId);
-        }
-        const projectsInSpace = useSpaceStore
-          .getState()
-          .getProjectsForSpace(resolvedSpaceId);
-        setActiveSpace(resolvedSpaceId);
+        const projectsInSpace = spaceStore.getProjectsForSpace(spaceId);
+        setActiveSpace(spaceId);
         if (projectsInSpace.length > 0) {
           const lastVisitedProjectId =
-            spaceStore.lastVisitedProjectBySpace[resolvedSpaceId];
+            spaceStore.lastVisitedProjectBySpace[spaceId];
           const targetProject =
             projectsInSpace.find(
               (project) => project.id === lastVisitedProjectId
@@ -459,7 +336,8 @@ function HeaderWin() {
     if (!activeSpaceId || !nextName || renamingSpace) return;
     setRenamingSpace(true);
     try {
-      await renameSpaceOnServer(activeSpaceId, nextName);
+      updateSpace(activeSpaceId, { name: nextName });
+      await renameBoundSpace(activeSpaceId, nextName);
       toast.success(t('layout.spaces-rename-success'));
       setRenameSpaceDialogOpen(false);
     } catch (error) {
@@ -468,7 +346,7 @@ function HeaderWin() {
     } finally {
       setRenamingSpace(false);
     }
-  }, [activeSpaceId, renameSpaceOnServer, renameSpaceValue, renamingSpace, t]);
+  }, [activeSpaceId, renameSpaceValue, renamingSpace, t, updateSpace]);
 
   return (
     <div
@@ -607,10 +485,7 @@ function HeaderWin() {
               activeSpaceId={activeSpaceId}
               switchingSpaceId={switchingSpaceId}
               canRenameActiveSpace={canRenameActiveSpace}
-              createSpaceMenu={{
-                onStartFromScratch: handleCreateBlankSpace,
-                onSelectFolder: handleCreateSpaceFromFolder,
-              }}
+              createSpaceMenu={{ onCreateSpace: handleCreateBlankSpace }}
               onRenameSpace={openRenameSpaceDialog}
               onSpaceSelect={handleTopBarSpaceSelect}
               contentAlign="start"
@@ -647,29 +522,6 @@ function HeaderWin() {
               buttonContent="icon-only"
             >
               <CircleHelp aria-hidden />
-            </Button>
-          </TooltipSimple>
-          <TooltipSimple
-            content={t('layout.refer-friends')}
-            side="bottom"
-            align="end"
-            variant="instant"
-          >
-            <Button
-              onClick={openInviteCodeDialog}
-              variant="ghost"
-              size="sm"
-              className="no-drag rounded-full"
-              buttonContent="icon-only"
-              aria-label={t('layout.refer-friends')}
-            >
-              <img
-                src={appearance === 'dark' ? giftWhiteIcon : giftIcon}
-                alt=""
-                width={16}
-                height={16}
-                aria-hidden
-              />
             </Button>
           </TooltipSimple>
 
@@ -764,10 +616,6 @@ function HeaderWin() {
         </div>
       )}
       <ReportBugDialog open={reportBugOpen} onOpenChange={setReportBugOpen} />
-      <InviteCodeDialog
-        open={inviteCodeDialogOpen}
-        onOpenChange={setInviteCodeDialogOpen}
-      />
     </div>
   );
 }

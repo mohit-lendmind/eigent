@@ -28,6 +28,8 @@ export type CancelRunRequest = Schemas['CancelRunRequest'];
 export type ApprovalResponse = Schemas['ApprovalResponse'];
 export type ModelAliasCatalog = Schemas['ModelAliasCatalog'];
 export type IntegrationStatus = Schemas['IntegrationStatus'];
+export type Artifact = Schemas['Artifact'];
+export type ArtifactList = Schemas['ArtifactList'];
 export type ArtifactAccess = Schemas['ArtifactAccess'];
 export type UsageSummary = Schemas['UsageSummary'];
 export type UsageTotals = Schemas['UsageTotals'];
@@ -51,6 +53,18 @@ export type APIKeyList = Schemas['APIKeyList'];
 export type APIKeySummary = Schemas['APIKeySummary'];
 export type CreateKeyRequest = Schemas['CreateKeyRequest'];
 export type CreatedKey = Schemas['CreatedKey'];
+export type MemoryCatalog = Schemas['MemoryCatalog'];
+export type MemoryDoc = Schemas['MemoryDoc'];
+export type MemoryUsage = Schemas['MemoryUsage'];
+export type MemorySearchResult = Schemas['MemorySearchResult'];
+export type MemorySearchHit = Schemas['MemorySearchHit'];
+export type MemoryWriteRequest = Schemas['MemoryWriteRequest'];
+export type MemoryWriteResult = Schemas['MemoryWriteResult'];
+export type MemoryCleared = Schemas['MemoryCleared'];
+export type Space = Schemas['Space'];
+export type SpaceList = Schemas['SpaceList'];
+export type CreateSpaceRequest = Schemas['CreateSpaceRequest'];
+export type UpdateSpaceRequest = Schemas['UpdateSpaceRequest'];
 
 export interface EdgeTransportConfig {
   /** Base URL of the mounted contract, e.g. `https://edge.example/eigent/v1`. */
@@ -74,6 +88,16 @@ export interface SubscribeOptions {
  */
 export function newIdempotencyKey(): string {
   return `idk_${crypto.randomUUID().replaceAll('-', '')}`;
+}
+
+/**
+ * `?scope=` when the caller named one, nothing when it did not. Omitting it is
+ * how a client asks for the deployment's default scope; sending an empty string
+ * would instead name a scope the deployment does not serve, and the memory
+ * routes refuse that rather than falling back.
+ */
+function memoryScopeQuery(scope: string | undefined): string {
+  return scope === undefined ? '' : `?scope=${encodeURIComponent(scope)}`;
 }
 
 /** One decoded SSE frame: the event plus its `id:` line (the cursor). */
@@ -117,13 +141,16 @@ export class EdgeTransport {
    * `next_page_token`; an absent token means this was the last page.
    */
   listProjects(
-    options: { pageSize?: number; pageToken?: string } = {}
+    options: { pageSize?: number; pageToken?: string; spaceId?: string } = {}
   ): Promise<ProjectList> {
     const query = new URLSearchParams();
     if (options.pageSize !== undefined) {
       query.set('page_size', String(options.pageSize));
     }
     if (options.pageToken) query.set('page_token', options.pageToken);
+    // A Space that names nothing narrows to an empty page rather than 404ing,
+    // so a stale filter renders as "nothing here" and never as a broken list.
+    if (options.spaceId) query.set('space_id', options.spaceId);
     const suffix = query.size > 0 ? `?${query}` : '';
     return this.json('GET', `/projects${suffix}`);
   }
@@ -200,6 +227,29 @@ export class EdgeTransport {
 
   getIntegrationStatus(): Promise<IntegrationStatus> {
     return this.json('GET', '/status');
+  }
+
+  /**
+   * One page of a Project's published artifacts, newest first. A row carries
+   * no download URL — the URL is a time-boxed grant, so it is minted by
+   * getArtifact when someone actually opens the row rather than N at a time
+   * for a page nobody clicks. An artifact still being written is absent
+   * rather than listed as a broken download.
+   */
+  listArtifacts(
+    projectId: string,
+    options: { pageSize?: number; pageToken?: string } = {}
+  ): Promise<ArtifactList> {
+    const query = new URLSearchParams();
+    if (options.pageSize !== undefined) {
+      query.set('page_size', String(options.pageSize));
+    }
+    if (options.pageToken) query.set('page_token', options.pageToken);
+    const suffix = query.size > 0 ? `?${query}` : '';
+    return this.json(
+      'GET',
+      `/projects/${encodeURIComponent(projectId)}/artifacts${suffix}`
+    );
   }
 
   getArtifact(projectId: string, artifactId: string): Promise<ArtifactAccess> {
@@ -393,6 +443,80 @@ export class EdgeTransport {
   }
 
   /**
+   * What the agent remembers between sessions, plus how full the scope is. The
+   * rows carry NO `content` — a scope is bounded per document, so a listing
+   * that returned every document would cost the whole scope to draw an index;
+   * read one with getMemory or search for the ones that matter.
+   *
+   * `scope` is a served name, not a free-form one: the deployment publishes the
+   * set it answers for on every catalog it returns, and one outside that set is
+   * the typed `memory_scope_denied` refusal rather than an empty listing.
+   */
+  listMemory(options: { scope?: string } = {}): Promise<MemoryCatalog> {
+    return this.json('GET', `/memory${memoryScopeQuery(options.scope)}`);
+  }
+
+  /**
+   * Ranked documents for a query, most relevant first, each WITH its content —
+   * a result the caller has to fetch again to read is a link to nowhere. The
+   * server decides the ranking; render the order it returned rather than
+   * re-sorting on `score`, which is not comparable across queries.
+   */
+  searchMemory(
+    query: string,
+    options: { scope?: string; k?: number } = {}
+  ): Promise<MemorySearchResult> {
+    const params = new URLSearchParams({ q: query });
+    if (options.scope !== undefined) params.set('scope', options.scope);
+    if (options.k !== undefined) params.set('k', String(options.k));
+    return this.json('GET', `/memory/search?${params.toString()}`);
+  }
+
+  getMemory(key: string, options: { scope?: string } = {}): Promise<MemoryDoc> {
+    return this.json(
+      'GET',
+      `/memory/${encodeURIComponent(key)}${memoryScopeQuery(options.scope)}`
+    );
+  }
+
+  /**
+   * Writes a document whole, creating or replacing it. PUT is naturally
+   * idempotent, so no Idempotency-Key. The result carries usage when the server
+   * reported it: the moment to tell someone a scope is nearly full is the
+   * moment they just added to it. An ABSENT usage is a missing reading, never a
+   * full scope.
+   */
+  putMemory(
+    key: string,
+    content: string,
+    options: { scope?: string } = {}
+  ): Promise<MemoryWriteResult> {
+    return this.json(
+      'PUT',
+      `/memory/${encodeURIComponent(key)}${memoryScopeQuery(options.scope)}`,
+      { body: { content } satisfies MemoryWriteRequest }
+    );
+  }
+
+  deleteMemory(key: string, options: { scope?: string } = {}): Promise<void> {
+    // Idempotent server-side: deleting what is already gone is the state the
+    // caller asked for, so it answers 204 either way.
+    return this.json(
+      'DELETE',
+      `/memory/${encodeURIComponent(key)}${memoryScopeQuery(options.scope)}`
+    );
+  }
+
+  /** Forgets every document in the scope, reporting how many it removed. */
+  clearMemory(options: { scope?: string } = {}): Promise<MemoryCleared> {
+    return this.json(
+      'POST',
+      `/memory/clear${memoryScopeQuery(options.scope)}`,
+      { headers: { 'Idempotency-Key': newIdempotencyKey() } }
+    );
+  }
+
+  /**
    * Who this API key says the caller is. This is the one call that verifies a
    * pasted key: a bad key answers 401 before anything else in the app runs.
    * `key_management` says whether the key routes below will work here at all —
@@ -436,6 +560,85 @@ export class EdgeTransport {
    */
   revokeKey(keyId: string): Promise<void> {
     return this.json('DELETE', `/keys/${encodeURIComponent(keyId)}`);
+  }
+
+  /**
+   * The tenant's Spaces, newest first, each carrying how many Projects it
+   * holds — closed ones included, because a Space whose work is finished still
+   * holds it.
+   */
+  listSpaces(
+    options: { pageSize?: number; pageToken?: string } = {}
+  ): Promise<SpaceList> {
+    const query = new URLSearchParams();
+    if (options.pageSize !== undefined) {
+      query.set('page_size', String(options.pageSize));
+    }
+    if (options.pageToken) query.set('page_token', options.pageToken);
+    const suffix = query.size > 0 ? `?${query}` : '';
+    return this.json('GET', `/spaces${suffix}`);
+  }
+
+  /**
+   * Creates a Space. The key is scoped to the tenant, so a retried create
+   * replays the Space it already made rather than minting a second one under
+   * the same name — a duplicate no later read could tell apart.
+   */
+  createSpace(request: CreateSpaceRequest): Promise<Space> {
+    return this.json('POST', '/spaces', {
+      body: request,
+      headers: { 'Idempotency-Key': newIdempotencyKey() },
+    });
+  }
+
+  getSpace(spaceId: string): Promise<Space> {
+    return this.json('GET', `/spaces/${encodeURIComponent(spaceId)}`);
+  }
+
+  /**
+   * Replaces name and description whole, and answers with the Space AND its
+   * count, so the row the caller just edited renders without a second read.
+   * Status is not editable here: a rename must never un-shelve a Space.
+   */
+  updateSpace(spaceId: string, request: UpdateSpaceRequest): Promise<Space> {
+    return this.json('PUT', `/spaces/${encodeURIComponent(spaceId)}`, {
+      body: request,
+    });
+  }
+
+  /**
+   * Removes an EMPTY Space. One that still holds Projects answers 409
+   * `space_in_use` rather than taking its Projects with it.
+   */
+  deleteSpace(spaceId: string): Promise<void> {
+    return this.json('DELETE', `/spaces/${encodeURIComponent(spaceId)}`);
+  }
+
+  /** Puts a Space away. What it holds stays filed under it and stays listable. */
+  archiveSpace(spaceId: string): Promise<Space> {
+    return this.json('POST', `/spaces/${encodeURIComponent(spaceId)}/archive`);
+  }
+
+  unarchiveSpace(spaceId: string): Promise<Space> {
+    return this.json('POST', `/spaces/${encodeURIComponent(spaceId)}/unarchive`);
+  }
+
+  /**
+   * Files a Project under a Space. Filing changes what a listing shows, never
+   * what a run does. Unfiling is its own verb below rather than this one with
+   * an empty id, so each request means exactly one thing.
+   */
+  setProjectSpace(projectId: string, spaceId: string): Promise<Project> {
+    return this.json('PUT', `/projects/${encodeURIComponent(projectId)}/space`, {
+      body: { space_id: spaceId },
+    });
+  }
+
+  clearProjectSpace(projectId: string): Promise<Project> {
+    return this.json(
+      'DELETE',
+      `/projects/${encodeURIComponent(projectId)}/space`
+    );
   }
 
   /**

@@ -12,11 +12,9 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { proxyFetchDelete } from '@/api/http';
 import AlertDialog from '@/components/ui/alertDialog';
 import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import { useAionMode, visibleInMode } from '@/hooks/useAionMode';
-import { share } from '@/lib/share';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -30,12 +28,11 @@ import {
 } from './context';
 import { useAionProjects } from './hooks/useAionProjects';
 import { useAionSchedules } from './hooks/useAionSchedules';
+import { useAionSpaces } from './hooks/useAionSpaces';
 import { useHomeHubCounts } from './hooks/useHomeHubCounts';
 import { useHomeHubProjects } from './hooks/useHomeHubProjects';
-import { useHomeHubTriggers } from './hooks/useHomeHubTriggers';
 import Projects from './Projects';
 import Spaces from './Spaces';
-import Tasks from './Tasks';
 import Triggers from './Triggers';
 import {
   capitalizeLabel,
@@ -43,13 +40,7 @@ import {
   readStoredHomeViewMode,
 } from './utils';
 
-const HOME_SECTIONS = [
-  'spaces',
-  'projects',
-  'tasks',
-  'triggers',
-  'usage',
-] as const;
+const HOME_SECTIONS = ['spaces', 'projects', 'triggers', 'usage'] as const;
 type HomeSection = (typeof HOME_SECTIONS)[number];
 
 // Only aion meters what a run costs, so the section is absent — not empty —
@@ -69,14 +60,12 @@ export default function HomeHub() {
   const { chatStore } = useChatStoreAdapter();
   const {
     projects,
-    loading: projectsLoading,
-    removeTaskFromProjects,
     handleProjectRename,
     handleProjectDelete: hubHandleProjectDelete,
   } = useHomeHubProjects();
-  const { triggers, triggersLoading, reloadTriggers } = useHomeHubTriggers();
   const aionProjects = useAionProjects();
   const aionSchedules = useAionSchedules();
+  const aionSpaces = useAionSpaces();
   const sectionCounts = useHomeHubCounts(
     projects,
     // Only aion mode owns the count. A mode that cannot serve the list at all
@@ -86,12 +75,10 @@ export default function HomeHub() {
       : undefined,
     aionSchedules.mode?.kind === 'remote'
       ? aionSchedules.schedules.length
-      : undefined
+      : undefined,
+    aionSpaces.mode?.kind === 'remote' ? aionSpaces.spaces.length : undefined
   );
 
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deleteCallback, setDeleteCallback] = useState<() => void>(() => {});
-  const [curHistoryId, setCurHistoryId] = useState('');
   const [deleteProjectModalOpen, setDeleteProjectModalOpen] = useState(false);
   const [curProjectId, setCurProjectId] = useState('');
   const [projectDeleteCallback, setProjectDeleteCallback] = useState<
@@ -112,11 +99,6 @@ export default function HomeHub() {
             id: 'projects' as const,
             name: capitalizeLabel(t('layout.projects')),
             count: sectionCounts.projects,
-          },
-          {
-            id: 'tasks' as const,
-            name: capitalizeLabel(t('layout.tasks')),
-            count: sectionCounts.tasks,
           },
           {
             id: 'triggers' as const,
@@ -168,30 +150,6 @@ export default function HomeHub() {
     navigate(`?tab=home&section=${tabId}`, { replace: true });
   };
 
-  const handleDelete = (id: string, callback?: () => void) => {
-    setCurHistoryId(id);
-    setDeleteModalOpen(true);
-    if (callback) setDeleteCallback(callback);
-  };
-
-  const confirmDelete = async () => {
-    const id = curHistoryId;
-    if (!id) return;
-    try {
-      await proxyFetchDelete(`/api/v1/chat/history/${id}`);
-      if (chatStore?.tasks?.[id]) {
-        chatStore.removeTask(id);
-      }
-      removeTaskFromProjects(id);
-    } catch (error) {
-      console.error('Failed to delete history task:', error);
-    } finally {
-      setCurHistoryId('');
-      setDeleteModalOpen(false);
-      deleteCallback();
-    }
-  };
-
   const handleProjectDelete = (projectId: string) => {
     hubHandleProjectDelete(projectId, (deleteCallbackFn) => {
       setCurProjectId(projectId);
@@ -215,10 +173,6 @@ export default function HomeHub() {
     }
   };
 
-  const handleShare = async (taskId: string) => {
-    share(taskId);
-  };
-
   const hubContextValue = useMemo(
     () => ({
       viewMode,
@@ -230,15 +184,10 @@ export default function HomeHub() {
       sortDirection,
       setSortDirection,
       projects,
-      projectsLoading,
       aionProjects,
       aionSchedules,
-      triggers,
-      triggersLoading,
-      reloadTriggers,
+      aionSpaces,
       chatTasks: chatStore?.tasks,
-      onTaskDelete: handleDelete,
-      onTaskShare: handleShare,
       onProjectDelete: handleProjectDelete,
       onProjectRename: handleProjectRename,
       activeTaskId: chatStore?.activeTaskId || undefined,
@@ -252,12 +201,9 @@ export default function HomeHub() {
       sortBy,
       sortDirection,
       projects,
-      projectsLoading,
       aionProjects,
       aionSchedules,
-      triggers,
-      triggersLoading,
-      reloadTriggers,
+      aionSpaces,
       chatStore?.tasks,
       chatStore?.activeTaskId,
     ]
@@ -265,16 +211,6 @@ export default function HomeHub() {
 
   return (
     <HomeHubProvider value={hubContextValue}>
-      <AlertDialog
-        isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        onConfirm={confirmDelete}
-        title={t('layout.delete-task')}
-        message={t('layout.delete-task-confirmation')}
-        confirmText={t('layout.delete')}
-        cancelText={t('layout.cancel')}
-      />
-
       <AlertDialog
         isOpen={deleteProjectModalOpen}
         onClose={() => setDeleteProjectModalOpen(false)}
@@ -298,7 +234,6 @@ export default function HomeHub() {
         <div className="w-full min-w-0 flex-1">
           {activeTab === 'spaces' && <Spaces />}
           {activeTab === 'projects' && <Projects />}
-          {activeTab === 'tasks' && <Tasks />}
           {activeTab === 'triggers' && <Triggers />}
           {activeTab === 'usage' && <AionUsage />}
         </div>

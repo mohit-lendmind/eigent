@@ -355,6 +355,7 @@
   "aion-submit": "Crea trigger",
   "aion-once": "Una volta",
   "aion-empty": "Nessun trigger. Un trigger esegue un’attività a cadenza mentre non ci sei.",
+  "aion-local": "I trigger richiedono un backend collegato. Questo desktop non ne ha uno, quindi nulla pianifica ancora attività per te.",
   "aion-no-projects": "Crea prima un progetto: un trigger esegue la sua attività al suo interno.",
   "aion-backend-too-old": "I trigger non sono disponibili: il backend collegato (API edge {{version}}) non li fornisce. Aggiorna il backend per gestirli qui.",
   "aion-remote-error": "Impossibile caricare i tuoi trigger: {{message}}",

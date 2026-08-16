@@ -14,7 +14,6 @@
 
 import BrowserAgentWorkspace from '@/components/BrowserAgentWorkspace';
 import Folder from '@/components/Folder';
-import TerminalAgentWorkspace from '@/components/TerminalAgentWorkspace';
 import Workflow from '@/components/WorkFlow';
 import WorkforceMenu from '@/components/WorkforceMenu';
 import { Button } from '@/components/ui/button';
@@ -76,13 +75,6 @@ function WorkforceOverlayCanvas({
               <Workflow taskAssigning={activeTask.taskAssigning || []} />
             </div>
           </div>
-        </div>
-      )}
-      {activeTask.taskAssigning?.find(
-        (agent) => agent.agent_id === activeWorkSpace
-      )?.type === 'developer_agent' && (
-        <div className="flex h-full w-full flex-1">
-          <TerminalAgentWorkspace selectedTurn={selectedTurn} />
         </div>
       )}
       {activeWorkSpace === 'documentWorkSpace' && (

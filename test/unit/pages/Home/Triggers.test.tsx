@@ -27,8 +27,6 @@ vi.mock('react-i18next', async () => {
     triggers,
   };
   return {
-    // The legacy body's import graph reaches src/i18n, which initialises the
-    // real instance; the stub below is what keeps that import side-effect free.
     initReactI18next: { type: '3rdParty', init: () => {} },
     useTranslation: () => ({
       t: (key: string, options?: Record<string, unknown>) => {
@@ -111,14 +109,6 @@ function renderWith(
   const ledgers = overrides.ledgers ?? {};
   mocks.hub = {
     searchQuery: overrides.searchQuery ?? '',
-    // What the legacy hosted-cloud body reads. Empty on an aion desktop, which
-    // is the whole reason the dispatcher exists.
-    viewMode: 'list',
-    sortBy: 'created',
-    sortDirection: 'desc',
-    triggers: [],
-    triggersLoading: false,
-    reloadTriggers: vi.fn(),
     aionProjects: { projects: overrides.projects ?? [] },
     aionSchedules: {
       mode,
@@ -151,17 +141,21 @@ beforeEach(() => {
 });
 
 describe('Home Triggers mode branch', () => {
-  it('waits for the negotiation instead of showing either plane', () => {
+  it('waits for the negotiation instead of claiming a state', () => {
     renderWith(null);
     expect(screen.queryByTestId('aion-triggers')).toBeNull();
-    // The legacy empty state is the tell that the hosted-cloud body rendered.
-    expect(screen.queryByText('No triggers yet')).toBeNull();
+    expect(screen.queryByTestId('aion-triggers-banner')).toBeNull();
   });
 
-  it('renders the legacy hosted-cloud body in local mode', () => {
+  it('says there is no backend rather than showing an empty list in local mode', () => {
     renderWith({ kind: 'local' });
-    expect(screen.getByText('No triggers yet')).toBeTruthy();
+    // An empty aion list would read as "you have no triggers"; with no
+    // transport the truthful claim is that nothing is scheduling anything.
+    expect(
+      screen.getByTestId('aion-triggers-banner').textContent
+    ).toContain('need a connected backend');
     expect(screen.queryByTestId('aion-triggers')).toBeNull();
+    expect(screen.queryByTestId('aion-triggers-empty')).toBeNull();
   });
 
   it('names the version a too-old backend reported', () => {
@@ -173,7 +167,7 @@ describe('Home Triggers mode branch', () => {
     expect(screen.queryByTestId('aion-triggers-empty')).toBeNull();
   });
 
-  it('shows a remote error rather than degrading to the legacy plane', () => {
+  it('shows a remote error rather than an empty list', () => {
     renderWith({ kind: 'error', message: 'edge unreachable' });
     expect(
       screen.getByTestId('aion-triggers-banner').textContent

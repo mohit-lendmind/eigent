@@ -40,18 +40,6 @@ const LIST_COLUMNS: Record<HomeHubItemKind, HomeHubListColumn[]> = {
     { id: 'triggers', labelKey: 'layout.triggers', align: 'right' },
     { id: 'updated', labelKey: 'layout.home-list-updated', align: 'right' },
   ],
-  task: [
-    { id: 'name', labelKey: 'layout.home-list-name' },
-    { id: 'space', labelKey: 'layout.home-list-space' },
-    { id: 'created', labelKey: 'layout.home-list-created', align: 'right' },
-  ],
-  trigger: [
-    { id: 'name', labelKey: 'layout.home-list-name' },
-    { id: 'space', labelKey: 'layout.home-list-space' },
-    { id: 'type', labelKey: 'layout.home-list-type' },
-    { id: 'status', labelKey: 'layout.home-list-status' },
-    { id: 'created', labelKey: 'layout.home-list-created', align: 'right' },
-  ],
 };
 
 type HomeHubListTableProps = {

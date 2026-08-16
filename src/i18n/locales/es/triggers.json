@@ -355,6 +355,7 @@
   "aion-submit": "Crear disparador",
   "aion-once": "Una vez",
   "aion-empty": "Aún no hay disparadores. Un disparador ejecuta una tarea con cadencia mientras usted no está.",
+  "aion-local": "Los disparadores necesitan un backend conectado. Este escritorio no está conectado a ninguno, así que todavía nada programa tareas por usted.",
   "aion-no-projects": "Cree primero un proyecto: un disparador ejecuta su tarea dentro de uno.",
   "aion-backend-too-old": "Los disparadores no están disponibles: el backend conectado (API edge {{version}}) no los sirve. Actualice el backend para gestionarlos aquí.",
   "aion-remote-error": "No se pudieron cargar sus disparadores: {{message}}",

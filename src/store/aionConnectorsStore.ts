@@ -11,6 +11,7 @@
 
 import { supportsConnectors } from '@/api/aion/v1/compat';
 import { EdgeTransport, type Connector } from '@/api/aion/v1/transport';
+import { useEffect, useState } from 'react';
 import { getAionRemoteConfig } from './aionChatBridge';
 
 /**
@@ -184,4 +185,33 @@ export async function disconnectAionConnector(
   await transport.disconnectConnector(connectorId);
   invalidateAionConnectors();
   return loadAionConnectors();
+}
+
+/**
+ * Display names of the connectors this caller has actually granted. Used to
+ * recognise a connector's tools by name when they appear in a trajectory —
+ * a read-only view of the catalog, so a failure resolves to no names rather
+ * than an error the caller has nothing to do with.
+ */
+export function useAionConnectorNames(): string[] {
+  const [names, setNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadAionConnectors()
+      .then((catalog) => {
+        if (cancelled) return;
+        setNames(
+          catalog.filter((c) => c.connected).map((c) => c.displayName)
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setNames([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return names;
 }

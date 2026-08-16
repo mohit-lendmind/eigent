@@ -15,17 +15,12 @@
 import AlertDialog from '@/components/ui/alertDialog';
 import { Input } from '@/components/ui/input';
 import { useSpaceStore } from '@/store/spaceStore';
-import { TriggerStatus } from '@/types';
 import {
   Folder,
   FolderKanban,
-  ListChecks,
   Loader2,
   Pencil,
-  Power,
-  Share2,
   Trash2,
-  Zap,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -42,23 +37,15 @@ import {
   HomeHubProjectCardBody,
   HomeHubSpaceBoardCardBody,
   HomeHubSpaceCardBody,
-  HomeHubTaskBoardCardBody,
-  HomeHubTaskCardBody,
-  HomeHubTriggerBoardCardBody,
-  HomeHubTriggerCardBody,
   resolveProjectTokenCount,
   type HomeHubItemKind,
   type HomeHubProjectItemProps,
   type HomeHubSpaceItemProps,
-  type HomeHubTaskItemProps,
-  type HomeHubTriggerItemProps,
 } from './HomeHubItemShared';
 
 export type HomeHubCardProps = (
   | ({ kind: 'space' } & Omit<HomeHubSpaceItemProps, 'layout'>)
   | ({ kind: 'project' } & Omit<HomeHubProjectItemProps, 'layout'>)
-  | ({ kind: 'task' } & Omit<HomeHubTaskItemProps, 'layout'>)
-  | ({ kind: 'trigger' } & Omit<HomeHubTriggerItemProps, 'layout'>)
 ) & { kind: HomeHubItemKind };
 
 function SpaceItemContent({
@@ -72,8 +59,8 @@ function SpaceItemContent({
 }: HomeHubSpaceItemProps) {
   const { t } = useTranslation();
   const { openSpace } = useHomeHubNavigation();
-  const renameSpaceOnServer = useSpaceStore((s) => s.renameSpaceOnServer);
-  const deleteSpaceOnServer = useSpaceStore((s) => s.deleteSpaceOnServer);
+  const updateSpace = useSpaceStore((s) => s.updateSpace);
+  const deleteSpace = useSpaceStore((s) => s.deleteSpace);
 
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameValue, setRenameValue] = useState('');
@@ -90,7 +77,7 @@ function SpaceItemContent({
     if (!nextName || renaming || !canManage) return;
     setRenaming(true);
     try {
-      await renameSpaceOnServer(space.id, nextName);
+      updateSpace(space.id, { name: nextName });
       toast.success(t('layout.spaces-rename-success'));
       setRenameDialogOpen(false);
     } catch (error) {
@@ -99,13 +86,13 @@ function SpaceItemContent({
     } finally {
       setRenaming(false);
     }
-  }, [canManage, renameSpaceOnServer, renameValue, renaming, space.id, t]);
+  }, [canManage, renameValue, renaming, space.id, t, updateSpace]);
 
   const handleDelete = useCallback(async () => {
     if (deleting || !canManage) return;
     setDeleting(true);
     try {
-      await deleteSpaceOnServer(space.id);
+      deleteSpace(space.id);
       setDeleteDialogOpen(false);
     } catch (error) {
       console.warn('[HomeHubCard] Failed to delete Space:', error);
@@ -117,7 +104,7 @@ function SpaceItemContent({
     } finally {
       setDeleting(false);
     }
-  }, [canManage, deleteSpaceOnServer, deleting, space.id, t]);
+  }, [canManage, deleteSpace, deleting, space.id, t]);
 
   const menuItems = [
     {
@@ -380,184 +367,12 @@ function ProjectItemContent({
   );
 }
 
-function TaskItemContent({
-  task,
-  spaceLabel,
-  project,
-  onDelete,
-  onShare,
-  layout,
-}: HomeHubTaskItemProps) {
-  const { t } = useTranslation();
-  const { openTask, loadingProjectId } = useHomeHubNavigation();
-  const loading = loadingProjectId === task.project_id;
-  const title = task.question?.trim() || t('layout.new-project');
-  const projectName =
-    project?.project_name?.trim() || task.project_name?.trim() || '';
-  const menuItems = [
-    {
-      label: t('layout.share', { defaultValue: 'Share' }),
-      icon: <Share2 className="h-4 w-4" aria-hidden />,
-      onSelect: onShare,
-    },
-    {
-      label: t('layout.delete'),
-      icon: <Trash2 className="h-4 w-4 text-ds-icon-error-default-default" />,
-      onSelect: onDelete,
-      destructive: true,
-    },
-  ];
-
-  return (
-    <HomeHubItemShell
-      onClick={() => void openTask(task, project)}
-      layout={layout}
-      kind="task"
-      menuItems={menuItems}
-      className={loading ? 'relative' : undefined}
-    >
-      {loading ? (
-        <div className="inset-0 absolute z-10 flex items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-ds-icon-neutral-default-default" />
-        </div>
-      ) : null}
-      {layout === 'list' ? (
-        <HomeHubItemBody
-          title={title}
-          nameIcon={<ListChecks className="h-4 w-4" />}
-          listCells={[
-            { id: 'space', content: spaceLabel || '—' },
-            {
-              id: 'created',
-              content:
-                formatHubCreatedTime(task.created_at || task.updated_at) || '—',
-              align: 'right',
-              textSize: 'xs',
-            },
-          ]}
-        />
-      ) : layout === 'board' ? (
-        <HomeHubTaskBoardCardBody
-          title={title}
-          tokenCount={task.tokens || 0}
-          projectName={projectName}
-          spaceLabel={spaceLabel}
-          menuItems={menuItems}
-        />
-      ) : (
-        <HomeHubTaskCardBody
-          title={title}
-          tokenCount={task.tokens || 0}
-          projectName={projectName}
-          spaceLabel={spaceLabel}
-          updatedAt={task.created_at || task.updated_at}
-          menuItems={menuItems}
-        />
-      )}
-    </HomeHubItemShell>
-  );
-}
-
-function TriggerItemContent({
-  trigger,
-  spaceLabel,
-  triggerTypeLabel,
-  onEdit,
-  onDelete,
-  onToggleActive,
-  layout,
-}: HomeHubTriggerItemProps) {
-  const { t } = useTranslation();
-  const { openTrigger } = useHomeHubNavigation();
-  const isActive = trigger.status === TriggerStatus.Active;
-  const statusLabel = isActive
-    ? t('triggers.status.active')
-    : t('triggers.status.inactive');
-  const menuItems = [
-    {
-      label: t('triggers.edit'),
-      icon: <Pencil className="h-4 w-4" aria-hidden />,
-      onSelect: () => onEdit(trigger),
-    },
-    {
-      label: isActive
-        ? t('triggers.deactivate', { defaultValue: 'Deactivate' })
-        : t('triggers.activate', { defaultValue: 'Activate' }),
-      icon: <Power className="h-4 w-4" aria-hidden />,
-      onSelect: () => onToggleActive(trigger),
-    },
-    {
-      label: t('triggers.delete'),
-      icon: <Trash2 className="h-4 w-4 text-ds-icon-error-default-default" />,
-      onSelect: () => onDelete(trigger),
-      destructive: true,
-    },
-  ];
-
-  return (
-    <HomeHubItemShell
-      onClick={() => void openTrigger(trigger)}
-      layout={layout}
-      kind="trigger"
-      menuItems={menuItems}
-    >
-      {layout === 'list' ? (
-        <HomeHubItemBody
-          title={trigger.name}
-          nameIcon={<Zap className="h-4 w-4" />}
-          listCells={[
-            { id: 'space', content: spaceLabel || '—' },
-            { id: 'type', content: triggerTypeLabel },
-            { id: 'status', content: statusLabel },
-            {
-              id: 'created',
-              content:
-                formatHubCreatedTime(
-                  trigger.created_at || trigger.last_executed_at
-                ) || '—',
-              align: 'right',
-              textSize: 'xs',
-            },
-          ]}
-        />
-      ) : layout === 'board' ? (
-        <HomeHubTriggerBoardCardBody
-          title={trigger.name}
-          triggerTypeLabel={triggerTypeLabel}
-          executionCount={trigger.execution_count ?? 0}
-          spaceLabel={spaceLabel}
-          isActive={isActive}
-          activeLabel={t('triggers.status.active')}
-          inactiveLabel={t('triggers.status.inactive')}
-          menuItems={menuItems}
-        />
-      ) : (
-        <HomeHubTriggerCardBody
-          title={trigger.name}
-          triggerTypeLabel={triggerTypeLabel}
-          executionCount={trigger.execution_count ?? 0}
-          spaceLabel={spaceLabel}
-          isActive={isActive}
-          activeLabel={t('triggers.status.active')}
-          inactiveLabel={t('triggers.status.inactive')}
-          updatedAt={trigger.updated_at || trigger.last_executed_at}
-          menuItems={menuItems}
-        />
-      )}
-    </HomeHubItemShell>
-  );
-}
-
 export function HomeHubBoardCard(props: HomeHubCardProps) {
   switch (props.kind) {
     case 'space':
       return <SpaceItemContent {...props} layout="board" />;
     case 'project':
       return <ProjectItemContent {...props} layout="board" />;
-    case 'task':
-      return <TaskItemContent {...props} layout="board" />;
-    case 'trigger':
-      return <TriggerItemContent {...props} layout="board" />;
     default:
       return null;
   }
@@ -569,10 +384,6 @@ export default function HomeHubCard(props: HomeHubCardProps) {
       return <SpaceItemContent {...props} layout="card" />;
     case 'project':
       return <ProjectItemContent {...props} layout="card" />;
-    case 'task':
-      return <TaskItemContent {...props} layout="card" />;
-    case 'trigger':
-      return <TriggerItemContent {...props} layout="card" />;
     default:
       return null;
   }
@@ -582,18 +393,12 @@ export function HomeHubListItem(
   props:
     | ({ kind: 'space' } & Omit<HomeHubSpaceItemProps, 'layout'>)
     | ({ kind: 'project' } & Omit<HomeHubProjectItemProps, 'layout'>)
-    | ({ kind: 'task' } & Omit<HomeHubTaskItemProps, 'layout'>)
-    | ({ kind: 'trigger' } & Omit<HomeHubTriggerItemProps, 'layout'>)
 ) {
   switch (props.kind) {
     case 'space':
       return <SpaceItemContent {...props} layout="list" />;
     case 'project':
       return <ProjectItemContent {...props} layout="list" />;
-    case 'task':
-      return <TaskItemContent {...props} layout="list" />;
-    case 'trigger':
-      return <TriggerItemContent {...props} layout="list" />;
     default:
       return null;
   }

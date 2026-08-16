@@ -86,12 +86,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   uploadLog: (email: string, taskId: string, baseUrl: string, token: string) =>
     ipcRenderer.invoke('upload-log', email, taskId, baseUrl, token),
   // mcp
-  mcpInstall: (name: string, mcp: any) =>
-    ipcRenderer.invoke('mcp-install', name, mcp),
-  mcpRemove: (name: string) => ipcRenderer.invoke('mcp-remove', name),
-  mcpUpdate: (name: string, mcp: any) =>
-    ipcRenderer.invoke('mcp-update', name, mcp),
-  mcpList: () => ipcRenderer.invoke('mcp-list'),
   envWrite: (email: string, kv: { key: string; value: string }) =>
     ipcRenderer.invoke('env-write', email, kv),
   envRemove: (email: string, key: string) =>

@@ -112,7 +112,7 @@ const components = [...seen.values()]
     type: 'library',
     name,
     version,
-    purl: `pkg:npm/${name.replace('@', '%40')}@${version}`,
+    purl: `pkg:npm/${name.replaceAll('@', '%40')}@${version}`,
     ...(integrity ? { hashes: [{ alg: 'SHA-512', content: integrity }] } : {}),
   }));
 

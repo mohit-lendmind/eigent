@@ -25,6 +25,7 @@ import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import { useSelectedProjectTurn } from '@/hooks/useSelectedProjectTurn';
 import { cn } from '@/lib/utils';
 import { usePageTabStore } from '@/store/pageTabStore';
+import { useAionConnectorNames } from '@/store/aionConnectorsStore';
 import { useSkillsStore } from '@/store/skillsStore';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -83,15 +84,17 @@ export function SingleAgentSidePanel() {
     });
   }, [selectedTask]);
   const skills = useSkillsStore((s) => s.skills);
+  const connectorNames = useAionConnectorNames();
   const contextItems = useMemo(
     () =>
       buildContextItems(
         agents,
         selectedTask?.taskRunning,
         uploadedFiles,
-        skills
+        skills,
+        connectorNames
       ),
-    [agents, selectedTask?.taskRunning, uploadedFiles, skills]
+    [agents, selectedTask?.taskRunning, uploadedFiles, skills, connectorNames]
   );
 
   const handleOpenAgentFile = useCallback(

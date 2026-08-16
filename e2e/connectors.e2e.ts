@@ -109,7 +109,9 @@ test.beforeAll(async () => {
   if (edgeReady) {
     const catalog = await fetchCatalog();
     connectorsConfigured =
-      catalog !== null && catalog.some((c) => c.connector_id === CONNECTOR_ID);
+      catalog !== null &&
+      catalog.some((c) => c.connector_id === CONNECTOR_ID) &&
+      (await grantPlaneArmed());
   }
   if (PACKAGED_SOURCE) {
     packaged = installPackagedApp(PACKAGED_SOURCE);
@@ -262,6 +264,23 @@ async function servedRow(connectorId: string): Promise<EdgeConnector> {
   const row = catalog?.find((c) => c.connector_id === connectorId);
   if (!row) throw new Error(`connector ${connectorId} absent from the catalog`);
   return row;
+}
+
+/**
+ * Whether the grant plane — not just the catalog — is armed. The catalog is
+ * served from static config and says nothing about the connector vault this
+ * suite writes to, so a stack without the DEK lists the row and then answers
+ * 501 connectors_not_configured on the first grant call. The probe is the
+ * idempotent revoke the suite opens with anyway: on an armed stack it does the
+ * normalizing it would have done, and on an unarmed one it is what the guard
+ * needed to know.
+ */
+async function grantPlaneArmed(): Promise<boolean> {
+  const response = await edgeFetch(
+    'DELETE',
+    `/connectors/${encodeURIComponent(CONNECTOR_ID)}/grant`
+  );
+  return response.status !== 501;
 }
 
 /** Soft revoke, idempotent — used to normalize the starting state. */

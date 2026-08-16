@@ -257,7 +257,6 @@ async function newSpace(page: Page): Promise<ReturnType<Page['locator']>> {
   await page.reload();
   await page.locator('#active-space-title-btn').click();
   await page.getByText('Create a new space', { exact: true }).first().click();
-  await page.getByText('Start from scratch', { exact: true }).first().click();
   const composer = page
     .locator('[role="textbox"][contenteditable="true"]')
     .first();

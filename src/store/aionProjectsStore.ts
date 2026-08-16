@@ -35,6 +35,11 @@ export interface AionProject {
   activeRun?: { runId: string; runEpoch: string; status: string };
   /** Last event sequence, the cursor a resumed subscription starts from. */
   lastSequence: string;
+  /**
+   * The Space this Project is filed under, absent when it is filed nowhere —
+   * which a surface renders differently from a Space named "".
+   */
+  spaceId?: string;
 }
 
 export interface AionProjectPage {
@@ -122,11 +127,15 @@ export function invalidateAionProjects(): void {
  * the first page; with a token from a prior page it walks forward. A token is
  * only ever present when the edge said there are entries behind it, so a "load
  * more" never lands on an empty page.
+ *
+ * A `spaceId` narrows the walk to one Space and is never cached: the cache
+ * holds the unfiltered head, and answering a filtered read from it would show
+ * the tenant's whole list under one Space's name.
  */
 export function listAionProjects(
-  options: { pageToken?: string; pageSize?: number } = {}
+  options: { pageToken?: string; pageSize?: number; spaceId?: string } = {}
 ): Promise<AionProjectPage> {
-  if (options.pageToken) {
+  if (options.pageToken || options.spaceId) {
     return fetchPage(options);
   }
   firstPagePromise ??= fetchPage(options).catch((error) => {
@@ -139,11 +148,13 @@ export function listAionProjects(
 async function fetchPage(options: {
   pageToken?: string;
   pageSize?: number;
+  spaceId?: string;
 }): Promise<AionProjectPage> {
   const transport = await remoteTransport();
   const page = await transport.listProjects({
     pageToken: options.pageToken,
     pageSize: options.pageSize,
+    spaceId: options.spaceId,
   });
   return {
     projects: (page.projects ?? []).map(toUiProject),
@@ -174,6 +185,9 @@ function toUiProject(snapshot: ProjectSnapshot): AionProject {
         }
       : {}),
     lastSequence: snapshot.last_sequence,
+    // Filed nowhere is an omitted field, not an empty string, so a surface can
+    // tell "no Space" from a Space whose name happens to be blank.
+    ...(project.space_id ? { spaceId: project.space_id } : {}),
   };
 }
 

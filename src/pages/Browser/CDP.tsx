@@ -12,7 +12,6 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { fetchDelete, fetchGet, fetchPost } from '@/api/http';
 import AlertDialog from '@/components/ui/alertDialog';
 import { Button } from '@/components/ui/button';
 import { useHost } from '@/host';
@@ -46,16 +45,13 @@ export default function CDP() {
   const [connectError, setConnectError] = useState('');
   const isDesktopMode = !!electronAPI?.getCdpBrowsers;
 
+  // The pool lives in the main process: it owns the spawned Chrome processes
+  // and their debugging ports. Outside Electron there is nothing holding them,
+  // so the screen says so rather than listing a pool it cannot manage.
   const loadCdpBrowsers = async () => {
+    if (!electronAPI?.getCdpBrowsers) return;
     try {
-      if (electronAPI?.getCdpBrowsers) {
-        const browsers = await electronAPI.getCdpBrowsers();
-        setCdpBrowsers(browsers);
-        return;
-      }
-
-      const browsers = await fetchGet('/browser/cdp/list');
-      setCdpBrowsers(Array.isArray(browsers) ? browsers : []);
+      setCdpBrowsers(await electronAPI.getCdpBrowsers());
     } catch (error) {
       console.error('Failed to load CDP browsers:', error);
     }
@@ -76,22 +72,12 @@ export default function CDP() {
   const handleRemoveBrowser = async (browserId: string) => {
     setDeletingBrowser(browserId);
     try {
-      if (electronAPI?.removeCdpBrowser && isDesktopMode) {
+      if (electronAPI?.removeCdpBrowser) {
         const result = await electronAPI.removeCdpBrowser(browserId);
         if (result.success) {
           toast.success(t('layout.browser-removed'));
         } else {
           toast.error(result.error || t('layout.failed-to-remove-browser'));
-        }
-      } else if (browserToRemove) {
-        const result = await fetchDelete(
-          `/browser/cdp/${browserToRemove.port}`
-        );
-        if (result?.success) {
-          toast.success(t('layout.browser-removed'));
-          await loadCdpBrowsers();
-        } else {
-          toast.error(result?.error || t('layout.failed-to-remove-browser'));
         }
       }
     } catch (error: any) {
@@ -107,13 +93,8 @@ export default function CDP() {
       toast.loading(t('layout.launching-browser', { port: '...' }), {
         id: 'launch-browser',
       });
-      const result = isDesktopMode
-        ? await electronAPI?.launchCdpBrowser()
-        : await fetchPost('/browser/cdp/launch');
+      const result = await electronAPI?.launchCdpBrowser();
       if (result?.success) {
-        if (!isDesktopMode) {
-          await loadCdpBrowsers();
-        }
         toast.success(t('layout.browser-launched', { port: result.port }), {
           id: 'launch-browser',
         });
@@ -159,7 +140,7 @@ export default function CDP() {
     setConnectError('');
 
     try {
-      if (electronAPI?.addCdpBrowser && isDesktopMode) {
+      if (electronAPI?.addCdpBrowser) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
         const response = await fetch(
@@ -186,18 +167,6 @@ export default function CDP() {
           );
           return;
         }
-      } else {
-        const connectResult = await fetchPost('/browser/cdp/connect', {
-          port: portNum,
-          name: `External Browser (${portNum})`,
-        });
-        if (!connectResult?.success) {
-          setConnectError(
-            connectResult?.error || t('layout.failed-to-add-browser')
-          );
-          return;
-        }
-        await loadCdpBrowsers();
       }
 
       toast.success(t('layout.connected-browser', { port: portNum }));
@@ -209,8 +178,32 @@ export default function CDP() {
     }
   };
 
+  if (!isDesktopMode) {
+    return (
+      <div className="m-auto flex h-full w-full flex-1 flex-col">
+        <div className="z-10 flex w-full items-center justify-between px-6 pb-6 pt-8">
+          <div className="text-heading-sm font-bold text-ds-text-neutral-default-default">
+            {t('layout.cdp-browser-connection')}
+          </div>
+        </div>
+        <div className="flex min-h-[200px] w-full flex-col items-center justify-center rounded-2xl bg-ds-bg-neutral-default-default px-6 py-16">
+          <Globe className="mb-4 h-12 w-12 text-ds-icon-neutral-muted-default opacity-50" />
+          <p
+            className="text-center text-body-sm text-ds-text-neutral-muted-default"
+            data-testid="cdp-desktop-only"
+          >
+            {t('layout.cdp-desktop-only')}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="m-auto flex h-full w-full flex-1 flex-col">
+    <div
+      className="m-auto flex h-full w-full flex-1 flex-col"
+      data-testid="cdp-connections"
+    >
       <AlertDialog
         isOpen={!!browserToRemove}
         onClose={() => setBrowserToRemove(null)}

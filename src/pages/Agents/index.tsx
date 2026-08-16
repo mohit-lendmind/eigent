@@ -19,22 +19,15 @@ import VerticalNavigation, {
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAionMode, visibleInMode } from '@/hooks/useAionMode';
 import Memory from './Memory';
-import Models from './Models';
 import Skills from './Skills';
-import SubAgents from './SubAgents';
 
-const AGENT_SECTIONS = ['models', 'skills', 'sub-agents', 'memory'] as const;
+// The model catalog and the subagent roster are the operator's here, resolved
+// from the edge — the screens that used to edit them wrote provider settings
+// nothing on this plane reads, so they are gone rather than hidden. A deep link
+// to one still resolves, to the first section this plane does serve.
+const AGENT_SECTIONS = ['skills', 'memory'] as const;
 type AgentSection = (typeof AGENT_SECTIONS)[number];
-
-/**
- * Sections only the legacy plane can serve. Both configure providers through
- * Eigent's hosted cloud and validate them against the local backend this fork
- * removed; on aion the model catalog and the subagent roster are the
- * operator's, so these screens would let a user edit settings nothing reads.
- */
-const LEGACY_ONLY_SECTIONS: readonly AgentSection[] = ['models', 'sub-agents'];
 
 function isAgentSection(value: string | null): value is AgentSection {
   return value !== null && AGENT_SECTIONS.includes(value as AgentSection);
@@ -45,10 +38,9 @@ export default function Capabilities() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const sectionFromUrl = searchParams.get('section');
-  const aionMode = useAionMode();
 
   const [activeTab, setActiveTab] = useState<AgentSection>(() =>
-    isAgentSection(sectionFromUrl) ? sectionFromUrl : 'models'
+    isAgentSection(sectionFromUrl) ? sectionFromUrl : 'skills'
   );
 
   useEffect(() => {
@@ -57,40 +49,16 @@ export default function Capabilities() {
     }
   }, [sectionFromUrl]);
 
-  const menuItems = visibleInMode(
-    [
-      {
-        id: 'models' as const,
-        name: t('setting.models'),
-      },
-      {
-        id: 'skills' as const,
-        name: t('agents.skills'),
-      },
-      {
-        id: 'sub-agents' as const,
-        name: t('agents.sub-agents'),
-      },
-      {
-        id: 'memory' as const,
-        name: t('agents.memory'),
-      },
-    ],
-    aionMode,
-    LEGACY_ONLY_SECTIONS
-  );
-
-  // A hidden section is also unreachable by URL: `?section=models` on an aion
-  // stack renders nothing rather than a screen whose every write goes nowhere.
-  // While the mode is still unknown that also means rendering nothing, so a
-  // deep link never flashes the wrong screen on its way to the right one.
-  const shownTab: AgentSection | null = menuItems.some(
-    (menu) => menu.id === activeTab
-  )
-    ? activeTab
-    : aionMode === 'unknown'
-      ? null
-      : (menuItems[0]?.id ?? null);
+  const menuItems = [
+    {
+      id: 'skills' as const,
+      name: t('agents.skills'),
+    },
+    {
+      id: 'memory' as const,
+      name: t('agents.memory'),
+    },
+  ];
 
   const handleTabChange = (tabId: string) => {
     if (!menuItems.some((menu) => menu.id === tabId)) return;
@@ -112,7 +80,7 @@ export default function Capabilities() {
               ),
             })) as VerticalNavItem[]
           }
-          value={shownTab ?? ''}
+          value={activeTab}
           onValueChange={handleTabChange}
           className="h-full min-h-0 w-full flex-1 gap-0"
           listClassName="w-full h-full overflow-y-auto"
@@ -122,10 +90,8 @@ export default function Capabilities() {
 
       <div className="flex h-auto w-full flex-1 flex-col">
         <div className="flex flex-col gap-4">
-          {shownTab === 'models' && <Models />}
-          {shownTab === 'skills' && <Skills />}
-          {shownTab === 'sub-agents' && <SubAgents />}
-          {shownTab === 'memory' && <Memory />}
+          {activeTab === 'skills' && <Skills />}
+          {activeTab === 'memory' && <Memory />}
         </div>
       </div>
     </div>

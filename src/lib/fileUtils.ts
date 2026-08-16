@@ -12,7 +12,6 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { uploadFileToBrain } from '@/api/http';
 import { isWeb } from '@/client/platform';
 import type { FileAttachment } from '@/components/ChatBox/BottomBox/InputBox';
 import type { AppHost } from '@/host';
@@ -30,49 +29,13 @@ export async function processDroppedFiles(
   | { success: true; files: FileAttachment[]; added: number }
   | { success: false; error: string }
 > {
+  // An attachment is a path the agent's workspace can open, and only the
+  // desktop app can produce one. A browser tab has nowhere to put the bytes,
+  // so it says so instead of dropping them silently.
   if (isWeb()) {
-    const uploadedFiles: FileAttachment[] = [];
-
-    for (const droppedFile of droppedFiles) {
-      try {
-        const result = await uploadFileToBrain(droppedFile);
-        uploadedFiles.push({
-          fileName: result.filename,
-          filePath: result.file_id,
-          fileId: result.file_id,
-          source: 'upload',
-        });
-      } catch (error) {
-        console.error('[Drag-Drop] Upload failed:', droppedFile.name, error);
-      }
-    }
-
-    if (uploadedFiles.length === 0) {
-      return {
-        success: false,
-        error: 'Failed to upload dropped files.',
-      };
-    }
-
-    const mergedFiles = [
-      ...existingFiles.filter(
-        (existing) =>
-          !uploadedFiles.find(
-            (uploaded) => uploaded.filePath === existing.filePath
-          )
-      ),
-      ...uploadedFiles.filter(
-        (uploaded) =>
-          !existingFiles.find(
-            (existing) => existing.filePath === uploaded.filePath
-          )
-      ),
-    ];
-
     return {
-      success: true,
-      files: mergedFiles,
-      added: uploadedFiles.length,
+      success: false,
+      error: 'Attaching files requires the desktop app.',
     };
   }
 
@@ -124,8 +87,8 @@ export async function processDroppedFiles(
 
 /**
  * Process files pasted from the clipboard (e.g. screenshots). Pasted File
- * objects carry no filesystem path, so on desktop the bytes are persisted
- * through IPC first; on web they upload like dropped files.
+ * objects carry no filesystem path, so the bytes are persisted through IPC
+ * first; outside the desktop app they are refused like dropped files.
  */
 export async function processPastedFiles(
   pastedFiles: globalThis.File[],
