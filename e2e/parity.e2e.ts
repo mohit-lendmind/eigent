@@ -4,9 +4,13 @@
 // This is the standing regression gate against a dead screen coming back. Each
 // destination has to land in exactly one of three buckets and prove it:
 //
-//   served   — an aion-backed screen showing its own root, with its degraded
-//              banner absent (a banner means the screen is up but the plane
-//              behind it is not, which is the failure this gate exists to catch)
+//   served   — an aion-backed screen showing its own root, with EVERY degraded
+//              marker it can render absent (one of them showing means the screen
+//              is up and the plane behind it is not, which is the failure this
+//              gate exists to catch). A screen that lists rows draws two: the
+//              banner that replaces the surface when nothing loaded, and the
+//              error reported beside rows that did. Listing only the banner
+//              passes a screen that is telling the user it is broken.
 //   local    — a screen with no backend at all; it drives the desktop over IPC
 //   soon     — a placeholder that says so on screen
 //
@@ -79,7 +83,7 @@ const DESTINATIONS: Destination[] = [
     bucket: 'served',
     query: 'tab=home&section=projects',
     present: 'aion-projects',
-    absent: ['aion-projects-banner'],
+    absent: ['aion-projects-banner', 'aion-projects-error'],
   },
   {
     id: 'home/triggers',
@@ -93,7 +97,7 @@ const DESTINATIONS: Destination[] = [
     bucket: 'served',
     query: 'tab=home&section=usage',
     present: 'aion-usage',
-    absent: ['aion-usage-banner'],
+    absent: ['aion-usage-banner', 'aion-usage-error'],
   },
   {
     id: 'agents/skills',
@@ -107,14 +111,14 @@ const DESTINATIONS: Destination[] = [
     bucket: 'served',
     query: 'tab=agents&section=memory',
     present: 'aion-memory',
-    absent: ['aion-memory-banner'],
+    absent: ['aion-memory-banner', 'aion-memory-error'],
   },
   {
     id: 'connectors',
     bucket: 'served',
     query: 'tab=connectors',
     present: 'aion-connectors',
-    absent: ['aion-connectors-banner'],
+    absent: ['aion-connectors-banner', 'aion-connectors-error'],
   },
   {
     id: 'settings/account',

@@ -18,6 +18,7 @@ import type {
 const mocks = vi.hoisted(() => ({
   mode: { kind: 'remote' } as unknown,
   catalog: null as unknown,
+  loadError: null as string | null,
   doc: null as unknown,
   hits: [] as unknown[],
   write: vi.fn(),
@@ -28,7 +29,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/store/aionMemoryStore', () => ({
   getAionMemoryMode: async () => mocks.mode,
-  loadAionMemory: async () => mocks.catalog,
+  loadAionMemory: async () => {
+    if (mocks.loadError) throw new Error(mocks.loadError);
+    return mocks.catalog;
+  },
   invalidateAionMemory: () => {},
   readAionMemory: async (key: string) => {
     mocks.doc = key;
@@ -101,6 +105,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.mode = { kind: 'remote' } as AionMemoryMode;
   mocks.catalog = catalog();
+  mocks.loadError = null;
   mocks.hits = [];
 });
 
@@ -122,6 +127,19 @@ describe('Memory screen mode gating', () => {
     mocks.mode = { kind: 'error', message: 'edge unreachable' };
     await renderScreen();
     await screen.findByTestId('aion-memory-banner');
+    expect(screen.queryByTestId('aion-memory-row')).toBeNull();
+  });
+
+  it('reports a listing that failed as a failure, never as an empty scope', async () => {
+    // Mode is negotiated off the status probe and never consults the memory
+    // route, so a deployment that serves no memory scope resolves as remote and
+    // fails on the read. Saying "stored nothing" there would report an outage as
+    // a fact about the user's own memory.
+    mocks.loadError = '501 memory_not_configured: Memory not configured';
+    await renderScreen();
+    const banner = await screen.findByTestId('aion-memory-error');
+    expect(banner.textContent).toContain('memory_not_configured');
+    expect(screen.queryByTestId('aion-memory-empty')).toBeNull();
     expect(screen.queryByTestId('aion-memory-row')).toBeNull();
   });
 

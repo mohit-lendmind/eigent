@@ -270,6 +270,7 @@ export default function AionProjects({ mode }: { mode: AionProjectsMode }) {
               <div
                 className="px-3 pt-3 text-body-xs text-ds-text-status-error-strong-default"
                 role="alert"
+                data-testid="aion-projects-error"
               >
                 {t('layout.projects-remote-error', { message: error })}
               </div>

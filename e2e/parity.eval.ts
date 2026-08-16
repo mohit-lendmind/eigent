@@ -139,14 +139,21 @@ const ARTIFACT_NAME = `parity-${RUN_TAG}.md`;
 // The title the desktop sends is the first 120 characters of the prompt, so
 // each prompt opens with its own tag and the Projects screen row is findable
 // by a string this test chose.
+//
+// Both prompts name their tools exactly. "Use your memory tool" reads to a
+// model as a description of the outcome rather than an instruction to act, and
+// it answers STORED without calling anything — a claim this test would have to
+// disprove from the trajectory anyway. Naming the tool costs the proof nothing:
+// what is being proven is that the value survives into a DIFFERENT Project,
+// which no amount of prompt precision can fake.
 const WRITE_PROMPT =
-  `[${RUN_TAG}-remember] Use your memory tool to store the value ${CODENAME} ` +
-  `under the key ${MEMORY_KEY}. Do not create any files. When the memory is ` +
-  `written, reply with the single word STORED.`;
+  `[${RUN_TAG}-remember] Call the memory_write tool with key ${MEMORY_KEY} and ` +
+  `content ${CODENAME}. Do not create any files. Once the tool has returned, ` +
+  `reply with the single word STORED.`;
 const RECALL_PROMPT =
-  `[${RUN_TAG}-recall] Read the key ${MEMORY_KEY} from your memory. Then use ` +
-  `the write_file tool to create ${ARTIFACT_NAME} in the workspace whose only ` +
-  `line is the value you read. Finally reply with that value on its own line.`;
+  `[${RUN_TAG}-recall] Call the memory_read tool with key ${MEMORY_KEY}. Then ` +
+  `use the write_file tool to create ${ARTIFACT_NAME} in the workspace whose ` +
+  `only line is the value you read. Finally reply with that value on its own line.`;
 
 let packaged: PackagedInstall | null = null;
 
