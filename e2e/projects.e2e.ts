@@ -40,8 +40,11 @@ const PACKAGED_SOURCE = process.env.EIGENT_E2E_PACKAGED_APP;
 let packaged: PackagedInstall | null = null;
 
 // Seeded over the edge API, so the alias has to be one the stack's catalog
-// serves — an unknown alias is refused with 422 model_alias_denied.
-const MODEL_ALIAS = 'aion-default';
+// serves — an unknown alias is refused with 422 model_alias_denied. The
+// fixture stack seeds aion-default; a deployed cell's catalog is operator-owned
+// and names whatever that operator provisioned, so the same walk reaches a real
+// edge only if the alias is a parameter.
+const MODEL_ALIAS = process.env.EIGENT_E2E_MODEL ?? 'aion-default';
 
 interface Bootstrap {
   api_key: string;

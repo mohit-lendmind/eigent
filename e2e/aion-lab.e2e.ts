@@ -45,6 +45,11 @@ const EVIDENCE_DIR = process.env.EIGENT_E2E_EVIDENCE_DIR;
 const PACKAGED_SOURCE = process.env.EIGENT_E2E_PACKAGED_APP;
 let packaged: PackagedInstall | null = null;
 
+// The Lab renders the catalog the edge serves, so the row it must show is the
+// one that edge actually has. The fixture stack seeds aion-default; a deployed
+// cell's catalog is operator-owned, so the alias is a parameter.
+const MODEL_ALIAS = process.env.EIGENT_E2E_MODEL ?? 'aion-default';
+
 interface Bootstrap {
   api_key: string;
   edge_url: string;
@@ -260,7 +265,7 @@ test('bootstrap → project → command → streaming → reconnect → replay, 
     await expect(byId(page, 'lab-auth-identity')).toContainText(
       `tenant ${bootstrap!.tenant_id}`
     );
-    await expect(byId(page, 'lab-model-row-aion-default')).toBeVisible();
+    await expect(byId(page, `lab-model-row-${MODEL_ALIAS}`)).toBeVisible();
     await screenshot(page, 'status');
 
     // --- project ----------------------------------------------------------

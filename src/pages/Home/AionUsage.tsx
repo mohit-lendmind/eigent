@@ -298,6 +298,7 @@ export default function AionUsage() {
               <div
                 className="px-3 pt-3 text-body-xs text-ds-text-status-error-strong-default"
                 role="alert"
+                data-testid="aion-usage-error"
               >
                 {t('layout.usage-remote-error', { message: error })}
               </div>

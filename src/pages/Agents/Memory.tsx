@@ -372,7 +372,11 @@ export default function Memory() {
             </span>
           ) : null}
 
-          {list.length === 0 ? (
+          {/* A read that failed returned no listing, which is not the same fact
+              as a scope holding nothing — saying the agent remembers nothing
+              would be a claim this side cannot make. The banner above says what
+              happened; below it stays blank until a read answers. */}
+          {list.length === 0 && !error ? (
             <div
               className="flex flex-col items-center justify-center p-8 text-center"
               data-testid={hits ? 'aion-memory-no-matches' : 'aion-memory-empty'}
