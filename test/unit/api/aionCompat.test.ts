@@ -11,6 +11,7 @@ import {
   supportsWorkforceEvents,
   supportsConnectors,
   supportsSchedules,
+  supportsRunRecovery,
 } from '@/api/aion/v1/compat';
 import {
   DESKTOP_CLIENT_VERSION,
@@ -229,5 +230,32 @@ describe('supportsSchedules', () => {
       false
     );
     expect(supportsSchedules(status({ edge_api_version: '1.ten' }))).toBe(false);
+  });
+});
+
+describe('supportsRunRecovery', () => {
+  it('gates on the 1.15 run_recovery floor', () => {
+    // Below the floor a parked run emits nothing, so a stopped stream means
+    // either "still thinking" or "stuck behind a quarantined record" and this
+    // client cannot tell which — the surface must say so rather than report
+    // the run as healthy.
+    expect(supportsRunRecovery(status({ edge_api_version: '1.14.9' }))).toBe(
+      false
+    );
+    expect(supportsRunRecovery(status({ edge_api_version: '1.15.0' }))).toBe(
+      true
+    );
+    expect(supportsRunRecovery(status({ edge_api_version: '1.16.0' }))).toBe(
+      true
+    );
+  });
+
+  it('fails closed on garbage and on a foreign major', () => {
+    expect(supportsRunRecovery(status({ edge_api_version: '2.15.0' }))).toBe(
+      false
+    );
+    expect(supportsRunRecovery(status({ edge_api_version: '1.fifteen' }))).toBe(
+      false
+    );
   });
 });

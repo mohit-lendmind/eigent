@@ -20,6 +20,29 @@ export type RunUIStatus =
   | 'cancelled'
   | 'unknown';
 
+/**
+ * A run parked on a durable recovery label. Not a terminal — the run keeps the
+ * Project's active-run slot and a terminal still follows if one resolves it —
+ * which is why it rides beside `status` rather than as another value of it: a
+ * client that does not know this kind still renders the run as busy, exactly as
+ * it did before the kind existed.
+ */
+export interface RunRecoveryState {
+  /** The durable label, verbatim (e.g. `blocked_poison_event`). */
+  label: string;
+  /** Why the run parked, verbatim from the event. */
+  detail?: string;
+  /**
+   * True only where waiting is the wrong advice: nothing moves until an
+   * operator requeues or tombstones the quarantined record. The other labels
+   * settle on their own, and a surface that could not tell them apart would
+   * either page an operator over a transient wait or leave a stuck run to a
+   * spinner nobody is watching.
+   */
+  blocking: boolean;
+  sequence: string;
+}
+
 export interface RunState {
   runId: string;
   status: RunUIStatus;
@@ -28,6 +51,13 @@ export interface RunState {
   outcomeReason?: string;
   /** run_completed summary or run_failed message, verbatim from the event. */
   outcomeDetail?: string;
+  /**
+   * Set while parked, cleared by the next event on this run. The stream moving
+   * again IS the proof the park ended: leaving a label writes only the run row,
+   * so there is no un-park event to wait for and a banner that waited for one
+   * would outlive the condition it describes.
+   */
+  recovery?: RunRecoveryState;
 }
 
 export interface ToolResultState {
@@ -100,6 +130,17 @@ export type TimelineEntry =
   // Where a worker joined the run. The lane's own state lives in `workers` and
   // keeps changing after this point, so the entry carries only the key.
   | { type: 'worker'; runId: string; sequence: string; workerKey: string }
+  // Where the run parked. Kept in the timeline even once the run moves again,
+  // because a run that stalled and recovered did not have the same history as
+  // one that never stalled.
+  | {
+      type: 'recovery';
+      runId: string;
+      sequence: string;
+      label: string;
+      detail?: string;
+      blocking: boolean;
+    }
   | {
       type: 'run_boundary';
       runId: string;
@@ -255,6 +296,16 @@ export function reduceProjectEvent(
   const runId = event.run_id;
   const sequence = event.sequence;
   const data = event.data;
+
+  // Any other event on a parked run is that run producing again, which is the
+  // only signal that the park is over — including a terminal, since parking
+  // does not preclude one. Clearing here rather than per-case means a kind this
+  // build has never heard of still lifts the banner.
+  const parked = next.runs[runId];
+  if (parked?.recovery && event.kind !== 'run_recovery') {
+    const { recovery: _cleared, ...moving } = parked;
+    next.runs[runId] = moving;
+  }
 
   switch (event.kind) {
     case 'run_accepted': {
@@ -428,6 +479,26 @@ export function reduceProjectEvent(
       if (!existing) {
         next.timeline.push({ type: 'worker', runId, sequence, workerKey });
       }
+      return next;
+    }
+    case 'run_recovery': {
+      const label = str(data.label) ?? '';
+      const existing = next.runs[runId] ?? { runId, status: 'running' as RunUIStatus };
+      const recovery: RunRecoveryState = {
+        label,
+        detail: str(data.detail),
+        blocking: data.blocking === true,
+        sequence,
+      };
+      next.runs[runId] = { ...existing, recovery };
+      next.timeline.push({
+        type: 'recovery',
+        runId,
+        sequence,
+        label,
+        detail: recovery.detail,
+        blocking: recovery.blocking,
+      });
       return next;
     }
     case 'run_completed':

@@ -182,6 +182,14 @@ const ARTIFACT_LIST_MINIMUM_EDGE = [1, 13];
 // switcher must say the backend cannot report Spaces instead.
 const SPACES_MINIMUM_EDGE = [1, 14];
 
+// The run_recovery event shipped in edge API 1.15.0. Below the floor a run that
+// parks on a recovery label produces no event at all, so the stream stops and
+// nothing distinguishes a stuck run from a thinking one. That is a claim this
+// client cannot make on an older backend: absent parking and unreported parking
+// look the same from here, so a surface must say the backend does not report it
+// rather than that the run is fine.
+const RUN_RECOVERY_MINIMUM_EDGE = [1, 15];
+
 function meetsEdgeFloor(status: IntegrationStatus, floor: number[]): boolean {
   if (!negotiateCompatibility(status).compatible) {
     return false;
@@ -232,4 +240,8 @@ export function supportsArtifactList(status: IntegrationStatus): boolean {
 
 export function supportsSpaces(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, SPACES_MINIMUM_EDGE);
+}
+
+export function supportsRunRecovery(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, RUN_RECOVERY_MINIMUM_EDGE);
 }

@@ -36,18 +36,22 @@ describe('aion Project reducer (golden fixtures)', () => {
     const state = reduceProjectEvents(initialProjectState(), goldenStream());
 
     expect(state.projectId).toBe('prj_01JY0000000000000000000001');
-    expect(state.lastSequence).toBe('12');
+    expect(state.lastSequence).toBe('13');
     expect(state.gapCount).toBe(0);
     expect(state.suppressedEventCount).toBe(0);
     expect(state.activeRunId).toBeNull();
     expect(state.pendingApprovals).toEqual({});
 
-    // Every run in the stream reached its pinned terminal status.
+    // Every run in the stream reached its pinned terminal status. Run 1 parked
+    // partway through and moved again, so it carries no recovery at the end —
+    // a banner outliving the condition it describes is the failure this state
+    // exists to prevent.
     expect(state.runs['run_01JY0000000000000000000001']).toMatchObject({
       status: 'succeeded',
       runEpoch: '1',
       outcomeDetail: 'The failing target and minimal fix were identified.',
     });
+    expect(state.runs['run_01JY0000000000000000000001'].recovery).toBeUndefined();
     expect(state.runs['run_01JY0000000000000000000002']).toMatchObject({
       status: 'failed',
       outcomeReason: 'context_limit',
@@ -58,13 +62,16 @@ describe('aion Project reducer (golden fixtures)', () => {
       outcomeReason: 'user_requested',
     });
 
-    // Timeline shape: boundary, text, tool(with result), worker(started then
-    // ended — ONE lane, not two entries), approval(resolved), artifact, then
-    // three terminal boundaries.
+    // Timeline shape: boundary, text, tool(with result), recovery(the run
+    // parked and later moved again — the entry stays because a run that
+    // stalled did not have the same history as one that never did),
+    // worker(started then ended — ONE lane, not two entries),
+    // approval(resolved), artifact, then three terminal boundaries.
     expect(state.timeline.map((entry) => entry.type)).toEqual([
       'run_boundary',
       'text',
       'tool',
+      'recovery',
       'worker',
       'approval',
       'artifact',
@@ -72,6 +79,13 @@ describe('aion Project reducer (golden fixtures)', () => {
       'run_boundary',
       'run_boundary',
     ]);
+
+    expect(state.timeline[3]).toMatchObject({
+      type: 'recovery',
+      runId: 'run_01JY0000000000000000000001',
+      label: 'blocked_poison_event',
+      blocking: true,
+    });
 
     const tool = state.timeline[2];
     expect(tool).toMatchObject({
@@ -82,7 +96,7 @@ describe('aion Project reducer (golden fixtures)', () => {
       result: { content: '1 test failed', isError: true },
     });
 
-    const worker = state.timeline[3];
+    const worker = state.timeline[4];
     expect(worker).toMatchObject({ type: 'worker', runId: 'run_01JY0000000000000000000001' });
     expect(workersForRun(state, 'run_01JY0000000000000000000001')).toEqual([
       {
@@ -94,12 +108,12 @@ describe('aion Project reducer (golden fixtures)', () => {
         status: 'succeeded',
         reason: 'completed',
         error: undefined,
-        startedSequence: '5',
-        endedSequence: '6',
+        startedSequence: '6',
+        endedSequence: '7',
       },
     ]);
 
-    const approval = state.timeline[4];
+    const approval = state.timeline[5];
     expect(approval).toMatchObject({
       type: 'approval',
       approvalId: 'apr_01JY0000000000000000000001',
@@ -109,7 +123,7 @@ describe('aion Project reducer (golden fixtures)', () => {
       resolvedBy: 'user',
     });
 
-    const artifact = state.timeline[5];
+    const artifact = state.timeline[6];
     expect(artifact).toMatchObject({
       type: 'artifact',
       artifact: { artifact_id: 'art_01JY0000000000000000000001', name: 'test-report.json' },
@@ -365,6 +379,118 @@ describe('aion Project reducer (golden fixtures)', () => {
       ]);
       expect(state.workers).toEqual({});
       expect(workersForRun(state, runId)).toEqual([]);
+    });
+  });
+
+  // A parked run is the one state that used to be invisible: the stream simply
+  // stopped, exactly as it does while a run is thinking. What the reducer owes
+  // the surface is the distinction between waiting and stuck, and — because
+  // leaving a label writes only the run row and emits nothing — a banner that
+  // lifts on its own when the run produces again.
+  describe('a run parked on a recovery label', () => {
+    const runId = 'run_01JY0000000000000000000001';
+    const parked = (over: Record<string, unknown>): ProjectEvent =>
+      decodeProjectEvent({
+        ...(fixture('event_run_recovery.json') as Record<string, unknown>),
+        ...over,
+      });
+    const other = (name: string, sequence: string): ProjectEvent =>
+      decodeProjectEvent({
+        ...(fixture(name) as Record<string, unknown>),
+        sequence,
+        run_id: runId,
+      });
+
+    it('keeps the run non-terminal and names the block', () => {
+      const state = reduceProjectEvent(initialProjectState(), parked({ sequence: '1' }));
+      expect(state.runs[runId]).toMatchObject({
+        status: 'running',
+        recovery: {
+          label: 'blocked_poison_event',
+          detail: 'poison outbox record 7: rpc error: code = InvalidArgument',
+          blocking: true,
+          sequence: '1',
+        },
+      });
+      // Non-terminal: the run still owns the Project's active-run slot, so a
+      // surface must not offer to send the next message.
+      expect(state.runs[runId].outcomeReason).toBeUndefined();
+    });
+
+    it('distinguishes a wait from a block, because only one needs an operator', () => {
+      const state = reduceProjectEvent(
+        initialProjectState(),
+        parked({
+          sequence: '1',
+          data: {
+            label: 'uncertain_provider_dispatch',
+            detail: 'dispatch outcome unknown',
+            blocking: false,
+          },
+        })
+      );
+      expect(state.runs[runId].recovery).toMatchObject({
+        label: 'uncertain_provider_dispatch',
+        blocking: false,
+      });
+    });
+
+    it('relabels in place rather than stacking banners', () => {
+      let state = reduceProjectEvent(initialProjectState(), parked({ sequence: '1' }));
+      state = reduceProjectEvent(
+        state,
+        parked({
+          sequence: '2',
+          data: { label: 'pending_usage_reconciliation', detail: 'usage not settled', blocking: false },
+        })
+      );
+      expect(state.runs[runId].recovery).toMatchObject({
+        label: 'pending_usage_reconciliation',
+        blocking: false,
+        sequence: '2',
+      });
+      expect(state.timeline.filter((entry) => entry.type === 'recovery')).toHaveLength(2);
+    });
+
+    it.each([
+      ['text_delta', 'event_text_delta.json'],
+      ['tool_call', 'event_tool_call.json'],
+      ['run_completed', 'event_run_completed.json'],
+    ])('clears the park when the run produces %s again', (_kind, name) => {
+      let state = reduceProjectEvent(initialProjectState(), parked({ sequence: '1' }));
+      expect(state.runs[runId].recovery).toBeDefined();
+      state = reduceProjectEvent(state, other(name, '2'));
+      expect(state.runs[runId].recovery).toBeUndefined();
+      // The history is not rewritten: the run did stall, and the entry says so.
+      expect(state.timeline.filter((entry) => entry.type === 'recovery')).toHaveLength(1);
+    });
+
+    it('clears the park on a kind this build has never heard of', () => {
+      let state = reduceProjectEvent(initialProjectState(), parked({ sequence: '1' }));
+      state = reduceProjectEvent(
+        state,
+        decodeProjectEvent({
+          ...(fixture('event_text_delta.json') as Record<string, unknown>),
+          sequence: '2',
+          run_id: runId,
+          kind: 'aion_variant_from_the_future',
+          data: {},
+        })
+      );
+      expect(state.runs[runId].recovery).toBeUndefined();
+    });
+
+    it('leaves another run alone', () => {
+      let state = reduceProjectEvent(initialProjectState(), parked({ sequence: '1' }));
+      state = reduceProjectEvent(
+        state,
+        decodeProjectEvent({
+          ...(fixture('event_text_delta.json') as Record<string, unknown>),
+          sequence: '2',
+          run_id: 'run_01JY0000000000000000000002',
+        })
+      );
+      expect(state.runs[runId].recovery).toBeDefined();
     });
   });
 

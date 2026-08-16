@@ -1,0 +1,12 @@
+{
+  "event_id": "evt_01JY0000000000000000000012",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "run_01JY0000000000000000000001",
+  "sequence": "12",
+  "kind": "run_recovery",
+  "visibility": "user",
+  "occurred_at": "2026-08-08T09:00:12Z",
+  "correlation": {"command_id": "cmd_01JY0000000000000000000001"},
+  "data": {"label": "blocked_poison_event", "detail": "poison outbox record 7: rpc error: code = InvalidArgument", "blocking": true}
+}
