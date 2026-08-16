@@ -10,9 +10,20 @@ sync), record the aion-v1 commit below, then run `pnpm gen:aion-edge` so the
 generated client under `../gen/` matches. `bazel test //:aion_edge_client_gen`
 fails until mirror and generated output agree.
 
-- Contract version: edge_api `1.14.0`
+- Contract version: edge_api `1.15.0`
 - Source path: `aion-v1/api/eigent/v1/`
-- Last synced from: aion-v1 commit `c45fbc7`, which gives the Project grouping
+- Last synced from: aion-v1 commit `46b7d6a`, which adds the `run_recovery`
+  event: a run entering one of the durable recovery labels used to be written
+  onto its own row and nowhere else, so a run parked behind a quarantined
+  record was indistinguishable from one still thinking — both are a stream that
+  stopped. It is deliberately NOT a terminal, because the run still holds the
+  Project's active-run slot and a terminal still follows if one resolves it;
+  `blocking` separates the labels that only need waiting out from the poison
+  label, where nothing moves until an operator intervenes. Synced together with
+  `test/fixtures/aion/eigent/v1/` (which gains `event_run_recovery.json`, and
+  whose `integration_status_response.json` and `account_response.json` move
+  with the contract).
+- Previously synced from aion-v1 commit `c45fbc7`, which gives the Project grouping
   a row of its own: `/spaces` (list, create), `/spaces/{spaceId}` (get, update,
   delete), the named `archive`/`unarchive` actions, and
   `PUT|DELETE /projects/{projectId}/space` to file or unfile a Project. Every

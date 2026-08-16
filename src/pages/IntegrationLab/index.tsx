@@ -25,6 +25,7 @@ import {
   type ModelAliasCatalog,
 } from '@/api/aion/v1/transport';
 import { EDGE_API_VERSION } from '@/api/aion/v1/gen/meta';
+import { supportsRunRecovery } from '@/api/aion/v1/compat';
 import { useHost } from '@/host';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { buildLabEvidence } from './evidence';
@@ -373,6 +374,17 @@ export default function IntegrationLab({
             </div>
             <div data-testid="lab-server-time">
               server time: {status.server_time ?? 'unknown'}
+            </div>
+            {/* Whether a stream that stopped can explain itself. Below the
+                floor a parked run emits nothing, so "still thinking" and
+                "stuck behind a quarantined record" are the same silence from
+                here — an operator debugging a hung run needs to know which
+                pairing they are looking at before they read anything into it. */}
+            <div data-testid="lab-run-recovery-reporting">
+              parked runs:{' '}
+              {supportsRunRecovery(status)
+                ? 'reported'
+                : 'not reported by this backend'}
             </div>
             <div data-testid="lab-auth-identity">
               identity:{' '}

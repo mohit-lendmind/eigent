@@ -8,6 +8,7 @@
 
 import type {
   ProjectUIState,
+  RunRecoveryState,
   RunUIStatus,
   TimelineEntry,
   WorkerState,
@@ -447,6 +448,21 @@ export function runTerminalMessage(
   return detail ? `${label}: ${detail}` : `${label}.`;
 }
 
+/**
+ * The message shown while a run is parked on a recovery label. The blocking
+ * distinction carries the whole value of showing it: on one side waiting is the
+ * right advice, and on the other waiting is precisely what leaves a stuck run
+ * stuck. Both say the composer is closed, because a parked run still holds the
+ * Project's active-run slot and the next message would be refused.
+ */
+export function runRecoveryMessage(recovery: RunRecoveryState): string {
+  const cause = recovery.detail ? ` — ${recovery.detail}` : '';
+  if (recovery.blocking) {
+    return `⚠️ Run stuck: ${recovery.label}${cause}. It will not continue on its own; an operator has to repair or retire the blocked step. Cancel the run to send a new message.`;
+  }
+  return `⏸️ Run paused: ${recovery.label}${cause}. It is expected to resume on its own — no action needed.`;
+}
+
 const RUN_TERMINAL: Record<string, true> = {
   succeeded: true,
   failed: true,
@@ -540,6 +556,15 @@ function projectTurn(
       });
     }
   }
+  // Parking and settling are mutually exclusive: the next event on the run
+  // clears the recovery, and a terminal is such an event.
+  if (run?.recovery) {
+    wanted.push({
+      id: `aion:${turn.runId}:recovery`,
+      role: 'agent',
+      content: runRecoveryMessage(run.recovery),
+    });
+  }
   if (settled) {
     if (run.status === 'succeeded') {
       if (lastTextIndex >= 0) {
@@ -569,11 +594,12 @@ function projectTurn(
   }
   const wantedIds = new Set(wanted.map((m) => m.id));
   for (const message of task.messages) {
-    // Approval prompts retract once resolved; everything else only grows.
-    if (
-      message.id.startsWith(`aion:${turn.runId}:approval:`) &&
-      !wantedIds.has(message.id)
-    ) {
+    // Approval prompts retract once resolved and the parked notice once the run
+    // moves again; everything else only grows.
+    const retractable =
+      message.id.startsWith(`aion:${turn.runId}:approval:`) ||
+      message.id === `aion:${turn.runId}:recovery`;
+    if (retractable && !wantedIds.has(message.id)) {
       store.removeMessage(turn.taskId, message.id);
     }
   }
