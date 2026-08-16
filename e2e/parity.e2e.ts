@@ -27,6 +27,7 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test';
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -342,5 +343,139 @@ test('every nav destination in aion mode is served, local or honestly absent', a
     expect([...covered].sort()).toEqual([...WALKED_TABS].sort());
   } finally {
     await app.close();
+  }
+});
+
+interface EdgeSpace {
+  space_id: string;
+  name: string;
+}
+
+async function edgeJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${edgeBaseUrl}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${bootstrap!.api_key}`,
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init?.headers,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`${init?.method ?? 'GET'} ${path} → ${response.status}`);
+  }
+  return response.status === 204
+    ? (undefined as T)
+    : ((await response.json()) as T);
+}
+
+async function listEdgeSpaceIds(): Promise<string[]> {
+  const page = await edgeJson<{ spaces?: EdgeSpace[] }>('/spaces');
+  return (page.spaces ?? []).map((space) => space.space_id);
+}
+
+test('a Space made elsewhere is served here, and removing it here reaches the edge', async () => {
+  test.skip(!APP_BUILT, 'run `npx vite build` first');
+  test.skip(!bootstrap, `no bootstrap manifest at ${BOOTSTRAP_PATH}`);
+  test.skip(!edgeReady, `edge not reachable at ${edgeBaseUrl}`);
+  test.setTimeout(5 * 60_000);
+
+  // Created over the edge rather than through the UI: this is what a Space made
+  // on another machine looks like to this one, and it is the case the renderer
+  // used to be blind to.
+  const tag = randomBytes(8).toString('hex');
+  const spaceName = `Parity ${tag}`;
+  const created = await edgeJson<EdgeSpace>('/spaces', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': `parity-space-${tag}` },
+    body: JSON.stringify({ name: spaceName }),
+  });
+
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === 'string') env[key] = value;
+  }
+  delete env.VITE_DEV_SERVER_URL;
+  // A fresh user-data dir is the whole point: the local Space store starts
+  // empty, so anything the switcher shows was read back from the edge.
+  env.EIGENT_E2E_USER_DATA = fs.mkdtempSync(path.join(workDir, 'cold-'));
+  env.EIGENT_REMOTE_BACKEND_URL = edgeBaseUrl!;
+  env.EIGENT_REMOTE_BACKEND_API_KEY_FILE = keyFile;
+  env.EIGENT_REMOTE_BACKEND_API_KEY = '';
+
+  const app = await electron.launch(
+    packaged
+      ? { executablePath: packaged.executablePath, args: [], env }
+      : { args: [REPO_ROOT], cwd: REPO_ROOT, env }
+  );
+  try {
+    const page = await findMainWindow(app);
+    await page
+      .locator('[role="textbox"]')
+      .first()
+      .waitFor({ state: 'visible', timeout: 60_000 });
+
+    await page.locator('#active-space-title-btn').click();
+    await expect(
+      page.getByText(spaceName, { exact: false }).first(),
+      'a Space that exists on the edge is missing from the switcher on a cold profile'
+    ).toBeVisible({ timeout: VISIBLE_TIMEOUT_MS });
+    await screenshot(page, 'space-hydrated');
+    await page.keyboard.press('Escape');
+
+    await page.evaluate(() => {
+      window.location.hash = '#/history?tab=home&section=spaces';
+    });
+    await page.reload();
+    const row = page
+      .getByTestId('aion-space-row')
+      .filter({ hasText: spaceName });
+    await row.waitFor({ state: 'visible', timeout: VISIBLE_TIMEOUT_MS });
+    await row.getByTestId('aion-space-delete').click();
+    await page.getByTestId('confirm-modal-confirm').click();
+    // The row is gone from the screen that owns the delete, and the edge no
+    // longer holds it — the assertion below is the one that matters, because a
+    // list can drop a row it never actually removed.
+    await expect(row).toHaveCount(0, { timeout: VISIBLE_TIMEOUT_MS });
+
+    const remaining = await listEdgeSpaceIds();
+    expect(
+      remaining,
+      'the UI dropped the Space but the edge still holds it'
+    ).not.toContain(created.space_id);
+
+    // And it is gone from the switcher too, which reads the renderer's own
+    // records rather than that screen's list. The switcher is not on the hub
+    // route, so leave it first.
+    await page.evaluate(() => {
+      window.location.hash = '#/';
+    });
+    await page.reload();
+    await page.locator('#active-space-title-btn').click();
+    // The menu has to actually be open, or the empty-set assertion below would
+    // hold just as well against a switcher that never rendered.
+    await expect(page.getByRole('menu').first()).toBeVisible({
+      timeout: VISIBLE_TIMEOUT_MS,
+    });
+    await page.waitForTimeout(SETTLE_MS);
+    await expect(
+      page.getByText(spaceName, { exact: false }),
+      'the switcher still offers a Space that no longer exists'
+    ).toHaveCount(0);
+    await screenshot(page, 'space-removed');
+
+    writeEvidence('eigent-parity-spaces.json', {
+      captured_at: new Date().toISOString(),
+      edge_base_url: edgeBaseUrl,
+      space_id: created.space_id,
+      hydrated_on_cold_profile: true,
+      edge_space_ids_after_delete: remaining,
+    });
+  } finally {
+    await app.close();
+    // The Space outlives a failed run otherwise, and the next one would find a
+    // tenant carrying every Space this test ever made.
+    await edgeJson(`/spaces/${created.space_id}`, { method: 'DELETE' }).catch(
+      () => undefined
+    );
   }
 });

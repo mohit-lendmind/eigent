@@ -22,7 +22,6 @@ import {
   getDefaultNewSpaceName,
 } from '@/lib/spaceLabel';
 import {
-  bindSpaceToAion,
   renameBoundSpace,
 } from '@/store/aionSpaceBinding';
 import { cn } from '@/lib/utils';
@@ -140,7 +139,6 @@ export function WorkspaceProjectPicker({
           autoCreatedPlaceholder: true,
         },
       });
-      bindSpaceToAion(spaceId, name);
       setActiveSpace(spaceId);
       projectStore.setActiveProject(null);
       navigate('/');

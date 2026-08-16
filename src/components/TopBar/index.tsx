@@ -28,7 +28,6 @@ import {
   getDefaultNewSpaceName,
 } from '@/lib/spaceLabel';
 import {
-  bindSpaceToAion,
   renameBoundSpace,
 } from '@/store/aionSpaceBinding';
 import { useAuthStore } from '@/store/authStore';
@@ -265,7 +264,6 @@ function HeaderWin() {
           autoCreatedPlaceholder: true,
         },
       });
-      bindSpaceToAion(spaceId, name);
       setActiveSpace(spaceId);
       projectStore.setActiveProject(null);
       setActiveWorkspaceTab('workforce');
