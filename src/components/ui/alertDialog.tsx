@@ -83,12 +83,17 @@ export default function ConfirmModal({
 
               <div className="flex justify-end gap-3">
                 {!hideCancel && (
-                  <Button variant="ghost" onClick={onClose}>
+                  <Button
+                    variant="ghost"
+                    data-testid="confirm-modal-cancel"
+                    onClick={onClose}
+                  >
                     {cancelText}
                   </Button>
                 )}
                 <Button
                   variant={confirmVariant}
+                  data-testid="confirm-modal-confirm"
                   disabled={confirmDisabled}
                   onClick={() => {
                     if (confirmDisabled) return;

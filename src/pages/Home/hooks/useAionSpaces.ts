@@ -13,6 +13,7 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import { invalidateAionProjects } from '@/store/aionProjectsStore';
+import { hydrateSpacesFromAion } from '@/store/aionSpaceBinding';
 import {
   archiveAionSpace,
   createAionSpace,
@@ -113,6 +114,11 @@ export function useAionSpaces(): AionSpacesView {
 
   const reload = useCallback(() => {
     invalidateAionSpaces();
+    // Every mutation on this screen lands here, and the switcher draws the
+    // renderer's own Space records rather than this list — so re-project the
+    // edge onto them, or a Space created here is invisible in the switcher
+    // until the next launch.
+    void hydrateSpacesFromAion(true);
     setReloadCount((count) => count + 1);
   }, []);
 
