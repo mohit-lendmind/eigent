@@ -14,6 +14,10 @@
 
 import AlertDialog from '@/components/ui/alertDialog';
 import { Input } from '@/components/ui/input';
+import {
+  deleteBoundSpace,
+  renameBoundSpace,
+} from '@/store/aionSpaceBinding';
 import { useSpaceStore } from '@/store/spaceStore';
 import {
   Folder,
@@ -60,7 +64,6 @@ function SpaceItemContent({
   const { t } = useTranslation();
   const { openSpace } = useHomeHubNavigation();
   const updateSpace = useSpaceStore((s) => s.updateSpace);
-  const deleteSpace = useSpaceStore((s) => s.deleteSpace);
 
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameValue, setRenameValue] = useState('');
@@ -78,6 +81,7 @@ function SpaceItemContent({
     setRenaming(true);
     try {
       updateSpace(space.id, { name: nextName });
+      await renameBoundSpace(space.id, nextName);
       toast.success(t('layout.spaces-rename-success'));
       setRenameDialogOpen(false);
     } catch (error) {
@@ -92,7 +96,9 @@ function SpaceItemContent({
     if (deleting || !canManage) return;
     setDeleting(true);
     try {
-      deleteSpace(space.id);
+      // The edge goes first and refuses a Space that still holds Projects, so
+      // the local record survives a refusal rather than reporting the work gone.
+      await deleteBoundSpace(space.id);
       setDeleteDialogOpen(false);
     } catch (error) {
       console.warn('[HomeHubCard] Failed to delete Space:', error);
@@ -104,7 +110,7 @@ function SpaceItemContent({
     } finally {
       setDeleting(false);
     }
-  }, [canManage, deleteSpace, deleting, space.id, t]);
+  }, [canManage, deleting, space.id, t]);
 
   const menuItems = [
     {

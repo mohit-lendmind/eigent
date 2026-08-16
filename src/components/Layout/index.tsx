@@ -17,6 +17,7 @@ import TopBar from '@/components/TopBar';
 import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import { useInstallationSetup } from '@/hooks/useInstallationSetup';
 import { useHost } from '@/host';
+import { hydrateSpacesFromAion } from '@/store/aionSpaceBinding';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyActiveRun } from '@/store/chatStore';
 import { useInstallationUI } from '@/store/installationStore';
@@ -43,6 +44,15 @@ const Layout = () => {
     useInstallationUI();
 
   useInstallationSetup();
+
+  // The tenant's Spaces live on the edge, so they have to be read back before
+  // the switcher can show them. Without this a second machine — or this one
+  // after its storage is cleared — draws an empty Space list next to the
+  // Projects that are filed under those very Spaces. Idempotent and best
+  // effort: it resolves to nothing at all outside aion mode.
+  useEffect(() => {
+    void hydrateSpacesFromAion();
+  }, []);
 
   useEffect(() => {
     if (!host?.ipcRenderer || !host?.electronAPI) return;
