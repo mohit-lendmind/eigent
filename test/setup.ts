@@ -14,7 +14,58 @@
 
 // Global test setup file
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
+
+// Web Storage, owned by this file rather than by whichever implementation wins.
+//
+// jsdom provides `window.localStorage`, and Node has provided a global
+// `localStorage` of its own since v22 — which needs a backing file to work and
+// throws without one. A bare `localStorage` reference inside a module resolves
+// to the global, so on a newer Node every store built on zustand's `persist`
+// fails with `storage.setItem is not a function` no matter what jsdom set up.
+// Installing one implementation under both names removes the ambiguity, and
+// keeps a laptop's Node version from deciding whether the suite passes.
+class MemoryStorage implements Storage {
+  private entries = new Map<string, string>();
+
+  get length(): number {
+    return this.entries.size;
+  }
+  key(index: number): string | null {
+    return [...this.entries.keys()][index] ?? null;
+  }
+  getItem(key: string): string | null {
+    return this.entries.get(key) ?? null;
+  }
+  setItem(key: string, value: string): void {
+    this.entries.set(key, String(value));
+  }
+  removeItem(key: string): void {
+    this.entries.delete(key);
+  }
+  clear(): void {
+    this.entries.clear();
+  }
+}
+
+for (const name of ['localStorage', 'sessionStorage'] as const) {
+  const storage = new MemoryStorage();
+  for (const host of [globalThis, window]) {
+    Object.defineProperty(host, name, {
+      value: storage,
+      configurable: true,
+      writable: true,
+    });
+  }
+}
+
+// Persisted state is global, so one test's writes are the next test's starting
+// conditions unless they are cleared — which is how a suite ends up passing in
+// file order and failing alone.
+beforeEach(() => {
+  localStorage.clear();
+  sessionStorage.clear();
+});
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
