@@ -577,7 +577,11 @@ export default function AionTriggers({
     setCreating(true);
   }, [openCreateRequestId]);
 
-  if (mode === null || loading) {
+  // Only the not-yet-negotiated mode blanks the screen. A reload keeps the
+  // toolbar mounted: the refresh control is the repair surface for a read that
+  // hangs or fails, so the one state that must never remove it is the read
+  // being in flight.
+  if (mode === null) {
     return (
       <div className="w-full py-12 text-body-sm text-ds-text-neutral-muted-default">
         {t('layout.loading')}
@@ -607,12 +611,25 @@ export default function AionTriggers({
     );
   }
   if (mode.kind === 'error') {
+    // A failed negotiation must leave the user a way back: without the retry,
+    // one transient error deletes the only control that could clear it. Same
+    // testid as the toolbar refresh — it is the same action, and the invariant
+    // "a refresh control exists whenever negotiation has completed" holds.
     return (
-      <div className="w-full py-6">
+      <div className="flex w-full flex-col items-start gap-3 py-6">
         <Banner
           testId="aion-triggers-banner"
           message={t('triggers.aion-remote-error', { message: mode.message })}
         />
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={reload}
+          data-testid="aion-triggers-refresh"
+        >
+          <RefreshCw className="mr-1.5 h-4 w-4" />
+          {t('triggers.aion-refresh')}
+        </Button>
       </div>
     );
   }
@@ -658,15 +675,24 @@ export default function AionTriggers({
       ) : null}
 
       {schedules.length === 0 ? (
-        <div
-          className="flex flex-col items-center justify-center p-8 text-center"
-          data-testid="aion-triggers-empty"
-        >
-          <Zap className="mb-4 h-12 w-12 text-ds-icon-neutral-muted-default" />
-          <div className="text-sm text-ds-text-neutral-muted-default">
-            {t('triggers.aion-empty')}
+        loading ? (
+          // The read is in flight and there are no rows to keep showing.
+          // "You have no triggers" here would be a claim the read has not
+          // yet earned; rows already on screen just stay during a reload.
+          <div className="w-full py-12 text-body-sm text-ds-text-neutral-muted-default">
+            {t('layout.loading')}
           </div>
-        </div>
+        ) : (
+          <div
+            className="flex flex-col items-center justify-center p-8 text-center"
+            data-testid="aion-triggers-empty"
+          >
+            <Zap className="mb-4 h-12 w-12 text-ds-icon-neutral-muted-default" />
+            <div className="text-sm text-ds-text-neutral-muted-default">
+              {t('triggers.aion-empty')}
+            </div>
+          </div>
+        )
       ) : visible.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-8 text-center">
           <div className="text-sm text-ds-text-neutral-muted-default">

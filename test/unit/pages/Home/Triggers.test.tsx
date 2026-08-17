@@ -174,6 +174,27 @@ describe('Home Triggers mode branch', () => {
     ).toContain('edge unreachable');
     expect(screen.queryByTestId('aion-triggers')).toBeNull();
   });
+
+  it('leaves a refresh control on a failed negotiation', async () => {
+    const user = userEvent.setup();
+    renderWith({ kind: 'error', message: 'edge unreachable' });
+    // Without this control a transient negotiation failure deletes the only
+    // action that could clear it.
+    await user.click(screen.getByTestId('aion-triggers-refresh'));
+    expect(actions.reload).toHaveBeenCalled();
+  });
+
+  it('keeps the toolbar and rows mounted while a reload is in flight', () => {
+    renderWith({ kind: 'remote' }, { schedules: [schedule()], loading: true });
+    expect(screen.getByTestId('aion-triggers-refresh')).toBeTruthy();
+    expect(screen.getAllByTestId('aion-trigger-row')).toHaveLength(1);
+  });
+
+  it('does not claim an empty tenant while the first read is in flight', () => {
+    renderWith({ kind: 'remote' }, { schedules: [], loading: true });
+    expect(screen.queryByTestId('aion-triggers-empty')).toBeNull();
+    expect(screen.getByTestId('aion-triggers-refresh')).toBeTruthy();
+  });
 });
 
 describe('Home Triggers health', () => {
