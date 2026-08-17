@@ -2,8 +2,8 @@
 // Regenerate with `pnpm gen:aion-edge` after syncing the contract mirror.
 
 // The compatibility tuple the edge advertises (getIntegrationStatus and the
-// X-Eigent-Edge-Api-Version / X-Eigent-Min-Desktop-Version headers).
-export const EDGE_API_VERSION = '1.16.0' as const;
+// X-Aion-Edge-Api-Version / X-Aion-Min-Desktop-Version headers).
+export const EDGE_API_VERSION = '1.17.0' as const;
 export const EVENT_SCHEMA_VERSION = '1.0' as const;
 export const DESKTOP_CLIENT_VERSION = '1.0.2' as const;
 export const MINIMUM_SERVER_VERSION = '0.1.0-m0' as const;

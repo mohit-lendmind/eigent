@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Eigent Desktop Edge API
-  version: 1.16.0
+  version: 1.17.0
   description: |
     Public, additive-only API used by the Eigent desktop application. The edge
     authenticates the device/user, enforces tenant policy, and projects private
@@ -9,8 +9,8 @@ info:
     credentials, provider routes, inference grants, and internal service
     addresses are never accepted or returned.
 
-    Every edge response carries the X-Eigent-Edge-Api-Version and
-    X-Eigent-Min-Desktop-Version headers (documented on getIntegrationStatus);
+    Every edge response carries the X-Aion-Edge-Api-Version and
+    X-Aion-Min-Desktop-Version headers (documented on getIntegrationStatus);
     a client older than the advertised minimum must stop and update rather
     than degrade unpredictably.
 servers:
@@ -236,7 +236,7 @@ paths:
       description: |
         Edge/backend integration handshake: contract versions and the minimum
         desktop client version this edge still serves. The same values ride the
-        X-Eigent-Edge-Api-Version and X-Eigent-Min-Desktop-Version response
+        X-Aion-Edge-Api-Version and X-Aion-Min-Desktop-Version response
         headers, which every edge response carries.
 
         Authentication is optional on this route only. Without a credential the
@@ -249,8 +249,8 @@ paths:
         '200':
           description: Integration status and compatibility window
           headers:
-            X-Eigent-Edge-Api-Version: {$ref: '#/components/headers/EdgeApiVersion'}
-            X-Eigent-Min-Desktop-Version: {$ref: '#/components/headers/MinDesktopVersion'}
+            X-Aion-Edge-Api-Version: {$ref: '#/components/headers/EdgeApiVersion'}
+            X-Aion-Min-Desktop-Version: {$ref: '#/components/headers/MinDesktopVersion'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/IntegrationStatus'}

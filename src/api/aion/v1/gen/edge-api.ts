@@ -152,7 +152,7 @@ export type paths = {
         /**
          * @description Edge/backend integration handshake: contract versions and the minimum
          *     desktop client version this edge still serves. The same values ride the
-         *     X-Eigent-Edge-Api-Version and X-Eigent-Min-Desktop-Version response
+         *     X-Aion-Edge-Api-Version and X-Aion-Min-Desktop-Version response
          *     headers, which every edge response carries.
          *
          *     Authentication is optional on this route only. Without a credential the
@@ -2246,8 +2246,8 @@ export interface operations {
             /** @description Integration status and compatibility window */
             200: {
                 headers: {
-                    "X-Eigent-Edge-Api-Version": components["headers"]["EdgeApiVersion"];
-                    "X-Eigent-Min-Desktop-Version": components["headers"]["MinDesktopVersion"];
+                    "X-Aion-Edge-Api-Version": components["headers"]["EdgeApiVersion"];
+                    "X-Aion-Min-Desktop-Version": components["headers"]["MinDesktopVersion"];
                     [name: string]: unknown;
                 };
                 content: {

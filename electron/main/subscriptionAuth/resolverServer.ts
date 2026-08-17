@@ -21,7 +21,7 @@ import { loadCodexCredential, saveCodexCredential } from './credentialStore';
 import { expiresAtFromTokenPayload } from './oauthToken';
 import type { CodexCredential, CodexResolverRuntime } from './types';
 
-const RESOLVER_SECRET_HEADER = 'x-eigent-resolver-secret';
+const RESOLVER_SECRET_HEADER = 'x-aion-resolver-secret';
 const EXPIRES_SOON_MS = 60_000;
 
 let runtime: CodexResolverRuntime | null = null;
