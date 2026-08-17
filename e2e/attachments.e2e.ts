@@ -11,10 +11,18 @@
 // fixture run publishes its own scripted artifacts, so "no artifacts at all"
 // would be the wrong control.
 //
-// Preconditions match aion-lab.e2e.ts (skipped cleanly when absent): the
-// Compose stack up in the sibling aion-v1 checkout and `npx vite build` here.
-// The desktop API key comes from the gitignored run manifest and rides ONLY
-// the env of the launched app — never a committed file or evidence output.
+// Both turns are COMPOSER-driven, so the app resolves the model itself — and
+// its resolution chain only ever picks from the rows the picker would offer.
+// On a mixed catalog the fixture aliases are internal, so a composer turn
+// binds the first real-provider row and this gate silently stops being
+// deterministic. Hence the same stack requirement as workforce.e2e.ts:
+//   EIGENT_LOCAL_FIXTURE_PICKER=1 bazel run //dev/eigent_local:up   (in aion-v1)
+//   EIGENT_E2E_FIXTURE_PICKER=1 npx playwright test --config e2e/playwright.config.ts attachments
+//
+// Remaining preconditions match aion-lab.e2e.ts (skipped cleanly when absent):
+// the Compose stack up in the sibling aion-v1 checkout and `npx vite build`
+// here. The desktop API key comes from the gitignored run manifest and rides
+// ONLY the env of the launched app — never a committed file or evidence output.
 
 import {
   _electron as electron,
@@ -43,8 +51,10 @@ const EVIDENCE_DIR = process.env.EIGENT_E2E_EVIDENCE_DIR;
 const PACKAGED_SOURCE = process.env.EIGENT_E2E_PACKAGED_APP;
 let packaged: PackagedInstall | null = null;
 
-// Seeded over the edge API, so the alias has to be one the stack's catalog
-// serves — an unknown alias is refused with 422 model_alias_denied.
+// The alias the composer turns are expected to bind: the app resolves the
+// catalog's offered default itself, which the fixture-picker overlay pins to
+// aion-default. Recorded in the summary so the claim is checkable against the
+// run bindings, not asserted here — resolution belongs to the app.
 const MODEL_ALIAS = process.env.EIGENT_E2E_MODEL ?? 'aion-default';
 
 // A real 1x1 PNG, so the ride is exercised with genuine image bytes whose
@@ -381,6 +391,10 @@ test('a composer attachment reaches the run as a published artifact', async () =
   test.skip(
     !attachmentsServed,
     'this stack predates the attachment route (edge API < 1.16)'
+  );
+  test.skip(
+    process.env.EIGENT_E2E_FIXTURE_PICKER !== '1',
+    'needs the fixture-picker stack (EIGENT_LOCAL_FIXTURE_PICKER=1 up + EIGENT_E2E_FIXTURE_PICKER=1)'
   );
   test.setTimeout(300_000);
   const stamp = Date.now();
