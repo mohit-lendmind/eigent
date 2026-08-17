@@ -170,6 +170,11 @@ type ToolItem = {
   input: string;
   /** The tool call response/result (from DEACTIVATE_TOOLKIT). */
   output: string;
+  /**
+   * Tail of the still-running tool's streamed output (aion tool_output
+   * events); cleared on settlement, when `output` becomes authoritative.
+   */
+  liveOutput?: string;
   /** `error` is a settled row whose result reported failure. */
   status: 'running' | 'done' | 'error';
 };
@@ -456,6 +461,7 @@ export function buildAgentBlocks(
         detail: rawMsg,
         input: rawMsg,
         output: '',
+        liveOutput: entry.data?.live_output || undefined,
         status: 'running',
       });
       continue;
@@ -479,6 +485,7 @@ export function buildAgentBlocks(
           entry.status === AgentMessageStatus.FAILED ? 'error' : 'done';
         it.output = [it.output, msg].filter(Boolean).join('\n\n').trim();
         it.detail = [it.detail, msg].filter(Boolean).join('\n\n').trim();
+        it.liveOutput = undefined;
         break;
       }
 
@@ -690,18 +697,29 @@ function useWorkLogElapsedMs(
   return getTaskElapsedMs(t);
 }
 
+// The always-visible live tail keeps only the last few lines — terminal
+// semantics: the newest output says what the tool is doing right now.
+const LIVE_TAIL_LINES = 3;
+
+function liveOutputTail(output: string): string {
+  return output.replace(/\s+$/, '').split('\n').slice(-LIVE_TAIL_LINES).join('\n');
+}
+
 const ToolDetailRow = memo(function ToolDetailRow({
   rowTitle,
   input,
   output,
+  liveOutput,
   status,
 }: {
   rowTitle: string;
   input: string;
   output: string;
+  liveOutput?: string;
   status: 'running' | 'done' | 'error';
 }) {
   const [open, setOpen] = useState(false);
+  const streaming = status === 'running' && Boolean(liveOutput);
 
   return (
     <div
@@ -743,6 +761,14 @@ const ToolDetailRow = memo(function ToolDetailRow({
           )}
         />
       </button>
+      {streaming && !open ? (
+        <pre
+          data-testid="tool-live-output"
+          className="mt-0.5 w-full min-w-0 overflow-hidden whitespace-pre-wrap break-words rounded-md bg-ds-bg-neutral-muted-default p-2 font-mono !text-label-xs text-ds-text-neutral-subtle-default opacity-60"
+        >
+          {liveOutputTail(liveOutput!)}
+        </pre>
+      ) : null}
       <AnimatePresence initial={false}>
         {open ? (
           <motion.div
@@ -753,7 +779,7 @@ const ToolDetailRow = memo(function ToolDetailRow({
             transition={HEIGHT_MOTION}
             className="w-full min-w-0 overflow-hidden"
           >
-            {input || output ? (
+            {input || output || streaming ? (
               <div className="mt-1 flex w-full flex-col gap-1.5">
                 {input ? (
                   <div className="w-full rounded-md bg-ds-bg-neutral-muted-default p-2 opacity-60">
@@ -764,6 +790,19 @@ const ToolDetailRow = memo(function ToolDetailRow({
                       content={input}
                       pTextSize="text-label-xs text-ds-text-neutral-default-default"
                     />
+                  </div>
+                ) : null}
+                {streaming ? (
+                  <div
+                    data-testid="tool-live-output"
+                    className="w-full rounded-md bg-ds-bg-neutral-muted-default p-2 opacity-60"
+                  >
+                    <div className="mb-1 !text-label-xs font-medium uppercase tracking-wide text-ds-text-neutral-subtle-default">
+                      Output
+                    </div>
+                    <pre className="w-full min-w-0 overflow-hidden whitespace-pre-wrap break-words font-mono !text-label-xs text-ds-text-neutral-default-default">
+                      {liveOutput}
+                    </pre>
                   </div>
                 ) : null}
                 {output ? (
@@ -927,6 +966,7 @@ const AgentBlockRow = memo(function AgentBlockRow({
                     rowTitle={item.rowTitle}
                     input={item.input}
                     output={item.output}
+                    liveOutput={item.liveOutput}
                     status={
                       item.status === 'running'
                         ? taskRunning && block.status === 'running'
@@ -1171,6 +1211,7 @@ const AgentGroupRow = memo(function AgentGroupRow({
                     rowTitle={item.rowTitle}
                     input={item.input}
                     output={item.output}
+                    liveOutput={item.liveOutput}
                     status={
                       item.status === 'running'
                         ? taskRunning && group.status === 'running'

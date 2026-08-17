@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Eigent Desktop Edge API
-  version: 1.17.0
+  version: 1.18.0
   description: |
     Public, additive-only API used by the Eigent desktop application. The edge
     authenticates the device/user, enforces tenant policy, and projects private
@@ -1643,7 +1643,7 @@ components:
         # x-aion-known-values documents the values this contract version emits.
         kind:
           type: string
-          x-aion-known-values: [run_accepted, text_delta, tool_call, tool_result, approval_required, approval_resolved, artifact_created, run_completed, run_failed, run_cancelled, subagent_started, subagent_ended, run_recovery]
+          x-aion-known-values: [run_accepted, text_delta, tool_call, tool_result, approval_required, approval_resolved, artifact_created, run_completed, run_failed, run_cancelled, subagent_started, subagent_ended, run_recovery, run_progress, tool_output]
         visibility:
           type: string
           x-aion-known-values: [user, internal, audit]

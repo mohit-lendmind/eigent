@@ -784,6 +784,21 @@ function projectTurn(
       activeWebviewIds: [view],
     });
   }
+  // The run's dispatch stage (run_progress) feeds the pre-content indicator.
+  // It lives outside the agents/taskInfo digest — a stage change alters no
+  // timeline entry — and is never cleared here: the indicator's own gate
+  // stops rendering it once the run has renderable output.
+  const progress = run?.progress;
+  if (
+    progress?.stage !== task.runStage?.stage ||
+    progress?.detail !== task.runStage?.detail
+  ) {
+    store.setRunStage(
+      turn.taskId,
+      progress ? { stage: progress.stage, detail: progress.detail } : undefined
+    );
+  }
+
   // Events that leave this turn's slice unchanged (another run's events,
   // internal-visibility records) must not wake every subscriber of the task.
   const digest = JSON.stringify([agents, taskInfo]);
@@ -965,6 +980,14 @@ export function projectToolLog(
         method_name: '',
         message: previewToolArgs(tool.argumentsJson),
         process_task_id: runId,
+        ...(!tool.result && tool.liveOutput
+          ? {
+              live_output: previewLiveOutput(
+                tool.liveOutput,
+                tool.liveOutputTruncated
+              ),
+            }
+          : {}),
       },
       status: tool.result
         ? AgentMessageStatus.COMPLETED
@@ -1004,6 +1027,15 @@ function previewToolResult(content: string): string {
   return content.length > TOOL_RESULT_PREVIEW_MAX
     ? `${content.slice(0, TOOL_RESULT_PREVIEW_MAX)}…`
     : content;
+}
+
+// Live output keeps the TAIL, not the head: while a tool is still running the
+// newest bytes are the ones that say what it is doing now. `truncated` means
+// the backend's own retention cap already dropped earlier bytes.
+function previewLiveOutput(output: string, truncated?: boolean): string {
+  const clipped = truncated || output.length > TOOL_RESULT_PREVIEW_MAX;
+  const tail = output.slice(-TOOL_RESULT_PREVIEW_MAX);
+  return clipped ? `…${tail}` : tail;
 }
 
 function bashCommand(argumentsJson: string): string | null {

@@ -49,8 +49,10 @@
   ],
   "events": [
     "event_run_accepted.json",
+    "event_run_progress.json",
     "event_text_delta.json",
     "event_tool_call.json",
+    "event_tool_output.json",
     "event_tool_result.json",
     "event_run_recovery.json",
     "event_subagent_started.json",

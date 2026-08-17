@@ -129,6 +129,12 @@ interface Task {
   nextExecutionId?: string;
   /** Unix ms timestamp when this task was created — used for TurnTabs ordering. */
   createdAt: number;
+  /**
+   * aion remote mode: the run's latest dispatch stage (run_progress events).
+   * Never cleared on later activity — the pre-content indicator's own
+   * visibility gate decides when it stops rendering.
+   */
+  runStage?: { stage: string; detail?: string };
 }
 
 type UploadFileSource = 'project_output' | 'user_attachment';
@@ -379,6 +385,10 @@ export interface ChatStore {
   deleteTaskInfo: (index: number) => void;
   setTaskTime: (taskId: string, taskTime: number) => void;
   setElapsed: (taskId: string, taskTime: number) => void;
+  setRunStage: (
+    taskId: string,
+    runStage: { stage: string; detail?: string } | undefined
+  ) => void;
   getFormattedTaskTime: (taskId: string) => string;
   addTokens: (taskId: string, tokens: number) => void;
   getTokens: (taskId: string) => number;
@@ -1465,6 +1475,21 @@ const chatStore = (initial?: Partial<ChatStore>) =>
           [taskId]: {
             ...state.tasks[taskId],
             taskTime,
+          },
+        },
+      }));
+    },
+    setRunStage(
+      taskId: string,
+      runStage: { stage: string; detail?: string } | undefined
+    ) {
+      set((state) => ({
+        ...state,
+        tasks: {
+          ...state.tasks,
+          [taskId]: {
+            ...state.tasks[taskId],
+            runStage,
           },
         },
       }));

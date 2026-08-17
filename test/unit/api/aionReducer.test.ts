@@ -37,7 +37,7 @@ describe('aion Project reducer (golden fixtures)', () => {
     const state = reduceProjectEvents(initialProjectState(), goldenStream());
 
     expect(state.projectId).toBe('prj_01JY0000000000000000000001');
-    expect(state.lastSequence).toBe('14');
+    expect(state.lastSequence).toBe('16');
     expect(state.gapCount).toBe(0);
     expect(state.suppressedEventCount).toBe(0);
     expect(state.activeRunId).toBeNull();
@@ -51,6 +51,14 @@ describe('aion Project reducer (golden fixtures)', () => {
       status: 'succeeded',
       runEpoch: '1',
       outcomeDetail: 'The failing target and minimal fix were identified.',
+      // run_progress is run state, never a timeline entry, and is never
+      // cleared — the pre-content indicator's own gate decides staleness, so
+      // the stage must survive everything that followed it.
+      progress: {
+        stage: 'workspace_ready',
+        detail: 'workspace session ready',
+        sequence: '2',
+      },
     });
     expect(state.runs['run_01JY0000000000000000000001'].recovery).toBeUndefined();
     expect(state.runs['run_01JY0000000000000000000002']).toMatchObject({
@@ -97,6 +105,11 @@ describe('aion Project reducer (golden fixtures)', () => {
       toolName: 'bash',
       argumentsJson: '{"command":"bazel test //pkg:target"}',
       result: { content: '1 test failed', isError: true },
+      // tool_output streamed while the call ran: it merges into the SAME
+      // entry (never its own timeline row) and survives settlement — the
+      // result is authoritative, but the live tail is history, not garbage.
+      liveOutput: 'PASS: 214 tests in 12.4s\n',
+      liveOutputTruncated: true,
     });
 
     const worker = state.timeline[4];
@@ -111,8 +124,8 @@ describe('aion Project reducer (golden fixtures)', () => {
         status: 'succeeded',
         reason: 'completed',
         error: undefined,
-        startedSequence: '6',
-        endedSequence: '7',
+        startedSequence: '8',
+        endedSequence: '9',
       },
     ]);
 
@@ -245,6 +258,120 @@ describe('aion Project reducer (golden fixtures)', () => {
     });
     const state = reduceProjectEvent(initialProjectState(), result);
     expect(state.timeline[0]).toMatchObject({ type: 'opaque', kind: 'tool_result' });
+  });
+
+  // The two 1.18 live-activity kinds. run_progress narrates the dispatch
+  // window (run state only); tool_output streams a running tool's output
+  // into its existing timeline entry (never a row of its own).
+  describe('live activity (run_progress + tool_output)', () => {
+    const runId = 'run_01JY0000000000000000000001';
+    const progress = (over: Record<string, unknown>): ProjectEvent =>
+      decodeProjectEvent({
+        ...(fixture('event_run_progress.json') as Record<string, unknown>),
+        ...over,
+      });
+    const output = (
+      sequence: string,
+      data: Record<string, unknown>
+    ): ProjectEvent =>
+      decodeProjectEvent({
+        ...(fixture('event_tool_output.json') as Record<string, unknown>),
+        sequence,
+        data: {
+          ...(fixture('event_tool_output.json') as { data: object }).data,
+          ...data,
+        },
+      });
+    const call = (sequence: string): ProjectEvent =>
+      decodeProjectEvent({
+        ...(fixture('event_tool_call.json') as Record<string, unknown>),
+        sequence,
+      });
+
+    it('replaces the stage in place and never writes the timeline', () => {
+      let state = reduceProjectEvent(
+        initialProjectState(),
+        progress({
+          sequence: '1',
+          data: { stage: 'dispatching', detail: 'run claimed for dispatch' },
+        })
+      );
+      expect(state.runs[runId].progress).toEqual({
+        stage: 'dispatching',
+        detail: 'run claimed for dispatch',
+        sequence: '1',
+      });
+      state = reduceProjectEvent(state, progress({ sequence: '2' }));
+      expect(state.runs[runId].progress).toEqual({
+        stage: 'workspace_ready',
+        detail: 'workspace session ready',
+        sequence: '2',
+      });
+      expect(state.timeline).toEqual([]);
+    });
+
+    it('spends the sequence on an empty stage without inventing run state', () => {
+      const state = reduceProjectEvent(
+        initialProjectState(),
+        progress({ sequence: '1', data: { stage: '', detail: 'noise' } })
+      );
+      expect(state.lastSequence).toBe('1');
+      expect(state.runs[runId]?.progress).toBeUndefined();
+      expect(state.timeline).toEqual([]);
+    });
+
+    it('appends chunks to the open call and the truncation flag only ratchets', () => {
+      let state = reduceProjectEvent(initialProjectState(), call('1'));
+      state = reduceProjectEvent(
+        state,
+        output('2', { content: 'compiling\n', truncated: false })
+      );
+      state = reduceProjectEvent(
+        state,
+        output('3', { content: 'linking\n', truncated: true })
+      );
+      state = reduceProjectEvent(
+        state,
+        output('4', { content: 'done\n', truncated: false })
+      );
+      expect(state.timeline).toHaveLength(1);
+      expect(state.timeline[0]).toMatchObject({
+        type: 'tool',
+        liveOutput: 'compiling\nlinking\ndone\n',
+        liveOutputTruncated: true,
+      });
+    });
+
+    it('keeps a chunk with no open matching call opaque instead of inventing one', () => {
+      // No call at all…
+      const orphaned = reduceProjectEvent(
+        initialProjectState(),
+        output('1', {})
+      );
+      expect(orphaned.timeline[0]).toMatchObject({
+        type: 'opaque',
+        kind: 'tool_output',
+      });
+
+      // …and a call that already settled: the result is authoritative, so a
+      // late chunk must not mutate a closed row.
+      let state = reduceProjectEvent(initialProjectState(), call('1'));
+      state = reduceProjectEvent(
+        state,
+        decodeProjectEvent({
+          ...(fixture('event_tool_result.json') as Record<string, unknown>),
+          sequence: '2',
+        })
+      );
+      state = reduceProjectEvent(state, output('3', { content: 'late\n' }));
+      expect(state.timeline).toHaveLength(2);
+      expect(state.timeline[0]).toMatchObject({ type: 'tool' });
+      expect(state.timeline[0]).not.toHaveProperty('liveOutput');
+      expect(state.timeline[1]).toMatchObject({
+        type: 'opaque',
+        kind: 'tool_output',
+      });
+    });
   });
 
   it('rehydrates from a snapshot and resumes strictly after its sequence', () => {
