@@ -30,6 +30,9 @@ export interface PreviewWebviewElement extends HTMLElement {
   goForward?: () => void;
   reload?: () => void;
   stop?: () => void;
+  /** Identifies the guest to main-process capture; throws until attached. */
+  getWebContentsId?: () => number;
+  executeJavaScript?: (code: string, userGesture?: boolean) => Promise<unknown>;
 }
 
 /**

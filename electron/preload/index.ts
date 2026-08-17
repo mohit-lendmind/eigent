@@ -77,6 +77,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getShowWebview: () => ipcRenderer.invoke('get-show-webview'),
   webviewDestroy: (webviewId: string) =>
     ipcRenderer.invoke('webview-destroy', webviewId),
+  capturePreviewGuest: (webContentsId: number) =>
+    ipcRenderer.invoke('capture-preview-guest', webContentsId),
   exportLog: () => ipcRenderer.invoke('export-log'),
   getDiagnosticsInfo: () => ipcRenderer.invoke('get-diagnostics-info'),
   exportDiagnosticsZip: (payload: { description: string; steps?: string }) =>

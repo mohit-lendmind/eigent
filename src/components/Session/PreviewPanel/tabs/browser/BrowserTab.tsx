@@ -13,15 +13,33 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { TooltipSimple } from '@/components/ui/tooltip';
 import { useHost } from '@/host';
+import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import { normalizeBrowserUrl } from '@/lib/browserUrl';
 import { cn } from '@/lib/utils';
 import { type SessionBrowserTab, usePageTabStore } from '@/store/pageTabStore';
-import { ArrowLeft, ArrowRight, ExternalLink, RefreshCw } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  ExternalLink,
+  Paperclip,
+  RefreshCw,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { getPreviewWebview } from './webviewRegistry';
+
+// The edge refuses attachments over 3 MiB decoded; page text is truncated
+// well under that so a capture never dies at upload time.
+const MAX_TEXT_CHARS = 700_000;
 
 export interface BrowserTabProps {
   tab: SessionBrowserTab;
@@ -127,6 +145,128 @@ export function BrowserTab({
       window.open(normalized.url, '_blank', 'noopener,noreferrer');
     },
     [electronAPI, isDesktop]
+  );
+
+  // Capture-and-attach: the page the user is looking at crosses into the run
+  // as an attachment on their next turn — the agent never drives this browser.
+  const { chatStore } = useChatStoreAdapter();
+  const [attaching, setAttaching] = useState(false);
+
+  const attachFileToTask = useCallback(
+    (taskId: string | undefined, file: { fileName: string; filePath: string }) => {
+      if (!taskId || !chatStore?.tasks?.[taskId]) {
+        toast.error(
+          t('layout.browser-attach-no-task', {
+            defaultValue: 'Open a task to attach the page to.',
+          })
+        );
+        return false;
+      }
+      const existing = chatStore.tasks[taskId].attaches || [];
+      if (existing.some((f: File) => f.filePath === file.filePath)) return true;
+      // Attaches hold {fileName, filePath} at runtime; the global File type
+      // they are declared with is wider than what any producer builds.
+      chatStore.setAttaches(taskId, [...existing, file as unknown as File]);
+      return true;
+    },
+    [chatStore, t]
+  );
+
+  const handleAttach = useCallback(
+    async (mode: 'screenshot' | 'text') => {
+      const element = getPreviewWebview(tab.webviewId);
+      if (!element || attaching) return;
+      // Snapshot the target now: the attachment belongs to the task the user
+      // is looking at, not whichever becomes active while the capture runs.
+      const taskId = chatStore?.activeTaskId as string | undefined;
+      setAttaching(true);
+      try {
+        if (mode === 'screenshot') {
+          const webContentsId = element.getWebContentsId?.();
+          if (webContentsId === undefined) {
+            throw new Error('The page is still loading');
+          }
+          const result = await electronAPI?.capturePreviewGuest?.(webContentsId);
+          if (!result?.success || !result.filePath || !result.fileName) {
+            throw new Error(result?.error || 'Capturing the page failed');
+          }
+          if (
+            attachFileToTask(taskId, {
+              fileName: result.fileName,
+              filePath: result.filePath,
+            })
+          ) {
+            toast.success(
+              t('layout.browser-attached-screenshot', {
+                defaultValue: 'Screenshot attached to the task.',
+              })
+            );
+          }
+        } else {
+          // A wedged page can hold the script reply forever; time-box it so
+          // the click still fails with something actionable.
+          const raw = await Promise.race([
+            element.executeJavaScript?.(
+              'document.body ? document.body.innerText : ""'
+            ),
+            new Promise<never>((_, reject) =>
+              setTimeout(
+                () => reject(new Error('Reading the page timed out')),
+                5000
+              )
+            ),
+          ]);
+          if (typeof raw !== 'string' || !raw.trim()) {
+            throw new Error('The page has no readable text');
+          }
+          const text =
+            raw.length > MAX_TEXT_CHARS
+              ? `${raw.slice(0, MAX_TEXT_CHARS)}\n…[truncated]`
+              : raw;
+          let hostLabel = 'page';
+          try {
+            hostLabel = new URL(tab.url).hostname || 'page';
+          } catch {
+            // keep the generic label for odd URLs
+          }
+          const encoded = new TextEncoder().encode(text);
+          const result = await electronAPI?.savePastedFile?.(
+            `${hostLabel}.txt`,
+            encoded.buffer as ArrayBuffer
+          );
+          if (!result?.success || !result.filePath || !result.fileName) {
+            throw new Error(result?.error || 'Saving the page text failed');
+          }
+          if (
+            attachFileToTask(taskId, {
+              fileName: result.fileName,
+              filePath: result.filePath,
+            })
+          ) {
+            toast.success(
+              t('layout.browser-attached-text', {
+                defaultValue: 'Page text attached to the task.',
+              })
+            );
+          }
+        }
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : 'Unable to attach the page'
+        );
+      } finally {
+        setAttaching(false);
+      }
+    },
+    [
+      tab.webviewId,
+      tab.url,
+      attaching,
+      electronAPI,
+      chatStore,
+      attachFileToTask,
+      t,
+    ]
   );
 
   // Publish this container's rect so the layer can position the guest over it.
@@ -245,6 +385,44 @@ export function BrowserTab({
             )}
           />
         </form>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              buttonContent="icon-only"
+              disabled={!isDesktop || !tab.url || attaching}
+              aria-label={t('layout.browser-attach', {
+                defaultValue: 'Attach page to task',
+              })}
+              data-testid="browser-attach-page"
+            >
+              <Paperclip
+                className={cn('h-4 w-4', attaching && 'animate-pulse')}
+                aria-hidden
+              />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => void handleAttach('screenshot')}
+              data-testid="browser-attach-screenshot"
+            >
+              {t('layout.browser-attach-screenshot', {
+                defaultValue: 'Attach screenshot',
+              })}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => void handleAttach('text')}
+              data-testid="browser-attach-text"
+            >
+              {t('layout.browser-attach-text', {
+                defaultValue: 'Attach page text',
+              })}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <TooltipSimple
           content={t('layout.browser-open-external', {
             defaultValue: 'Open externally',

@@ -72,6 +72,12 @@ interface ElectronAPI {
   hideAllWebview: () => Promise<any>;
   getShowWebview: () => Promise<any>;
   webviewDestroy: (webviewId: string) => Promise<any>;
+  capturePreviewGuest: (webContentsId: number) => Promise<{
+    success: boolean;
+    filePath?: string;
+    fileName?: string;
+    error?: string;
+  }>;
   exportLog: () => Promise<{
     success: boolean;
     savedPath?: string;

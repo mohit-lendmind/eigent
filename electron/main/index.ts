@@ -19,10 +19,12 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   nativeTheme,
   protocol,
   session,
   shell,
+  webContents,
 } from 'electron';
 import log from 'electron-log';
 import FormData from 'form-data';
@@ -1108,6 +1110,102 @@ function registerIpcHandlers() {
         return { success: true, filePath, fileName: safeName };
       } catch (error: any) {
         log.error('Failed to save pasted file:', error);
+        return { success: false, error: error.message };
+      }
+    }
+  );
+
+  // Capture the visible page of a preview-browser guest as a JPEG on disk so
+  // it can join the path-based attachment flow. Scoped hard: the id must
+  // resolve to a live <webview> guest in the preview partition — this handler
+  // must not become a capture-any-webContents primitive.
+  ipcMain.handle(
+    'capture-preview-guest',
+    async (_event, webContentsId: number) => {
+      try {
+        const contents = webContents.fromId(webContentsId);
+        if (
+          !contents ||
+          contents.isDestroyed() ||
+          contents.getType() !== 'webview' ||
+          contents.session !== session.fromPartition(PREVIEW_WEBVIEW_PARTITION)
+        ) {
+          return { success: false, error: 'Not a preview browser page' };
+        }
+
+        let jpeg: Buffer | null = null;
+        const debuggerApi = contents.debugger;
+        let attachedHere = false;
+        let cdpTimer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          if (!debuggerApi.isAttached()) {
+            debuggerApi.attach('1.3');
+            attachedHere = true;
+          }
+          // A wedged renderer can hold the CDP reply forever; time-box it so
+          // the click still gets an answer via capturePage.
+          const result = (await Promise.race([
+            debuggerApi.sendCommand('Page.captureScreenshot', {
+              format: 'jpeg',
+              quality: 60,
+              fromSurface: true,
+            }),
+            new Promise((_, reject) => {
+              cdpTimer = setTimeout(
+                () => reject(new Error('CDP screenshot timed out')),
+                5000
+              );
+            }),
+          ])) as { data?: string };
+          if (result?.data) {
+            jpeg = Buffer.from(result.data, 'base64');
+          }
+        } catch (error) {
+          log.warn(
+            'CDP screenshot failed for preview guest, falling back to capturePage:',
+            error
+          );
+        } finally {
+          clearTimeout(cdpTimer);
+          if (attachedHere && debuggerApi.isAttached()) {
+            try {
+              debuggerApi.detach();
+            } catch (detachError) {
+              log.warn('Failed to detach preview guest debugger:', detachError);
+            }
+          }
+        }
+        if (!jpeg) {
+          const image = await contents.capturePage();
+          jpeg = image.toJPEG(60);
+        }
+        // The edge refuses attachments over 3 MiB decoded; a viewport JPEG
+        // only gets there on pathological pages, where a coarser encode of the
+        // same frame must do — recapturing could show a different page.
+        const maxAttachBytes = 3 << 20;
+        if (jpeg.length > maxAttachBytes) {
+          jpeg = nativeImage.createFromBuffer(jpeg).toJPEG(30);
+          if (jpeg.length > maxAttachBytes) {
+            return {
+              success: false,
+              error: 'The page renders too large to attach',
+            };
+          }
+        }
+
+        const captureDir = path.join(app.getPath('temp'), 'eigent-captures');
+        await fsp.mkdir(captureDir, { recursive: true });
+        const stamp = new Date()
+          .toISOString()
+          .replace(/[-:]/g, '')
+          .replace(/\..+/, '')
+          .replace('T', '-');
+        const fileName = `page-${stamp}-${crypto.randomUUID().slice(0, 8)}.jpg`;
+        const filePath = path.join(captureDir, fileName);
+        await fsp.writeFile(filePath, jpeg);
+        return { success: true, filePath, fileName };
+      } catch (error: any) {
+        log.error('Failed to capture preview guest:', error);
         return { success: false, error: error.message };
       }
     }
