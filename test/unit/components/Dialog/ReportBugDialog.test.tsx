@@ -108,7 +108,7 @@ describe('ReportBugDialog', () => {
     expect(mockToast.success).not.toHaveBeenCalled();
   });
 
-  it('downloads the Eigent log', async () => {
+  it('downloads the Eternyl log', async () => {
     mockElectronAPI.exportLog.mockResolvedValueOnce({
       success: true,
       savedPath: '/tmp/eigent.log',

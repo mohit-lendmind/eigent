@@ -73,14 +73,14 @@ vi.mock('react-i18next', () => ({
     t: (key: string) => {
       // Map translation keys to English text
       const translations: Record<string, string> = {
-        'chat.welcome-to-eigent': 'Welcome to Eigent',
+        'chat.welcome-to-eigent': 'Welcome to Eternyl',
         'chat.how-can-i-help-you': 'How can I help you today?',
         'chat.it-ticket-creation': 'IT Ticket Creation',
         'chat.bank-transfer-csv-analysis-and-visualization':
           'Bank Transfer CSV Analysis and Visualization',
         'chat.help-organize-my-desktop': 'Please Help Organize My Desktop',
         'setting.search-mcp': 'Search MCPs',
-        'chat.by-messaging-eigent': 'By messaging Eigent, you agree to our',
+        'chat.by-messaging-eigent': 'By messaging Eternyl, you agree to our',
         'chat.terms-of-use': 'Terms of Use',
         'chat.and': 'and',
         'chat.privacy-policy': 'Privacy Policy',

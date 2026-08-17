@@ -185,7 +185,7 @@ const indexHtml = path.join(RENDERER_DIST, 'index.html');
 const logPath = log.transports.file.getFile().path;
 
 // Storage strategy:
-// 1. Main window: partition 'persist:main_window' in app userData → Eigent account (persistent)
+// 1. Main window: partition 'persist:main_window' in app userData → Eternyl account (persistent)
 // 2. WebView: partition 'persist:user_login' in app userData → will import cookies from tool_controller via session API
 // 3. tool_controller: ~/.eigent/browser_profiles/profile_user_login → source of truth for login cookies
 //
@@ -285,16 +285,16 @@ if (!app.requestSingleInstanceLock()) {
 // ==================== protocol config ====================
 const setupProtocolHandlers = () => {
   if (process.env.NODE_ENV === 'development') {
-    const isDefault = app.isDefaultProtocolClient('eigent', process.execPath, [
+    const isDefault = app.isDefaultProtocolClient('eternyl', process.execPath, [
       path.resolve(process.argv[1]),
     ]);
     if (!isDefault) {
-      app.setAsDefaultProtocolClient('eigent', process.execPath, [
+      app.setAsDefaultProtocolClient('eternyl', process.execPath, [
         path.resolve(process.argv[1]),
       ]);
     }
   } else {
-    app.setAsDefaultProtocolClient('eigent');
+    app.setAsDefaultProtocolClient('eternyl');
   }
 };
 
@@ -393,7 +393,7 @@ function processQueuedProtocolUrls() {
 
 // ==================== auth callback server ====================
 // Local HTTP server for receiving auth callbacks from external login (eigent.ai)
-// Works in both dev and production mode, avoids eigent:// protocol issues in dev
+// Works in both dev and production mode, avoids eternyl:// protocol issues in dev
 let authCallbackServer: http.Server | null = null;
 let authCallbackPort: number | null = null;
 
@@ -421,7 +421,7 @@ async function startAuthCallbackServer() {
         </style></head>
         <body><div class="container">
           <h1>Login Successful</h1>
-          <p>You can close this tab and return to Eigent.</p>
+          <p>You can close this tab and return to Eternyl.</p>
         </div></body></html>
       `);
 
@@ -451,7 +451,7 @@ const setupSingleInstanceLock = () => {
   // to register the event handlers.
   app.on('second-instance', (event, argv) => {
     log.info('second-instance', argv);
-    const url = argv.find((arg) => arg.startsWith('eigent://'));
+    const url = argv.find((arg) => arg.startsWith('eternyl://'));
     if (url) handleProtocolUrl(url);
     if (win) win.show();
   });
@@ -802,7 +802,7 @@ function registerIpcHandlers() {
         const platform = process.platform;
         const arch = process.arch;
         const bugReportText = [
-          'Eigent bug report',
+          'Eternyl bug report',
           '=================',
           '',
           `App version: ${appVersion}`,
@@ -1983,7 +1983,7 @@ async function createWindowInternal() {
   // Platform-specific window configuration
   // Windows: native frame and solid background. macOS/Linux: frameless; macOS corner radius via native hook.
   win = new BrowserWindow({
-    title: 'Eigent',
+    title: 'Eternyl',
     width: 1280,
     height: 960,
     minWidth: 1100,

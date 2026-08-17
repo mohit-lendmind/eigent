@@ -169,7 +169,7 @@ async function handleLocalOAuthCallback(
       res,
       400,
       'Authentication failed',
-      'Return to Eigent and try signing in again.'
+      'Return to Eternyl and try signing in again.'
     );
     stopCallbackServerWhenIdle();
     return;
@@ -246,7 +246,7 @@ async function ensureLocalOAuthCallbackServer(): Promise<void> {
           res,
           500,
           'Authentication failed',
-          'Eigent could not complete the OAuth callback.'
+          'Eternyl could not complete the OAuth callback.'
         );
       });
     });

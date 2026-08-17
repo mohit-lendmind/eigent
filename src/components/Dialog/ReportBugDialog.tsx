@@ -247,7 +247,7 @@ export default function ReportBugDialog({
                 <div className="flex min-w-0 flex-col">
                   <span className="text-body-sm font-medium text-ds-text-neutral-default-default">
                     {t('layout.support-eigent-log', {
-                      defaultValue: 'Eigent log',
+                      defaultValue: 'Eternyl log',
                     })}
                   </span>
                   <span className="text-body-xs text-ds-text-neutral-subtle-default">
@@ -263,7 +263,7 @@ export default function ReportBugDialog({
                   onClick={() => void handleDownloadLog()}
                   disabled={exportingLog}
                   aria-label={t('layout.support-eigent-log', {
-                    defaultValue: 'Eigent log',
+                    defaultValue: 'Eternyl log',
                   })}
                 >
                   {exportingLog ? (

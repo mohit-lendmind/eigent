@@ -68,7 +68,7 @@ describe('negotiateCompatibility', () => {
     if (!verdict.compatible) {
       expect(verdict.reason).toContain(DESKTOP_CLIENT_VERSION);
       expect(verdict.reason).toContain('999.0.0');
-      expect(verdict.reason).toContain('Update Eigent');
+      expect(verdict.reason).toContain('Update Eternyl');
     }
   });
 

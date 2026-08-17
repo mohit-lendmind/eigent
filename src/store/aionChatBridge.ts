@@ -1,6 +1,6 @@
 // M6 train-1 preview (doc 10 §12): the product chat UI backed by the aion
-// edge instead of the legacy local brain. One aion Project per Eigent project
-// carries the whole conversation; each Eigent task (one chat turn) submits
+// edge instead of the legacy local brain. One aion Project per Eternyl project
+// carries the whole conversation; each Eternyl task (one chat turn) submits
 // exactly one command and renders exactly its own Run — correlated by the
 // CommandReceipt's run_id, never guessed. UI state is a pure projection of
 // the reducer state the M4 goldens pin, written only through the chat
@@ -218,7 +218,7 @@ export function resolveModelAlias(
   return fallback?.alias ?? null;
 }
 
-// One aion Project per Eigent project; promise-cached so concurrent turns
+// One aion Project per Eternyl project; promise-cached so concurrent turns
 // share a single createProject.
 const bindings = new Map<string, Promise<ProjectBinding>>();
 const liveBindings: ProjectBinding[] = [];
@@ -259,7 +259,7 @@ async function createBinding(
     throw new IncompatibleBackendError(verdict.reason);
   }
   const alias = await pickModelAlias(transport, eigentProjectId);
-  const title = firstQuestion.trim().slice(0, 120) || 'Eigent conversation';
+  const title = firstQuestion.trim().slice(0, 120) || 'Eternyl conversation';
   const project = await transport.createProject({
     title,
     model_alias: alias,

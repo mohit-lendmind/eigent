@@ -246,7 +246,7 @@ export default function SkillListItem(props: SkillListItemProps) {
 
   const handleTryInChat = () => {
     projectStore?.createProject('new project');
-    const prompt = `I just added the {{${skill.name}}} skill for Eigent, can you make something amazing with this skill?`;
+    const prompt = `I just added the {{${skill.name}}} skill for Eternyl, can you make something amazing with this skill?`;
     navigate(`/?skill_prompt=${encodeURIComponent(prompt)}`);
   };
 

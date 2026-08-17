@@ -75,7 +75,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
         'chat.ask-placeholder': 'Type your message...',
-        'layout.by-messaging-eigent': 'By messaging Eigent, you agree to our',
+        'layout.by-messaging-eigent': 'By messaging Eternyl, you agree to our',
         'layout.terms-of-use': 'Terms of Use',
         'layout.and': 'and',
         'layout.privacy-policy': 'Privacy Policy',
