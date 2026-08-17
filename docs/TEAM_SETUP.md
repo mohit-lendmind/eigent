@@ -32,6 +32,9 @@ The API key is handed to you directly by the admin (Slack DM, password
 manager, …). It is **never** stored in this repository, in this document, or
 in any commit. Treat it like a password.
 
+> **Admin:** the exact commands for all three grants are in
+> [§9 — For the admin](#9-for-the-admin-onboarding-a-teammate).
+
 > The GCP project id is literally spelled `eternly-dev` (no second "e").
 > Copy-paste the commands below rather than typing it.
 
@@ -184,3 +187,64 @@ code.
   immediately so it can be revoked — revocation is cheap, leaks are not.
 - Don't share your personal key with teammates; everyone gets their own from
   the admin.
+
+## 9. For the admin: onboarding a teammate
+
+The three grants from §1, as commands. Run these from the admin machine (the
+one holding the aion repo checkout and the admin API key).
+
+### 9.1 GitHub + GCP access
+
+```bash
+# Repo access (or use the GitHub UI: Settings → Collaborators):
+gh api -X PUT repos/mohit-lendmind/eigent/collaborators/<github-username> \
+  -f permission=push
+
+# kubectl access to the cluster (needed for the edge tunnel):
+gcloud projects add-iam-policy-binding eternly-dev \
+  --member="user:<teammate>@example.com" \
+  --role="roles/container.developer"
+```
+
+### 9.2 Mint their personal API key
+
+Keys are minted over the edge API (`POST /eigent/v1/keys`), authenticated
+with **your** admin key — no cluster surgery involved. Needs the edge tunnel
+running (`./scripts/team/edge-tunnel.sh`, §5).
+
+```bash
+# From the aion repo checkout; response lands in a 0600 file so the raw
+# key never sits in your terminal scrollback.
+cd <your aion-v1 checkout>
+install -m 600 /dev/null /tmp/teammate-key.json
+curl -sS -X POST http://127.0.0.1:18985/eigent/v1/keys \
+  -H "Authorization: Bearer $(cat deploy/eigent-local/secrets/cell-dev-1-api-key)" \
+  -H "Content-Type: application/json" \
+  -d '{"label":"<teammate-name>"}' \
+  -o /tmp/teammate-key.json
+
+# Copy the raw key to the clipboard, DM it to the teammate (password
+# manager or direct message — never a commit or a shared doc), then delete:
+jq -r .raw_key /tmp/teammate-key.json | pbcopy
+rm /tmp/teammate-key.json
+```
+
+The `raw_key` is shown **exactly once** — it is not recoverable afterwards
+(only its HMAC is stored). Always set `label` to the teammate's name so a
+later revocation is unambiguous. The minted key inherits your key's grant
+(tenant `default`, env `dev`).
+
+### 9.3 Audit and revoke
+
+```bash
+# List keys — key_id, label, created_at, last_used_at (never a raw key):
+curl -sS http://127.0.0.1:18985/eigent/v1/keys \
+  -H "Authorization: Bearer $(cat deploy/eigent-local/secrets/cell-dev-1-api-key)" | jq .
+
+# Revoke (offboarding, or a leaked key) — locks the holder out immediately:
+curl -sS -X DELETE http://127.0.0.1:18985/eigent/v1/keys/<key_id> \
+  -H "Authorization: Bearer $(cat deploy/eigent-local/secrets/cell-dev-1-api-key)"
+```
+
+A key that never authenticated shows no `last_used_at` — that's the one
+that's safe to revoke without asking around.
