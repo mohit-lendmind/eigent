@@ -293,6 +293,46 @@ describe('buildAgentBlocks', () => {
     expect(tool?.kind === 'tool' && tool.detail).toContain('session ready');
   });
 
+  it('carries live output on the running tool row and drops it on settlement', () => {
+    const running = [
+      tag(
+        'a1',
+        'x',
+        'X',
+        mk(AgentStep.ACTIVATE_TOOLKIT, {
+          toolkit_name: 'bash',
+          method_name: '',
+          message: '{"command":"make"}',
+          live_output: 'compiling\nlinking\n',
+        })
+      ),
+    ];
+    const tool = findTool(buildAgentBlocks(running)[0]!.items, 0);
+    expect(tool?.kind === 'tool' && tool.liveOutput).toBe(
+      'compiling\nlinking\n'
+    );
+
+    // On settlement the result is authoritative: the live tail clears so the
+    // fold renders only the Response block.
+    const settled = buildAgentBlocks([
+      ...running,
+      tag(
+        'a1',
+        'x',
+        'X',
+        mk(AgentStep.DEACTIVATE_TOOLKIT, {
+          toolkit_name: 'bash',
+          method_name: '',
+          message: 'build ok',
+        })
+      ),
+    ]);
+    const done = findTool(settled[0]!.items, 0);
+    expect(done?.kind === 'tool' && done.status).toBe('done');
+    expect(done?.kind === 'tool' ? done.liveOutput : 'unset').toBeUndefined();
+    expect(done?.kind === 'tool' && done.output).toBe('build ok');
+  });
+
   it('opens a new block on agent-id change without requiring ACTIVATE_AGENT', () => {
     const logs = [
       tag(

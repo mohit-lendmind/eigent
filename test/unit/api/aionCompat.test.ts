@@ -13,6 +13,7 @@ import {
   supportsSchedules,
   supportsRunRecovery,
   supportsAttachments,
+  supportsLiveActivity,
 } from '@/api/aion/v1/compat';
 import {
   DESKTOP_CLIENT_VERSION,
@@ -284,5 +285,31 @@ describe('supportsAttachments', () => {
     expect(supportsAttachments(status({ edge_api_version: '1.sixteen' }))).toBe(
       false
     );
+  });
+});
+
+describe('supportsLiveActivity', () => {
+  it('gates on the 1.18 run_progress/tool_output floor', () => {
+    // An older edge simply never emits the kinds — the events degrade
+    // cleanly — so this floor gates only affordances that PROMISE liveness,
+    // like a dispatch-stage label that would otherwise sit frozen forever.
+    expect(supportsLiveActivity(status({ edge_api_version: '1.17.9' }))).toBe(
+      false
+    );
+    expect(supportsLiveActivity(status({ edge_api_version: '1.18.0' }))).toBe(
+      true
+    );
+    expect(supportsLiveActivity(status({ edge_api_version: '1.19.0' }))).toBe(
+      true
+    );
+  });
+
+  it('fails closed on garbage and on a foreign major', () => {
+    expect(supportsLiveActivity(status({ edge_api_version: '2.18.0' }))).toBe(
+      false
+    );
+    expect(
+      supportsLiveActivity(status({ edge_api_version: '1.eighteen' }))
+    ).toBe(false);
   });
 });

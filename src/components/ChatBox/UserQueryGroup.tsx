@@ -388,7 +388,12 @@ export const UserQueryGroup: React.FC<UserQueryGroupProps> = ({
           transition={{ duration: 0.25, delay: 0.05 }}
           className="px-6"
         >
-          {showPreparingExecute ? <PreparingToExecuteTasks /> : null}
+          {showPreparingExecute ? (
+            <PreparingToExecuteTasks
+              stage={task?.runStage?.stage}
+              detail={task?.runStage?.detail}
+            />
+          ) : null}
           <TaskWorkLogAccordion chatStore={chatStore} taskId={activeTaskId} />
         </motion.div>
       )}

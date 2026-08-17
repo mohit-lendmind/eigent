@@ -94,4 +94,39 @@ describe('projectToolLog', () => {
     expect(message.length).toBeLessThan(5_000);
     expect(message.endsWith('…')).toBe(true);
   });
+
+  it('carries the live output on the running activation only', () => {
+    const running = projectToolLog('run-1', [
+      toolEntry({ liveOutput: 'compiling core\nlinking\n' }),
+    ]);
+    expect(running[0]!.data.live_output).toBe('compiling core\nlinking\n');
+
+    // Once the result lands it is authoritative — the deactivation carries
+    // the response and the live tail stops being projected.
+    const settled = projectToolLog('run-1', [
+      toolEntry({
+        liveOutput: 'compiling core\nlinking\n',
+        result: { sequence: '8', content: 'build ok', isError: false },
+      }),
+    ]);
+    expect(settled[0]!.data.live_output).toBeUndefined();
+    expect(settled[1]!.data.message).toBe('build ok');
+  });
+
+  it('keeps the TAIL of a huge live buffer, marked as clipped', () => {
+    const log = projectToolLog('run-1', [
+      toolEntry({ liveOutput: `${'x'.repeat(100_000)}END` }),
+    ]);
+    const live = log[0]!.data.live_output as string;
+    expect(live.length).toBeLessThan(5_000);
+    expect(live.startsWith('…')).toBe(true);
+    expect(live.endsWith('END')).toBe(true);
+  });
+
+  it('marks a backend-truncated buffer clipped even when short', () => {
+    const log = projectToolLog('run-1', [
+      toolEntry({ liveOutput: 'recent output\n', liveOutputTruncated: true }),
+    ]);
+    expect(log[0]!.data.live_output).toBe('…recent output\n');
+  });
 });

@@ -43,10 +43,25 @@ export interface RunRecoveryState {
   sequence: string;
 }
 
+/**
+ * The latest admission-chain stage the worker announced (`dispatching`,
+ * `workspace_ready`, `starting` — an OPEN set; render the string). Never
+ * cleared: staleness is decided by the reader (the pre-content indicator
+ * stops rendering once the run has renderable output), because the stages
+ * end with the run's first real event, not with an un-announce.
+ */
+export interface RunProgressState {
+  stage: string;
+  detail?: string;
+  sequence: string;
+}
+
 export interface RunState {
   runId: string;
   status: RunUIStatus;
   runEpoch?: string;
+  /** Set by run_progress while the run is still being dispatched. */
+  progress?: RunProgressState;
   /** run_failed reason code / run_cancelled reason, verbatim from the event. */
   outcomeReason?: string;
   /** run_completed summary or run_failed message, verbatim from the event. */
@@ -109,6 +124,16 @@ export type TimelineEntry =
       toolCallId: string;
       toolName: string;
       argumentsJson: string;
+      /**
+       * Live stdout/stderr accumulated from tool_output chunks while the tool
+       * runs, in arrival order (how a terminal would show it). The final
+       * `result.content` is the authoritative settled output; this buffer is
+       * what existed before settlement and is kept afterwards so a surface
+       * can keep showing the stream it already rendered.
+       */
+      liveOutput?: string;
+      /** True once any chunk reported the per-tool retention cap was hit. */
+      liveOutputTruncated?: boolean;
       result?: ToolResultState;
     }
   | {
@@ -519,6 +544,50 @@ export function reduceProjectEvent(
       };
       if (!existing) {
         next.timeline.push({ type: 'worker', runId, sequence, workerKey });
+      }
+      return next;
+    }
+    case 'run_progress': {
+      // Dispatch narration: run-state only, no timeline entry. The stages
+      // describe the wait before the run's first real content, so a timeline
+      // row would survive as clutter exactly when it stopped meaning anything.
+      const stage = str(data.stage) ?? '';
+      if (!stage) {
+        return next;
+      }
+      const existing = next.runs[runId] ?? { runId, status: 'running' as RunUIStatus };
+      next.runs[runId] = {
+        ...existing,
+        progress: { stage, detail: str(data.detail), sequence },
+      };
+      return next;
+    }
+    case 'tool_output': {
+      const toolCallId = str(data.tool_call_id);
+      const index = toolCallId
+        ? next.timeline.findIndex(
+            (entry) =>
+              entry.type === 'tool' &&
+              entry.toolCallId === toolCallId &&
+              entry.result === undefined
+          )
+        : -1;
+      if (index < 0) {
+        // No visible matching call (pre-snapshot, or the call event was
+        // suppressed). Retained opaquely rather than invented or lost.
+        next.timeline.push({ type: 'opaque', runId, sequence, kind: event.kind, event });
+        return next;
+      }
+      const entry = next.timeline[index];
+      if (entry.type === 'tool') {
+        next.timeline[index] = {
+          ...entry,
+          sequence: entry.sequence,
+          liveOutput: (entry.liveOutput ?? '') + (str(data.content) ?? ''),
+          ...(data.truncated === true || entry.liveOutputTruncated
+            ? { liveOutputTruncated: true }
+            : {}),
+        };
       }
       return next;
     }

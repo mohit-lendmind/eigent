@@ -255,3 +255,13 @@ export function supportsRunRecovery(status: IntegrationStatus): boolean {
 export function supportsAttachments(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, ATTACHMENTS_MINIMUM_EDGE);
 }
+
+// Live activity (1.18): the edge emits run_progress dispatch stages and
+// user-visible tool_output chunks. Older edges simply never emit the kinds,
+// so this floor gates only affordances that PROMISE liveness (e.g. a
+// "preparing workspace" label that would otherwise sit frozen forever).
+const LIVE_ACTIVITY_MINIMUM_EDGE = [1, 18];
+
+export function supportsLiveActivity(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, LIVE_ACTIVITY_MINIMUM_EDGE);
+}

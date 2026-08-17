@@ -169,6 +169,11 @@ declare global {
       method_name?: string;
       state?: string;
       message?: string;
+      /**
+       * aion remote mode: the tail of a still-running tool's streamed
+       * stdout/stderr (tool_output events), absent once the result lands.
+       */
+      live_output?: string;
       question?: string;
       reply?: string;
       agent?: string;

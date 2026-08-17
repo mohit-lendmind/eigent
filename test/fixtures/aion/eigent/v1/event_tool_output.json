@@ -1,0 +1,12 @@
+{
+  "event_id": "evt_01JY0000000000000000000016",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "run_01JY0000000000000000000001",
+  "sequence": "16",
+  "kind": "tool_output",
+  "visibility": "user",
+  "occurred_at": "2026-08-17T09:00:16Z",
+  "correlation": {"aion_sequence": "21", "tool_call_id": "toolu_01JY0000000000000000001"},
+  "data": {"tool_call_id": "toolu_01JY0000000000000000001", "tool_name": "bash", "stream": "stdout", "content": "PASS: 214 tests in 12.4s\n", "truncated": true, "dropped_bytes": "4096"}
+}
