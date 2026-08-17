@@ -10,9 +10,27 @@ sync), record the aion-v1 commit below, then run `pnpm gen:aion-edge` so the
 generated client under `../gen/` matches. `bazel test //:aion_edge_client_gen`
 fails until mirror and generated output agree.
 
-- Contract version: edge_api `1.15.0`
+- Contract version: edge_api `1.16.0`
 - Source path: `aion-v1/api/eigent/v1/`
-- Last synced from: aion-v1 commit `46b7d6a`, which adds the `run_recovery`
+- Last synced from: aion-v1 commit `b874efd`, which adds attachments:
+  `POST /projects/{projectId}/attachments` takes `{name, media_type,
+  data_base64}` and answers 201 with the published `Artifact` (re-uploading
+  the same name mints the next version; identical bytes dedupe in the CAS,
+  so there is deliberately no Idempotency-Key on this route), and
+  `SubmitCommand` accepts `attachment_ids` naming published artifacts the
+  run's first message should carry as typed image/document parts. Two new
+  problems: 422 `attachment_invalid` (the plane refused the attachment
+  itself — on upload, or at submit when an id names an unpublished or
+  undeliverable artifact) and 501 `artifacts_not_configured` (no object
+  store behind this deployment); an oversize decoded body is the existing
+  413 `payload_too_large` at a 3 MiB per-attachment ceiling. Synced
+  together with `test/fixtures/aion/eigent/v1/` (which gains
+  `upload_attachment_request.json`, `upload_attachment_response.json`,
+  `problem_attachment_invalid.json` and
+  `problem_artifacts_not_configured.json`, and whose
+  `integration_status_response.json` and `account_response.json` move with
+  the contract).
+- Previously synced from aion-v1 commit `46b7d6a`, which adds the `run_recovery`
   event: a run entering one of the durable recovery labels used to be written
   onto its own row and nowhere else, so a run parked behind a quarantined
   record was indistinguishable from one still thinking — both are a stream that

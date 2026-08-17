@@ -250,6 +250,47 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Publish caller-supplied bytes as an ordinary Project artifact, so a
+         *     later submitCommand can name the result in `attachment_ids` and the
+         *     run receives the file as native model input. The upload is the whole
+         *     grant: the response's `artifact_id` is the only handle the caller
+         *     needs, and the artifact is immediately listable and downloadable like
+         *     any other.
+         *
+         *     Only media a dispatch can deliver to a model is accepted — png, jpeg,
+         *     webp and gif images, PDF documents, and text (`text/*` or
+         *     `application/json`); anything else is the typed 422
+         *     (`code: attachment_invalid`), refused here while the uploader is
+         *     still on the wire rather than at dispatch where it would fail the run
+         *     that referenced it. Bytes travel as standard base64; the decoded size
+         *     ceiling is 3 MiB per attachment (`413 payload_too_large`), and a
+         *     command may carry at most 32 attachments totalling 8 MiB — checked at
+         *     submitCommand, which answers the same `attachment_invalid` for a
+         *     reference that stopped qualifying between upload and submit.
+         *
+         *     Re-uploading a name mints the next version rather than overwriting;
+         *     identical bytes dedupe in storage. On a deployment without artifact
+         *     storage the route answers 501 (`code: artifacts_not_configured`).
+         */
+        post: operations["uploadAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/skills": {
         parameters: {
             query?: never;
@@ -1146,6 +1187,32 @@ export type components = {
             expires_at: string;
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * @description One file to publish as a Project artifact for use as a command
+         *     attachment. Bytes ride the JSON body inline — an attachment is small
+         *     by contract, and one round trip with no second commit step means
+         *     there is no half-uploaded state a client crash can leak.
+         */
+        AttachmentUpload: {
+            /**
+             * @description Display name for the file, usually its filename. The `aion-`
+             *     prefix is reserved for runtime-produced artifacts and refused.
+             */
+            name: string;
+            /**
+             * @description The file's media type. Accepted values are the deliverable set —
+             *     image/png, image/jpeg, image/webp, image/gif, application/pdf,
+             *     application/json and any text/* type; anything else is the typed
+             *     422 `attachment_invalid`.
+             */
+            media_type: string;
+            /**
+             * @description The file bytes as standard base64 (RFC 4648, with padding). The
+             *     DECODED size ceiling is 3145728 bytes (3 MiB), which this
+             *     maxLength is the exact encoding of.
+             */
+            data_base64: string;
         };
         ModelAliasCatalog: {
             aliases: components["schemas"]["ModelAliasOption"][];
@@ -2304,6 +2371,38 @@ export interface operations {
             };
             401: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+        };
+    };
+    uploadAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachmentUpload"];
+            };
+        };
+        responses: {
+            /** @description The published artifact carrying the uploaded bytes */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Artifact"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
         };
     };
     listSkills: {

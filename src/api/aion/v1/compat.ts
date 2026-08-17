@@ -190,6 +190,12 @@ const SPACES_MINIMUM_EDGE = [1, 14];
 // rather than that the run is fine.
 const RUN_RECOVERY_MINIMUM_EDGE = [1, 15];
 
+// The attachment upload route shipped in edge API 1.16.0. Below the floor
+// there is nowhere to put the bytes and submitCommand rejects attachment_ids
+// as an unknown member, so the composer must not offer an attach affordance it
+// can only fail after the user has already picked a file.
+const ATTACHMENTS_MINIMUM_EDGE = [1, 16];
+
 function meetsEdgeFloor(status: IntegrationStatus, floor: number[]): boolean {
   if (!negotiateCompatibility(status).compatible) {
     return false;
@@ -244,4 +250,8 @@ export function supportsSpaces(status: IntegrationStatus): boolean {
 
 export function supportsRunRecovery(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, RUN_RECOVERY_MINIMUM_EDGE);
+}
+
+export function supportsAttachments(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, ATTACHMENTS_MINIMUM_EDGE);
 }

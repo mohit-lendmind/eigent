@@ -14,7 +14,8 @@
     "put_memory_request.json",
     "create_space_request.json",
     "update_space_request.json",
-    "set_project_space_request.json"
+    "set_project_space_request.json",
+    "upload_attachment_request.json"
   ],
   "responses": [
     "create_project_response.json",
@@ -43,7 +44,8 @@
     "put_memory_response.json",
     "clear_memory_response.json",
     "space_response.json",
-    "space_list_response.json"
+    "space_list_response.json",
+    "upload_attachment_response.json"
   ],
   "events": [
     "event_run_accepted.json",
@@ -76,6 +78,8 @@
     "problem_memory_not_configured.json",
     "problem_memory_quota_exceeded.json",
     "problem_memory_invalid.json",
-    "problem_space_in_use.json"
+    "problem_space_in_use.json",
+    "problem_attachment_invalid.json",
+    "problem_artifacts_not_configured.json"
   ]
 }

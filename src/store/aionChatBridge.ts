@@ -19,6 +19,7 @@ import { workersForRun } from '@/api/aion/v1/reducer';
 import {
   IncompatibleBackendError,
   negotiateCompatibility,
+  supportsAttachments,
 } from '@/api/aion/v1/compat';
 import { ProjectSession, newCommandId } from '@/api/aion/v1/session';
 import { EdgeTransport, type ModelAliasCatalog } from '@/api/aion/v1/transport';
@@ -317,6 +318,51 @@ export interface StartAionTaskArgs {
   taskId: string;
   eigentProjectId: string;
   question: string;
+  /** Files attached in the composer, as paths only the desktop can read. */
+  attaches?: { fileName: string; filePath: string }[];
+}
+
+// The exact shape the read-file-dataurl IPC produces; anything else means the
+// read failed rather than that the file has an exotic type.
+function splitDataUrl(
+  dataUrl: string
+): { mediaType: string; base64: string } | null {
+  const match = /^data:([^;,]+);base64,(.*)$/s.exec(dataUrl);
+  return match ? { mediaType: match[1], base64: match[2] } : null;
+}
+
+/**
+ * Publishes each attached file as a Project artifact and returns the ids in
+ * composer order. Throws rather than silently dropping a file: the user
+ * watched themselves attach it, so a turn that runs without it is a worse
+ * outcome than one that fails saying why.
+ */
+async function uploadAttaches(
+  transport: EdgeTransport,
+  aionProjectId: string,
+  attaches: { fileName: string; filePath: string }[]
+): Promise<string[]> {
+  const status = await transport.getIntegrationStatus();
+  if (!supportsAttachments(status)) {
+    throw new Error(
+      `This backend (edge API ${status.edge_api_version}) does not accept file attachments. Remove the attached files to run this task.`
+    );
+  }
+  const ids: string[] = [];
+  for (const attach of attaches) {
+    const dataUrl = await hostAPI()?.readFileAsDataUrl?.(attach.filePath);
+    const parts = typeof dataUrl === 'string' ? splitDataUrl(dataUrl) : null;
+    if (!parts) {
+      throw new Error(`Could not read "${attach.fileName}" from disk.`);
+    }
+    const artifact = await transport.uploadAttachment(aionProjectId, {
+      name: attach.fileName,
+      media_type: parts.mediaType,
+      data_base64: parts.base64,
+    });
+    ids.push(artifact.artifact_id);
+  }
+  return ids;
 }
 
 /**
@@ -338,9 +384,15 @@ export async function startAionTask(args: StartAionTaskArgs): Promise<void> {
     );
   }
   const binding = await ensureBinding(config, args.eigentProjectId, question);
+  const attaches = args.attaches ?? [];
+  const attachmentIds =
+    attaches.length > 0
+      ? await uploadAttaches(binding.transport, binding.aionProjectId, attaches)
+      : [];
   const receipt = await binding.session.submitCommand({
     command_id: newCommandId(),
     text: question,
+    ...(attachmentIds.length > 0 ? { attachment_ids: attachmentIds } : {}),
   });
   const turn: TurnBinding = {
     taskId: args.taskId,
