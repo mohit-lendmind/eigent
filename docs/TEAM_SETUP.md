@@ -147,10 +147,13 @@ code.
 
 ## 6. Known caveats (current state, not bugs to file)
 
-- **`web_search` / `fetch` tool calls time out by design.** The agents pod has
-  no public-internet egress (locked-down cell). For live web data, ask the
-  agent to *browse* — browser tasks run in sandboxed browser pods that do have
-  egress. This is the sanctioned live-web path.
+- **`web_search` / `fetch` work — via a policy proxy.** The agents pod still
+  has no direct public-internet egress; its web tools go through an
+  in-namespace egress proxy that tunnels ordinary web traffic and refuses
+  model-provider hosts (so an agent can never reach a provider API with the
+  operator's network position). If a fetch fails with a 403 naming "egress
+  policy", that refusal is deliberate. Browser tasks remain available as a
+  second live-web path.
 - **Port 18985 shadowing.** If anything else (typically a local Docker stack)
   holds `127.0.0.1:18985`, `kubectl port-forward` silently binds only IPv6 and
   your requests hit the local process instead of the cloud edge — classic
