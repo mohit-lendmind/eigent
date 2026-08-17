@@ -55,7 +55,6 @@ export function TaskLogPanelContent({
               >
                 <MarkDown
                   content={toolkit?.message}
-                  enableTypewriter={false}
                   pTextSize="text-label-xs"
                 />
               </div>
@@ -125,7 +124,6 @@ export function TaskLogPanelContent({
                   >
                     <MarkDown
                       content={toolkit.message}
-                      enableTypewriter={false}
                       pTextSize="text-label-xs"
                       olPadding="pl-4"
                     />
@@ -171,7 +169,6 @@ export function TaskLogPanelContent({
           <div className="px-2 py-2">
             <MarkDown
               content={selectedTask?.report}
-              enableTypewriter={false}
               pTextSize="text-label-xs"
             />
           </div>

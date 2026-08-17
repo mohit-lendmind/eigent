@@ -18,6 +18,7 @@ import { MarkDown } from '@/components/WorkFlow/MarkDown';
 import { cn } from '@/lib/utils';
 import type { VanillaChatStore } from '@/store/chatStore';
 import {
+  AgentMessageStatus,
   AgentStep,
   ChatTaskStatus,
   type ChatTaskStatusType,
@@ -169,7 +170,8 @@ type ToolItem = {
   input: string;
   /** The tool call response/result (from DEACTIVATE_TOOLKIT). */
   output: string;
-  status: 'running' | 'done';
+  /** `error` is a settled row whose result reported failure. */
+  status: 'running' | 'done' | 'error';
 };
 
 type MessageItem = {
@@ -328,7 +330,8 @@ export function buildAgentBlocks(
       if (it.kind !== 'tool') continue;
       if (it.status !== 'running') continue;
       if (it.toolkitName !== name || it.method !== method) continue;
-      it.status = 'done';
+      it.status =
+        entry.status === AgentMessageStatus.FAILED ? 'error' : 'done';
       it.output = [it.output, rawMsg].filter(Boolean).join('\n\n').trim();
       it.detail = [it.detail, rawMsg].filter(Boolean).join('\n\n').trim();
       break;
@@ -472,7 +475,8 @@ export function buildAgentBlocks(
         if (it.kind !== 'tool') continue;
         if (it.status !== 'running') continue;
         if (it.toolkitName !== name || it.method !== method) continue;
-        it.status = 'done';
+        it.status =
+          entry.status === AgentMessageStatus.FAILED ? 'error' : 'done';
         it.output = [it.output, msg].filter(Boolean).join('\n\n').trim();
         it.detail = [it.detail, msg].filter(Boolean).join('\n\n').trim();
         break;
@@ -547,7 +551,7 @@ export function groupBlocksByAgent(blocks: AgentBlock[]): GroupedEntry[] {
   for (const group of groupMap.values()) {
     const tools = group.items.filter((i): i is ToolItem => i.kind === 'tool');
     group.totalToolCount = tools.length;
-    group.doneToolCount = tools.filter((t) => t.status === 'done').length;
+    group.doneToolCount = tools.filter((t) => t.status !== 'running').length;
   }
 
   return result;
@@ -695,12 +699,15 @@ const ToolDetailRow = memo(function ToolDetailRow({
   rowTitle: string;
   input: string;
   output: string;
-  status: 'running' | 'done';
+  status: 'running' | 'done' | 'error';
 }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex w-full min-w-0 flex-col items-start">
+    <div
+      className="flex w-full min-w-0 flex-col items-start"
+      data-tool-status={status}
+    >
       <button
         type="button"
         aria-expanded={open}
@@ -714,8 +721,15 @@ const ToolDetailRow = memo(function ToolDetailRow({
             className="min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap !text-label-sm font-normal text-ds-text-neutral-subtle-default"
           />
         ) : (
-          <span className="min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap !text-label-sm font-normal text-ds-text-neutral-subtle-default">
-            {rowTitle}
+          <span
+            className={cn(
+              'min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap !text-label-sm font-normal',
+              status === 'error'
+                ? 'text-ds-text-status-error-default-default'
+                : 'text-ds-text-neutral-subtle-default'
+            )}
+          >
+            {status === 'error' ? `${rowTitle} · failed` : rowTitle}
           </span>
         )}
         <ChevronRight
@@ -748,7 +762,6 @@ const ToolDetailRow = memo(function ToolDetailRow({
                     </div>
                     <MarkDown
                       content={input}
-                      enableTypewriter={false}
                       pTextSize="text-label-xs text-ds-text-neutral-default-default"
                     />
                   </div>
@@ -760,7 +773,6 @@ const ToolDetailRow = memo(function ToolDetailRow({
                     </div>
                     <MarkDown
                       content={output}
-                      enableTypewriter={false}
                       pTextSize="text-label-xs text-ds-text-neutral-default-default"
                     />
                   </div>
@@ -916,11 +928,11 @@ const AgentBlockRow = memo(function AgentBlockRow({
                     input={item.input}
                     output={item.output}
                     status={
-                      taskRunning &&
-                      block.status === 'running' &&
                       item.status === 'running'
-                        ? 'running'
-                        : 'done'
+                        ? taskRunning && block.status === 'running'
+                          ? 'running'
+                          : 'done'
+                        : item.status
                     }
                   />
                 )
@@ -1160,11 +1172,11 @@ const AgentGroupRow = memo(function AgentGroupRow({
                     input={item.input}
                     output={item.output}
                     status={
-                      taskRunning &&
-                      group.status === 'running' &&
                       item.status === 'running'
-                        ? 'running'
-                        : 'done'
+                        ? taskRunning && group.status === 'running'
+                          ? 'running'
+                          : 'done'
+                        : item.status
                     }
                   />
                 )
@@ -1289,7 +1301,10 @@ export function TaskWorkLogAccordion({
     return groups.map((entry): GroupedEntry => {
       const settledItems = entry.items.map((it) =>
         it.kind === 'tool'
-          ? { ...it, status: 'done' as const }
+          ? {
+              ...it,
+              status: it.status === 'running' ? ('done' as const) : it.status,
+            }
           : { ...it, running: false }
       );
       if (entry.kind === 'agent-group') {

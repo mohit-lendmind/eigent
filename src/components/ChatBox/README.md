@@ -34,7 +34,6 @@ ChatBox/
 │   ├── TaskWorkLogAccordion.tsx  # Work log: tool / agent lines (workforce)
 │   ├── FloatingAction.tsx        # Pause / skip (used from ProjectSection)
 │   ├── MarkDown.tsx
-│   ├── SummaryMarkDown.tsx
 │   └── TokenUtils.tsx            # Token animation + splitting elapsed formatting
 │
 └── BottomBox/                # Composer and chrome above input
@@ -79,7 +78,7 @@ ChatBox/
 ## MessageItem (`MessageItem/`)
 
 - **`UserMessageCard` / `UserMessageRichContent`**: User bubble + rich blocks.
-- **`AgentMessageCard`**: Assistant markdown, optional typewriter, attachments.
+- **`AgentMessageCard`**: Assistant markdown, attachments.
 - **`SplittingProgressRow`**: Shown while the task is in the splitting phase; uses store `taskTime` / `elapsed` when present, with a per-session wall-clock fallback when not.
 - **`TaskWorkLogAccordion`**: Collapsible work log for running/finished/paused task (tool activate/deactivate, agent lines); Framer `height: auto` for expand, stable segment keys from the merged log.
 - **`TaskCompletionCard`**: Completion / summary style card when appropriate.

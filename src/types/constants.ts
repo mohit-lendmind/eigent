@@ -57,6 +57,7 @@ export const AgentMessageStatus = {
   RUNNING: 'running',
   FILLED: 'filled',
   COMPLETED: 'completed',
+  FAILED: 'failed',
 } as const;
 
 export type AgentMessageStatusType =

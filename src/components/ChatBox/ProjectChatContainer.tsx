@@ -77,20 +77,22 @@ export const ProjectChatContainer: React.FC<ProjectChatContainerProps> = ({
     }
   }
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout | null = null;
+    // Coalesce store bursts to one refresh per animation frame (see
+    // ProjectSection's subscription for the rationale).
+    let frame: number | null = null;
     const scheduleRefresh = () => {
-      if (timeoutId) return;
-      timeoutId = setTimeout(() => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
         setChatRevision((value) => value + 1);
-        timeoutId = null;
-      }, 100);
+      });
     };
     const unsubscribe = chatStores.map(({ chatStore }) =>
       chatStore.subscribe(scheduleRefresh)
     );
     return () => {
       unsubscribe.forEach((fn) => fn());
-      if (timeoutId) clearTimeout(timeoutId);
+      if (frame !== null) cancelAnimationFrame(frame);
     };
   }, [chatStores]);
 
