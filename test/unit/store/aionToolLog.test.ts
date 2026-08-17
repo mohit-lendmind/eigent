@@ -43,6 +43,15 @@ describe('projectToolLog', () => {
     expect(log[0]!.status).toBe(AgentMessageStatus.RUNNING);
   });
 
+  it('carries the raw arguments for the typed card, uncapped', () => {
+    const args = JSON.stringify({ command: 'x'.repeat(1_000) });
+    const log = projectToolLog('run-1', [toolEntry({ argumentsJson: args })]);
+    // `message` stays the capped preview for the legacy fold; the card gets
+    // the full arguments so a long file body renders whole.
+    expect(log[0]!.data.arguments_json).toBe(args);
+    expect((log[0]!.data.message as string).length).toBeLessThan(args.length);
+  });
+
   it('closes a resolved call with a deactivation carrying the result', () => {
     const log = projectToolLog('run-1', [
       toolEntry({

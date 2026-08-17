@@ -13,6 +13,7 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import ShinyText from '@/components/ui/ShinyText/ShinyText';
+import { ToolCardView } from '@/components/ChatBox/ToolCards/ToolCardView';
 import { agentMap, type WorkflowAgentType } from '@/components/WorkFlow/agents';
 import { MarkDown } from '@/components/WorkFlow/MarkDown';
 import { cn } from '@/lib/utils';
@@ -175,6 +176,11 @@ type ToolItem = {
    * events); cleared on settlement, when `output` becomes authoritative.
    */
   liveOutput?: string;
+  /**
+   * aion rows: the raw tool arguments — its presence switches the open fold
+   * from the legacy Request/Response markdown to the typed tool card.
+   */
+  argumentsJson?: string;
   /** `error` is a settled row whose result reported failure. */
   status: 'running' | 'done' | 'error';
 };
@@ -462,6 +468,7 @@ export function buildAgentBlocks(
         input: rawMsg,
         output: '',
         liveOutput: entry.data?.live_output || undefined,
+        argumentsJson: entry.data?.arguments_json,
         status: 'running',
       });
       continue;
@@ -707,12 +714,17 @@ function liveOutputTail(output: string): string {
 
 const ToolDetailRow = memo(function ToolDetailRow({
   rowTitle,
+  toolName,
+  argumentsJson,
   input,
   output,
   liveOutput,
   status,
 }: {
   rowTitle: string;
+  /** With `argumentsJson`, the open fold renders the typed tool card. */
+  toolName?: string;
+  argumentsJson?: string;
   input: string;
   output: string;
   liveOutput?: string;
@@ -779,7 +791,21 @@ const ToolDetailRow = memo(function ToolDetailRow({
             transition={HEIGHT_MOTION}
             className="w-full min-w-0 overflow-hidden"
           >
-            {input || output || streaming ? (
+            {toolName && argumentsJson !== undefined ? (
+              // aion row: same typed card as the chat timeline; the generic
+              // lane's verbose form carries the full request/response the
+              // markdown blocks below used to show.
+              <div className="mt-1 w-full min-w-0">
+                <ToolCardView
+                  toolName={toolName}
+                  argumentsJson={argumentsJson}
+                  status={status}
+                  liveOutput={streaming ? liveOutput : undefined}
+                  output={output || undefined}
+                  verbose
+                />
+              </div>
+            ) : input || output || streaming ? (
               <div className="mt-1 flex w-full flex-col gap-1.5">
                 {input ? (
                   <div className="w-full rounded-md bg-ds-bg-neutral-muted-default p-2 opacity-60">
@@ -964,6 +990,8 @@ const AgentBlockRow = memo(function AgentBlockRow({
                   <ToolDetailRow
                     key={item.id}
                     rowTitle={item.rowTitle}
+                    toolName={item.toolkitName}
+                    argumentsJson={item.argumentsJson}
                     input={item.input}
                     output={item.output}
                     liveOutput={item.liveOutput}
@@ -1209,6 +1237,8 @@ const AgentGroupRow = memo(function AgentGroupRow({
                   <ToolDetailRow
                     key={item.id}
                     rowTitle={item.rowTitle}
+                    toolName={item.toolkitName}
+                    argumentsJson={item.argumentsJson}
                     input={item.input}
                     output={item.output}
                     liveOutput={item.liveOutput}

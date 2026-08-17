@@ -10,6 +10,7 @@ import type {
   BrowserFrame,
   ProjectUIState,
   RunRecoveryState,
+  RunState,
   RunUIStatus,
   TimelineEntry,
   WorkerState,
@@ -578,6 +579,135 @@ function resolveArtifactUrl(
 }
 
 /**
+ * The chat-pane messages one Run's timeline projects to: streamed text, tool
+ * cards interleaved in call order (so say/do reads chronologically), pending
+ * approvals, the parked-recovery notice, and the run outcome.
+ *
+ * Exported for unit tests.
+ */
+export function buildTurnMessages(
+  aionProjectId: string,
+  runId: string,
+  entries: TimelineEntry[],
+  run: RunState | undefined
+): Message[] {
+  const settled = run !== undefined && RUN_TERMINAL[run.status] === true;
+  const wanted: Message[] = [];
+  let textOrdinal = 0;
+  let lastTextIndex = -1;
+  for (const entry of entries) {
+    if (entry.type === 'text') {
+      lastTextIndex = wanted.length;
+      wanted.push({
+        id: `aion:${runId}:text:${textOrdinal++}`,
+        role: 'agent',
+        content: entry.text,
+        ...(entry.reasoning ? { reasoning: entry.reasoning } : {}),
+      });
+    } else if (entry.type === 'tool') {
+      // The card owns the whole message; content stays empty so nothing
+      // double-renders the call as prose.
+      wanted.push({
+        id: `aion:${runId}:tool:${entry.toolCallId}`,
+        role: 'agent',
+        content: '',
+        toolCard: {
+          toolName: entry.toolName,
+          argumentsJson: entry.argumentsJson,
+          status: entry.result
+            ? entry.result.isError
+              ? 'error'
+              : 'done'
+            : 'running',
+          ...(!entry.result && entry.liveOutput
+            ? {
+                liveOutput: previewLiveOutput(
+                  entry.liveOutput,
+                  entry.liveOutputTruncated
+                ),
+              }
+            : {}),
+          ...(entry.result
+            ? { resultContent: previewToolResult(entry.result.content) }
+            : {}),
+        },
+      });
+    } else if (entry.type === 'approval') {
+      // Pending renders the interactive card; a resolved entry keeps the
+      // same message id with the verdict, so the card flips in place when
+      // approval_resolved streams back (the content change triggers the
+      // update below).
+      wanted.push({
+        id: `aion:${runId}:approval:${entry.approvalId}`,
+        role: 'agent',
+        content: entry.decision
+          ? `Approval ${entry.decision} for ${entry.toolName ?? 'a tool'}.`
+          : `Approval required for ${entry.toolName ?? 'a tool'}.`,
+        approval: {
+          projectId: aionProjectId,
+          approvalId: entry.approvalId,
+          toolName: entry.toolName,
+          reason: entry.reason,
+          argumentsJson: entry.argumentsJson,
+          decision: entry.decision,
+        },
+      });
+    }
+  }
+  // Parking and settling are mutually exclusive: the next event on the run
+  // clears the recovery, and a terminal is such an event.
+  if (run?.recovery) {
+    wanted.push({
+      id: `aion:${runId}:recovery`,
+      role: 'agent',
+      content: runRecoveryMessage(run.recovery),
+    });
+  }
+  if (settled) {
+    if (run.status === 'succeeded') {
+      if (lastTextIndex >= 0) {
+        wanted[lastTextIndex] = {
+          ...wanted[lastTextIndex],
+          step: AgentStep.END,
+        };
+      } else {
+        wanted.push({
+          id: `aion:${runId}:outcome`,
+          role: 'agent',
+          content: run.outcomeDetail || 'Task completed.',
+          step: AgentStep.END,
+        });
+      }
+    } else {
+      wanted.push({
+        id: `aion:${runId}:outcome`,
+        role: 'agent',
+        content: runTerminalMessage(
+          run.status,
+          run.outcomeReason,
+          run.outcomeDetail
+        ),
+      });
+    }
+  }
+  return wanted;
+}
+
+function toolCardChanged(
+  a: Message['toolCard'],
+  b: Message['toolCard']
+): boolean {
+  if (!a && !b) return false;
+  if (!a || !b) return true;
+  // toolName/argumentsJson are immutable for a given message id.
+  return (
+    a.status !== b.status ||
+    a.liveOutput !== b.liveOutput ||
+    a.resultContent !== b.resultContent
+  );
+}
+
+/**
  * Projects one Run's slice of the reducer state into its task pane. Pure
  * function of (turn, state) applied idempotently — replay, reconnect, and
  * overlapping windows all land on the same UI, exactly like the reducer.
@@ -599,77 +729,13 @@ function projectTurn(
   }
   const settled = run !== undefined && RUN_TERMINAL[run.status] === true;
 
-  // --- chat pane: streamed text, pending approvals, run outcome ---
-  const wanted: Message[] = [];
-  let textOrdinal = 0;
-  let lastTextIndex = -1;
-  for (const entry of entries) {
-    if (entry.type === 'text') {
-      lastTextIndex = wanted.length;
-      wanted.push({
-        id: `aion:${turn.runId}:text:${textOrdinal++}`,
-        role: 'agent',
-        content: entry.text,
-        ...(entry.reasoning ? { reasoning: entry.reasoning } : {}),
-      });
-    } else if (entry.type === 'approval') {
-      // Pending renders the interactive card; a resolved entry keeps the
-      // same message id with the verdict, so the card flips in place when
-      // approval_resolved streams back (the content change triggers the
-      // update below).
-      wanted.push({
-        id: `aion:${turn.runId}:approval:${entry.approvalId}`,
-        role: 'agent',
-        content: entry.decision
-          ? `Approval ${entry.decision} for ${entry.toolName ?? 'a tool'}.`
-          : `Approval required for ${entry.toolName ?? 'a tool'}.`,
-        approval: {
-          projectId: binding.aionProjectId,
-          approvalId: entry.approvalId,
-          toolName: entry.toolName,
-          reason: entry.reason,
-          argumentsJson: entry.argumentsJson,
-          decision: entry.decision,
-        },
-      });
-    }
-  }
-  // Parking and settling are mutually exclusive: the next event on the run
-  // clears the recovery, and a terminal is such an event.
-  if (run?.recovery) {
-    wanted.push({
-      id: `aion:${turn.runId}:recovery`,
-      role: 'agent',
-      content: runRecoveryMessage(run.recovery),
-    });
-  }
-  if (settled) {
-    if (run.status === 'succeeded') {
-      if (lastTextIndex >= 0) {
-        wanted[lastTextIndex] = {
-          ...wanted[lastTextIndex],
-          step: AgentStep.END,
-        };
-      } else {
-        wanted.push({
-          id: `aion:${turn.runId}:outcome`,
-          role: 'agent',
-          content: run.outcomeDetail || 'Task completed.',
-          step: AgentStep.END,
-        });
-      }
-    } else {
-      wanted.push({
-        id: `aion:${turn.runId}:outcome`,
-        role: 'agent',
-        content: runTerminalMessage(
-          run.status,
-          run.outcomeReason,
-          run.outcomeDetail
-        ),
-      });
-    }
-  }
+  // --- chat pane: streamed text, tool cards, approvals, run outcome ---
+  const wanted = buildTurnMessages(
+    binding.aionProjectId,
+    turn.runId,
+    entries,
+    run
+  );
   const wantedIds = new Set(wanted.map((m) => m.id));
   for (const message of task.messages) {
     // Approval prompts retract once resolved and the parked notice once the run
@@ -688,7 +754,8 @@ function projectTurn(
     } else if (
       existing.content !== message.content ||
       existing.step !== message.step ||
-      existing.reasoning !== message.reasoning
+      existing.reasoning !== message.reasoning ||
+      toolCardChanged(existing.toolCard, message.toolCard)
     ) {
       store.updateMessage(turn.taskId, message.id, {
         ...existing,
@@ -979,6 +1046,7 @@ export function projectToolLog(
         toolkit_name: tool.toolName,
         method_name: '',
         message: previewToolArgs(tool.argumentsJson),
+        arguments_json: tool.argumentsJson,
         process_task_id: runId,
         ...(!tool.result && tool.liveOutput
           ? {
