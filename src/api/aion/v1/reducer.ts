@@ -99,7 +99,9 @@ export interface WorkerState {
 }
 
 export type TimelineEntry =
-  | { type: 'text'; runId: string; sequence: string; text: string }
+  // `reasoning` is the thinking trace accompanying the text, accumulated with
+  // the same append semantics; absent when the model streamed none.
+  | { type: 'text'; runId: string; sequence: string; text: string; reasoning?: string }
   | {
       type: 'tool';
       runId: string;
@@ -351,15 +353,24 @@ export function reduceProjectEvent(
     }
     case 'text_delta': {
       const text = str(data.text) ?? '';
+      const reasoning = str(data.reasoning) ?? '';
       const last = next.timeline[next.timeline.length - 1];
       if (last && last.type === 'text' && last.runId === runId) {
+        const merged = (last.reasoning ?? '') + reasoning;
         next.timeline[next.timeline.length - 1] = {
           ...last,
           sequence,
           text: last.text + text,
+          ...(merged ? { reasoning: merged } : {}),
         };
       } else {
-        next.timeline.push({ type: 'text', runId, sequence, text });
+        next.timeline.push({
+          type: 'text',
+          runId,
+          sequence,
+          text,
+          ...(reasoning ? { reasoning } : {}),
+        });
       }
       return next;
     }

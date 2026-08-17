@@ -36,6 +36,7 @@ import { toast } from 'sonner';
 import { Button } from '../../ui/button';
 import { MarkDown } from './MarkDown';
 import SaveSkillDialog from './SaveSkillDialog';
+import { ThinkingStrip } from './ThinkingStrip';
 
 const COPIED_RESET_MS = 2000;
 
@@ -44,6 +45,8 @@ type MessageFeedback = 'up' | 'down' | null;
 interface AgentMessageCardProps {
   id: string;
   content: string;
+  /** Streamed thinking trace rendered as a strip above the answer. */
+  reasoning?: string;
   className?: string;
   attaches?: File[];
   /** Shown only after the markdown has finished rendering — e.g. generated file chips. */
@@ -54,6 +57,7 @@ interface AgentMessageCardProps {
 export function AgentMessageCard({
   id,
   content,
+  reasoning,
   onMarkdownRenderComplete,
   className,
   attaches,
@@ -129,6 +133,7 @@ export function AgentMessageCard({
       key={id}
       className={`rounded-xl px-6 py-3 flex w-full flex-col bg-transparent ${className || ''} overflow-hidden`}
     >
+      {reasoning && <ThinkingStrip reasoning={reasoning} />}
       <MarkDown
         content={content}
         onMarkdownRenderComplete={handleMarkdownRenderComplete}
