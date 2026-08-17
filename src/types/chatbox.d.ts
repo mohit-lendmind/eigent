@@ -146,6 +146,19 @@ declare global {
       /** Set once approval_resolved streams back ('allow' | 'deny'). */
       decision?: string;
     };
+    /**
+     * aion remote mode: a tool call rendered as a typed card interleaved in
+     * the chat timeline (bash/code/browser/generic lane by tool name).
+     */
+    toolCard?: {
+      toolName: string;
+      argumentsJson: string;
+      status: 'running' | 'done' | 'error';
+      /** Streamed tail while the tool runs; absent once the result lands. */
+      liveOutput?: string;
+      /** Settled result content (preview-capped). */
+      resultContent?: string;
+    };
   }
 
   interface AgentMessage {
@@ -174,6 +187,12 @@ declare global {
        * stdout/stderr (tool_output events), absent once the result lands.
        */
       live_output?: string;
+      /**
+       * aion remote mode: the tool call's raw arguments JSON — the work-log
+       * row renders a typed card from it (message keeps the capped preview
+       * for the legacy fold).
+       */
+      arguments_json?: string;
       question?: string;
       reply?: string;
       agent?: string;

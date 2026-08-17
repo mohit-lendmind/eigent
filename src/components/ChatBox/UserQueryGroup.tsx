@@ -27,6 +27,7 @@ import React, {
 } from 'react';
 import { AgentMessageCard } from './MessageItem/AgentMessageCard';
 import { ApprovalCard } from './MessageItem/ApprovalCard';
+import { ToolCardView } from './ToolCards/ToolCardView';
 import { NoticeCard } from './MessageItem/NoticeCard';
 import { PreparingToExecuteTasks } from './MessageItem/PreparingToExecuteTasks';
 import { TaskWorkLogAccordion } from './MessageItem/TaskWorkLogAccordion';
@@ -411,6 +412,27 @@ export const UserQueryGroup: React.FC<UserQueryGroupProps> = ({
               className="flex flex-col gap-4"
             >
               <ApprovalCard approval={message.approval} />
+            </motion.div>
+          );
+        }
+        // aion tool call: the typed card owns the whole message, interleaved
+        // in the timeline where the call happened.
+        if (message.toolCard) {
+          return (
+            <motion.div
+              key={`tool-${message.id}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="flex flex-col gap-4"
+            >
+              <ToolCardView
+                toolName={message.toolCard.toolName}
+                argumentsJson={message.toolCard.argumentsJson}
+                status={message.toolCard.status}
+                liveOutput={message.toolCard.liveOutput}
+                output={message.toolCard.resultContent}
+              />
             </motion.div>
           );
         }
