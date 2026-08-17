@@ -472,6 +472,20 @@ test('one due tick admits one run, and a paused trigger admits none', async () =
   const networkUrls: string[] = [];
   page.on('request', (request) => networkUrls.push(request.url()));
 
+  // This spec's long quiet window means the renderer receives no inputs for
+  // minutes; if a control then goes missing, the only distinction that
+  // matters is renderer-death versus product state — record which.
+  const rendererIncidents: string[] = [];
+  page.on('crash', () =>
+    rendererIncidents.push(`${new Date().toISOString()} crash`)
+  );
+  page.on('pageerror', (err) =>
+    rendererIncidents.push(`${new Date().toISOString()} pageerror: ${err.message}`)
+  );
+  page.on('close', () =>
+    rendererIncidents.push(`${new Date().toISOString()} close`)
+  );
+
   try {
     await openSection(page, 'tab=home&section=triggers');
     await expect(byId(page, 'aion-triggers')).toBeVisible({ timeout: 60_000 });
@@ -619,9 +633,12 @@ test('one due tick admits one run, and a paused trigger admits none', async () =
     await row.getByTestId('aion-trigger-delete').click();
     await expect(row).toHaveCount(0, { timeout: 30_000 });
     expect(await servedSchedules(projectId)).toHaveLength(0);
-
-    writeEvidence('eigent-schedules-summary.json', summary);
+    summary.completed = true;
   } finally {
+    // Written on failure too: a rerun wipes Playwright's own artifacts, so
+    // the partial summary is the only durable record of where a run died.
+    summary.renderer_incidents = rendererIncidents;
+    writeEvidence('eigent-schedules-summary.json', summary);
     await app.close();
   }
 });
