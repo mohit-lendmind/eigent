@@ -610,6 +610,7 @@ function projectTurn(
         id: `aion:${turn.runId}:text:${textOrdinal++}`,
         role: 'agent',
         content: entry.text,
+        ...(entry.reasoning ? { reasoning: entry.reasoning } : {}),
       });
     } else if (entry.type === 'approval') {
       // Pending renders the interactive card; a resolved entry keeps the
@@ -686,7 +687,8 @@ function projectTurn(
       store.addMessages(turn.taskId, message);
     } else if (
       existing.content !== message.content ||
-      existing.step !== message.step
+      existing.step !== message.step ||
+      existing.reasoning !== message.reasoning
     ) {
       store.updateMessage(turn.taskId, message.id, {
         ...existing,

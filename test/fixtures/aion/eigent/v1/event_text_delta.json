@@ -8,5 +8,5 @@
   "visibility": "user",
   "occurred_at": "2026-08-08T09:00:02Z",
   "correlation": {"aion_sequence": "7"},
-  "data": {"text": "I found the failing target."}
+  "data": {"text": "I found the failing target.", "reasoning": "The build log names one failing target."}
 }

@@ -523,6 +523,45 @@ describe('aion Project reducer (golden fixtures)', () => {
     expect(state.timeline).toHaveLength(1);
     expect(state.timeline[0]).toMatchObject({ type: 'text', text: 'Hello world', sequence: '2' });
   });
+
+  it('accumulates reasoning alongside text on the same entry', () => {
+    const base = fixture('event_text_delta.json') as Record<string, unknown>;
+    let state = initialProjectState();
+    // Thinking streams first (no text yet), then the answer follows — the
+    // whole segment stays one timeline entry with both traces appended.
+    state = reduceProjectEvent(
+      state,
+      decodeProjectEvent({ ...base, sequence: '1', data: { text: '', reasoning: 'Considering ' } })
+    );
+    state = reduceProjectEvent(
+      state,
+      decodeProjectEvent({ ...base, sequence: '2', data: { text: 'The answer ', reasoning: 'the options.' } })
+    );
+    state = reduceProjectEvent(
+      state,
+      decodeProjectEvent({ ...base, sequence: '3', data: { text: 'is 42.' } })
+    );
+    expect(state.timeline).toHaveLength(1);
+    expect(state.timeline[0]).toMatchObject({
+      type: 'text',
+      text: 'The answer is 42.',
+      reasoning: 'Considering the options.',
+      sequence: '3',
+    });
+  });
+
+  it('omits reasoning entirely when no delta carried any', () => {
+    const base = fixture('event_text_delta.json') as Record<string, unknown>;
+    const state = reduceProjectEvent(
+      initialProjectState(),
+      decodeProjectEvent({ ...base, sequence: '1', data: { text: 'plain' } })
+    );
+    const entry = state.timeline[0];
+    expect(entry.type).toBe('text');
+    if (entry.type === 'text') {
+      expect('reasoning' in entry).toBe(false);
+    }
+  });
 });
 
 describe('browser viewfinder frames', () => {

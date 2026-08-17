@@ -118,6 +118,8 @@ declare global {
     id: string;
     role: 'user' | 'agent';
     content: string;
+    /** aion remote mode: streamed thinking trace accompanying the content. */
+    reasoning?: string;
     step?: AgentStepType;
     agent_id?: string;
     isConfirm?: boolean;

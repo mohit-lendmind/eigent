@@ -409,7 +409,7 @@ export const UserQueryGroup: React.FC<UserQueryGroupProps> = ({
             </motion.div>
           );
         }
-        if (message.content.length > 0) {
+        if (message.content.length > 0 || message.reasoning) {
           if (message.step === AgentStep.END) {
             return (
               <motion.div
@@ -422,6 +422,7 @@ export const UserQueryGroup: React.FC<UserQueryGroupProps> = ({
                 <AgentMessageCard
                   id={message.id}
                   content={message.content}
+                  reasoning={message.reasoning}
                   deferredFooter={
                     message.fileList?.length ? (
                       <div className="my-2 flex flex-wrap gap-2">
@@ -505,6 +506,7 @@ export const UserQueryGroup: React.FC<UserQueryGroupProps> = ({
                   key={message.id}
                   id={message.id}
                   content={message.content}
+                  reasoning={message.reasoning}
                   attaches={message.attaches}
                 />
               </motion.div>
