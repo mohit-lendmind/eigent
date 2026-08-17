@@ -19,14 +19,13 @@ import VerticalNavigation, {
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
-import CDP from './CDP';
 import Extension from './Extension';
 
-// The cookie jar lived in the local backend this fork removed — every button on
-// that screen read or wrote `/browser/*` on it — so it is gone. CDP stays: it
-// drives real Chrome instances over IPC, which is how a browser task reaches a
-// browser here.
-const BROWSER_SECTIONS = ['cdp', 'extension'] as const;
+// The cookie jar lived in the local backend this fork removed, and the CDP
+// connection pool drove local Chrome instances nothing dispatches to anymore —
+// the browser runs headless inside the aion sandbox pod (browser_* tools over
+// the exec seam). Both screens are gone; extensions remain a placeholder.
+const BROWSER_SECTIONS = ['extension'] as const;
 type BrowserSection = (typeof BROWSER_SECTIONS)[number];
 
 function isBrowserSection(value: string | null): value is BrowserSection {
@@ -38,14 +37,8 @@ export default function Browser() {
   const [searchParams, setSearchParams] = useSearchParams();
   const sectionFromUrl = searchParams.get('browserSection');
   const [activeTab, setActiveTab] = useState<BrowserSection>(() =>
-    isBrowserSection(sectionFromUrl) ? sectionFromUrl : 'cdp'
+    isBrowserSection(sectionFromUrl) ? sectionFromUrl : 'extension'
   );
-
-  useEffect(() => {
-    if (searchParams.get('browserAction') === 'launch') {
-      setActiveTab('cdp');
-    }
-  }, [searchParams]);
 
   useEffect(() => {
     if (!isBrowserSection(sectionFromUrl)) return;
@@ -56,10 +49,6 @@ export default function Browser() {
   }, [sectionFromUrl, searchParams, setSearchParams]);
 
   const menuItems = [
-    {
-      id: 'cdp' as const,
-      name: t('layout.browser-connections'),
-    },
     {
       id: 'extension' as const,
       name: t('layout.browser-plugins'),
@@ -93,7 +82,6 @@ export default function Browser() {
 
       <div className="flex h-auto w-full flex-1 flex-col">
         <div className="flex flex-col gap-4">
-          {activeTab === 'cdp' && <CDP />}
           {activeTab === 'extension' && <Extension />}
         </div>
       </div>

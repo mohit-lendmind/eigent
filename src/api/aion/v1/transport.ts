@@ -31,6 +31,7 @@ export type IntegrationStatus = Schemas['IntegrationStatus'];
 export type Artifact = Schemas['Artifact'];
 export type ArtifactList = Schemas['ArtifactList'];
 export type ArtifactAccess = Schemas['ArtifactAccess'];
+export type AttachmentUpload = Schemas['AttachmentUpload'];
 export type UsageSummary = Schemas['UsageSummary'];
 export type UsageTotals = Schemas['UsageTotals'];
 export type RunSpend = Schemas['RunSpend'];
@@ -256,6 +257,23 @@ export class EdgeTransport {
     return this.json(
       'GET',
       `/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifactId)}`
+    );
+  }
+
+  /**
+   * Publish a user-picked file as a Project artifact so a later submitCommand
+   * can name its `artifact_id` in `attachment_ids`. No Idempotency-Key by
+   * contract: a retried upload mints the next version and identical bytes
+   * dedupe in storage, so the returned id is always safe to reference.
+   */
+  uploadAttachment(
+    projectId: string,
+    upload: AttachmentUpload
+  ): Promise<Artifact> {
+    return this.json(
+      'POST',
+      `/projects/${encodeURIComponent(projectId)}/attachments`,
+      { body: upload }
     );
   }
 

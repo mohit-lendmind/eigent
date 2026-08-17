@@ -921,6 +921,12 @@ const chatStore = (initial?: Partial<ChatStore>) =>
           (m) => m.role === 'user'
         )?.content ||
         '';
+      const attachesToSend =
+        messageAttaches ||
+        targetState.tasks[newTaskId]?.messages.findLast(
+          (m) => m.role === 'user'
+        )?.attaches ||
+        [];
       try {
         const aionConfig = await getAionRemoteConfig();
         // A desktop with no transport has nothing to run the turn on, and
@@ -936,6 +942,10 @@ const chatStore = (initial?: Partial<ChatStore>) =>
           taskId: newTaskId,
           eigentProjectId: projectId,
           question,
+          attaches: attachesToSend.map((f) => ({
+            fileName: f.fileName,
+            filePath: f.filePath,
+          })),
         });
       } catch (error) {
         recordTaskFailed({

@@ -357,15 +357,15 @@ test('the sections only the local backend could serve are gone', async () => {
     await expect(navTab('Models')).toHaveCount(0);
     summary.agents_deep_link_falls_back = true;
 
+    // Cookies died with the local backend; the CDP connections screen died
+    // with the pool itself — the browser runs headless inside the aion
+    // sandbox pod, so Plugins is the tab's only remaining section.
     await openSection(page, 'tab=browser');
-    await expect(navTab('Connections')).toBeVisible({ timeout: 60_000 });
-    await expect(navTab('Plugins')).toBeVisible();
+    await expect(navTab('Plugins')).toBeVisible({ timeout: 60_000 });
+    await expect(navTab('Connections')).toHaveCount(0);
     await expect(navTab('Cookies')).toHaveCount(0);
     await openSection(page, 'tab=browser&browserSection=cookies');
-    await expect(navTab('Connections')).toHaveAttribute(
-      'aria-selected',
-      'true'
-    );
+    await expect(navTab('Plugins')).toHaveAttribute('aria-selected', 'true');
     await expect(navTab('Cookies')).toHaveCount(0);
     summary.browser_dead_nav_absent = true;
     await screenshot(page, 'nav-browser');

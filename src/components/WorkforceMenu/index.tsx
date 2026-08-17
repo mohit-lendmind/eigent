@@ -333,6 +333,15 @@ export default function WorkforceMenu({
     ),
   };
 
+  // Whether picking this agent would open onto anything. The greyed-out
+  // entries are the unstaffed placeholders the strip always lists, and a task
+  // list used to be the only way to tell those apart from a real one — which
+  // greyed out the browser card too, because browser tool calls ride the
+  // orchestrator's log and never project onto a task of their own. Its own
+  // workspace is the page mirror, so having one is what makes it selectable.
+  const hasWorkspace = (agent: Agent) =>
+    agent.tasks.length > 0 || (agent.activeWebviewIds?.length ?? 0) > 0;
+
   const onValueChange = (val: string) => {
     if (!chatStore.activeTaskId) return;
     if (val === '') {
@@ -390,9 +399,11 @@ export default function WorkforceMenu({
                               'document_agent',
                               'multi_modal_agent',
                             ].includes(agent.type as AgentNameType) ||
-                            agent.tasks.length === 0
+                            !hasWorkspace(agent)
                           }
                           value={agent.agent_id}
+                          data-testid="workforce-agent-toggle"
+                          data-agent-type={agent.type}
                           icon={<Bot />}
                           subIcon={
                             agentIconMap[
@@ -400,9 +411,7 @@ export default function WorkforceMenu({
                             ]
                           }
                           showSubIcon={true}
-                          className={
-                            agent.tasks.length === 0 ? 'opacity-30' : ''
-                          }
+                          className={!hasWorkspace(agent) ? 'opacity-30' : ''}
                         />
                       </motion.div>
                     ))}

@@ -76,8 +76,6 @@ let win: BrowserWindow | null = null;
 let createWindowPromise: Promise<void> | null = null;
 let webViewManager: WebViewManager | null = null;
 let fileReader: FileReader | null = null;
-let browser_port = 9222;
-let use_external_cdp = false;
 let proxyUrl: string | null = null;
 
 // The aion edge is the only backend. A set-but-invalid configuration stays
@@ -109,12 +107,6 @@ const reresolveBackend = (): RemoteBackendResolution => {
 
 const PREVIEW_WEBVIEW_PARTITION = 'persist:session-preview';
 
-// The browser runs headless inside the aion sandbox pod (browser_* tools over
-// the exec seam), so the app never launches a local Chrome under CDP: that
-// would be an unauthenticated localhost control surface with no consumer. The
-// pool IPC surface stays wired for the renderer but is inert.
-const CDP_BROWSERS_ENABLED = false;
-
 const isHttpOrHttpsUrl = (url: unknown): url is string => {
   if (typeof url !== 'string') return false;
   try {
@@ -124,20 +116,6 @@ const isHttpOrHttpsUrl = (url: unknown): url is string => {
     return false;
   }
 };
-
-// CDP Browser Pool
-interface CdpBrowser {
-  id: string;
-  port: number;
-  isExternal: boolean;
-  name?: string;
-  addedAt: number;
-}
-let cdp_browser_pool: CdpBrowser[] = [];
-let cdpLastAssignedPort = 9223; // tracks the highest port ever assigned, never decreases
-let cdpHealthCheckTimer: ReturnType<typeof setInterval> | null = null;
-
-const CDP_POOL_FILE = path.join(os.homedir(), '.eigent', 'cdp-browsers.json');
 
 type BackendStartResult =
   | { success: true; remote: true; port: null }
@@ -193,208 +171,6 @@ function notifyBackendReady(result: BackendStartResult): void {
   );
 }
 
-/** Persist pool to disk. */
-function saveCdpPool(): void {
-  try {
-    fs.writeFileSync(CDP_POOL_FILE, JSON.stringify(cdp_browser_pool, null, 2));
-  } catch (e) {
-    log.error(`[CDP POOL] Failed to save pool: ${e}`);
-  }
-}
-
-/** Load pool from disk. Mark all as external (process handles are lost after restart). */
-function loadCdpPool(): void {
-  try {
-    if (fs.existsSync(CDP_POOL_FILE)) {
-      const data = JSON.parse(fs.readFileSync(CDP_POOL_FILE, 'utf-8'));
-      cdp_browser_pool = (data as CdpBrowser[]).map((b) => ({
-        ...b,
-        isExternal: true,
-      }));
-      cdpLastAssignedPort = cdp_browser_pool.reduce(
-        (max, b) => Math.max(max, b.port),
-        cdpLastAssignedPort
-      );
-      log.info(
-        `[CDP POOL] Loaded ${cdp_browser_pool.length} browser(s) from disk, lastAssignedPort=${cdpLastAssignedPort}`
-      );
-    }
-  } catch (e) {
-    log.error(`[CDP POOL] Failed to load pool: ${e}`);
-    cdp_browser_pool = [];
-  }
-}
-
-/** Push current pool to frontend. */
-function notifyCdpPoolChanged(): void {
-  if (win && !win.isDestroyed()) {
-    log.info(
-      `[CDP POOL] Pushing pool update to frontend (size=${cdp_browser_pool.length})`
-    );
-    win.webContents.send('cdp-pool-changed', cdp_browser_pool);
-  } else {
-    log.warn('[CDP POOL] Cannot notify: win is null or destroyed');
-  }
-}
-
-/** Probe a CDP port. Returns true if alive. */
-async function isCdpPortAlive(port: number): Promise<boolean> {
-  try {
-    const resp = await axios.get(`http://localhost:${port}/json/version`, {
-      timeout: 1500,
-    });
-    return resp.status === 200;
-  } catch {
-    return false;
-  }
-}
-
-/** Run one health-check cycle: remove dead browsers, persist & notify if changed. */
-async function runPoolHealthCheck(): Promise<void> {
-  if (cdp_browser_pool.length === 0) return;
-  // Probe a snapshot so add/remove IPC handlers can run safely in parallel.
-  const snapshot = [...cdp_browser_pool];
-  const results = await Promise.all(
-    snapshot.map((b) => isCdpPortAlive(b.port))
-  );
-  const deadIds = snapshot
-    .filter((_, idx) => !results[idx])
-    .map((browser) => browser.id);
-  if (deadIds.length === 0) return;
-
-  const deadIdSet = new Set(deadIds);
-  const removedBrowsers = cdp_browser_pool.filter((b) => deadIdSet.has(b.id));
-  if (removedBrowsers.length === 0) return;
-
-  cdp_browser_pool = cdp_browser_pool.filter((b) => !deadIdSet.has(b.id));
-  const deadPorts = removedBrowsers.map((b) => b.port);
-  if (deadPorts.length > 0) {
-    log.info(
-      `[CDP POOL] Health-check removed dead ports: ${deadPorts.join(', ')}. pool_size=${cdp_browser_pool.length}`
-    );
-    saveCdpPool();
-    notifyCdpPoolChanged();
-  }
-}
-
-/** Start periodic health check (call after window is created). */
-function startCdpHealthCheck(): void {
-  if (cdpHealthCheckTimer) {
-    clearInterval(cdpHealthCheckTimer);
-    cdpHealthCheckTimer = null;
-  }
-  log.info('[CDP POOL] Starting health check (interval=3s)');
-  // Run once immediately
-  runPoolHealthCheck();
-  cdpHealthCheckTimer = setInterval(runPoolHealthCheck, 3000);
-}
-
-function stopCdpHealthCheck(): void {
-  if (cdpHealthCheckTimer) {
-    clearInterval(cdpHealthCheckTimer);
-    cdpHealthCheckTimer = null;
-  }
-}
-
-/** Close a browser via CDP Browser.close() WebSocket command. Best-effort.
- *  Uses raw Node.js http upgrade (no external ws dependency needed).
- *  IMPORTANT: Never close the Electron app's own CDP port. */
-async function closeBrowserViaCdp(port: number): Promise<void> {
-  // Guard: refuse to close the Electron app's own CDP port
-  if (port === browser_port) {
-    log.warn(
-      `[CDP CLOSE] Refusing to close port ${port} (Electron app's own CDP port)`
-    );
-    return;
-  }
-
-  try {
-    const resp = await axios.get(`http://localhost:${port}/json/version`, {
-      timeout: 2000,
-    });
-    const wsUrl: string | undefined = resp.data?.webSocketDebuggerUrl;
-    if (!wsUrl) {
-      log.warn(`[CDP CLOSE] No webSocketDebuggerUrl for port ${port}`);
-      return;
-    }
-
-    const url = new URL(wsUrl);
-    const key = crypto.randomBytes(16).toString('base64');
-
-    await new Promise<void>((resolve) => {
-      let resolved = false;
-      const done = () => {
-        if (!resolved) {
-          resolved = true;
-          resolve();
-        }
-      };
-
-      const req = http.request(
-        {
-          hostname: url.hostname,
-          port: url.port,
-          path: url.pathname,
-          method: 'GET',
-          headers: {
-            Connection: 'Upgrade',
-            Upgrade: 'websocket',
-            'Sec-WebSocket-Version': '13',
-            'Sec-WebSocket-Key': key,
-          },
-        },
-        () => done()
-      );
-
-      const timer = setTimeout(() => {
-        req.destroy();
-        done();
-      }, 3000);
-
-      req.on('upgrade', (_res, socket) => {
-        // Handle socket errors to prevent uncaught exceptions
-        socket.on('error', () => {});
-
-        // Build a masked WebSocket text frame with Browser.close
-        const payload = Buffer.from(
-          JSON.stringify({ id: 1, method: 'Browser.close' })
-        );
-        const mask = crypto.randomBytes(4);
-        const header = Buffer.alloc(6);
-        header[0] = 0x81; // FIN + text opcode
-        header[1] = 0x80 | payload.length; // MASK bit + length (<126)
-        mask.copy(header, 2);
-
-        const masked = Buffer.alloc(payload.length);
-        for (let i = 0; i < payload.length; i++) {
-          masked[i] = payload[i] ^ mask[i & 3];
-        }
-
-        socket.write(Buffer.concat([header, masked]));
-        log.info(`[CDP CLOSE] Sent Browser.close to port ${port}`);
-
-        // Give Chrome a moment to process, then clean up
-        setTimeout(() => {
-          clearTimeout(timer);
-          socket.destroy();
-          done();
-        }, 500);
-      });
-
-      req.on('error', (err) => {
-        log.warn(`[CDP CLOSE] Request error for port ${port}: ${err.message}`);
-        clearTimeout(timer);
-        done();
-      });
-
-      req.end();
-    });
-    log.info(`[CDP CLOSE] Successfully closed browser on port ${port}`);
-  } catch (err) {
-    log.warn(`[CDP CLOSE] Best-effort close failed for port ${port}: ${err}`);
-  }
-}
-
 // Protocol URL queue for handling URLs before window is ready
 let protocolUrlQueue: string[] = [];
 let isWindowReady = false;
@@ -406,23 +182,14 @@ const preload = path.join(__dirname, '../preload/index.cjs');
 const indexHtml = path.join(RENDERER_DIST, 'index.html');
 const logPath = log.transports.file.getFile().path;
 
-// Profile initialization promise
-let profileInitPromise: Promise<void>;
-
-// Set remote debugging port
 // Storage strategy:
 // 1. Main window: partition 'persist:main_window' in app userData → Eigent account (persistent)
 // 2. WebView: partition 'persist:user_login' in app userData → will import cookies from tool_controller via session API
 // 3. tool_controller: ~/.eigent/browser_profiles/profile_user_login → source of truth for login cookies
-// 4. CDP browser: uses separate profile (doesn't share with main app)
 //
 // The browser runs headless inside the aion sandbox pod (browser_* tools
 // over the exec seam), so the app must not open a local CDP debugging port —
 // an unauthenticated localhost control surface with no consumer.
-profileInitPromise = Promise.resolve();
-log.info(
-  '[CDP BROWSER] disabled: the browser runs in the aion sandbox pod'
-);
 
 // Memory optimization settings
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096');
@@ -760,292 +527,6 @@ function registerIpcHandlers() {
   ipcMain.handle('get-auth-callback-url', async () => {
     const port = await startAuthCallbackServer();
     return `http://localhost:${port}/auth/callback`;
-  });
-
-  // ==================== basic info handler ====================
-  ipcMain.handle('get-browser-port', () => {
-    if (!CDP_BROWSERS_ENABLED) {
-      // Null keeps any localhost CDP URL construction visibly broken instead
-      // of silently pointing at a port nothing listens on.
-      return null;
-    }
-    log.info('Getting browser port');
-    return browser_port;
-  });
-
-  // Set browser port
-  ipcMain.handle(
-    'set-browser-port',
-    (event, port: number, isExternal: boolean = false) => {
-      if (!CDP_BROWSERS_ENABLED) {
-        return {
-          success: false,
-          error: 'CDP browsers are disabled: the browser runs in the sandbox',
-        };
-      }
-      log.info(`Setting browser port to ${port}, external: ${isExternal}`);
-      browser_port = port;
-      use_external_cdp = isExternal;
-      return { success: true, port: browser_port, use_external_cdp };
-    }
-  );
-
-  // Get external CDP flag
-  ipcMain.handle('get-use-external-cdp', () => {
-    log.info(`Getting use_external_cdp: ${use_external_cdp}`);
-    return use_external_cdp;
-  });
-
-  // ==================== CDP Browser Pool Management ====================
-
-  // Get all browsers in the pool
-  ipcMain.handle('get-cdp-browsers', () => {
-    log.debug(`[CDP POOL] GET pool (size=${cdp_browser_pool.length})`);
-    return cdp_browser_pool;
-  });
-
-  // Add browser to pool
-  ipcMain.handle(
-    'add-cdp-browser',
-    (event, port: number, isExternal: boolean, name?: string) => {
-      if (!CDP_BROWSERS_ENABLED) {
-        return {
-          success: false,
-          error: 'CDP browsers are disabled: the browser runs in the sandbox',
-        };
-      }
-      const existing = cdp_browser_pool.find((b) => b.port === port);
-      if (existing) {
-        log.warn(
-          `[CDP POOL] ADD rejected: port ${port} already exists (id=${existing.id})`
-        );
-        return {
-          success: false,
-          error: 'Browser with this port already exists',
-        };
-      }
-
-      const newBrowser: CdpBrowser = {
-        id: `cdp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        port,
-        isExternal,
-        name,
-        addedAt: Date.now(),
-      };
-
-      cdp_browser_pool.push(newBrowser);
-      saveCdpPool();
-      notifyCdpPoolChanged();
-      log.info(
-        `[CDP POOL] ADD: port=${port}, isExternal=${isExternal}, id=${newBrowser.id}, pool_size=${cdp_browser_pool.length}`
-      );
-
-      return { success: true, browser: newBrowser };
-    }
-  );
-
-  // Remove browser from pool (also closes the browser via CDP)
-  ipcMain.handle(
-    'remove-cdp-browser',
-    async (event, browserId: string, closeBrowser: boolean = true) => {
-      const index = cdp_browser_pool.findIndex((b) => b.id === browserId);
-      if (index === -1) {
-        log.warn(`[CDP POOL] REMOVE: browser not found: ${browserId}`);
-        return { success: false, error: 'Browser not found' };
-      }
-
-      const removed = cdp_browser_pool.splice(index, 1)[0];
-
-      // Close the browser via CDP (best-effort)
-      if (closeBrowser) {
-        await closeBrowserViaCdp(removed.port);
-      }
-
-      saveCdpPool();
-      notifyCdpPoolChanged();
-      log.info(
-        `[CDP POOL] REMOVE: port=${removed.port}, id=${removed.id}, closed=${closeBrowser}, pool_size=${cdp_browser_pool.length}`
-      );
-      return { success: true, browser: removed };
-    }
-  );
-
-  // Launch CDP browser with automatic port assignment
-  ipcMain.handle('launch-cdp-browser', async () => {
-    if (!CDP_BROWSERS_ENABLED) {
-      return {
-        success: false,
-        error: 'CDP browsers are disabled: the browser runs in the sandbox',
-      };
-    }
-    try {
-      // 1. Always increment port from the last assigned port
-      // Port 9223 is reserved for the login browser
-      let port: number | null = null;
-      for (let p = cdpLastAssignedPort + 1; p < 9300; p++) {
-        if (!(await isCdpPortAlive(p))) {
-          port = p;
-          break;
-        }
-      }
-      // Wrap around if we hit the ceiling
-      if (port === null) {
-        for (let p = 9224; p <= cdpLastAssignedPort && p < 9300; p++) {
-          if (
-            !cdp_browser_pool.some((b) => b.port === p) &&
-            !(await isCdpPortAlive(p))
-          ) {
-            port = p;
-            break;
-          }
-        }
-      }
-      if (port === null) {
-        return { success: false, error: 'No available port in 9224-9299' };
-      }
-
-      // 2. Find Playwright Chromium executable
-      const platform = process.platform;
-      let cacheDir: string;
-      if (platform === 'darwin')
-        cacheDir = path.join(homedir(), 'Library/Caches/ms-playwright');
-      else if (platform === 'linux')
-        cacheDir = path.join(homedir(), '.cache/ms-playwright');
-      else if (platform === 'win32')
-        cacheDir = path.join(homedir(), 'AppData/Local/ms-playwright');
-      else
-        return { success: false, error: `Unsupported platform: ${platform}` };
-
-      if (!existsSync(cacheDir)) {
-        return {
-          success: false,
-          error:
-            'Playwright Chromium not found. Please run: npx playwright install chromium',
-        };
-      }
-
-      const chromiumDirs = fs
-        .readdirSync(cacheDir)
-        .filter((d) => d.startsWith('chromium-'))
-        .sort()
-        .reverse();
-      if (chromiumDirs.length === 0) {
-        return {
-          success: false,
-          error:
-            'No Playwright Chromium found. Run: npx playwright install chromium',
-        };
-      }
-
-      const platformPaths: Record<string, (base: string) => string[]> = {
-        darwin: (base) => [
-          path.join(
-            base,
-            'chrome-mac-arm64/Chromium.app/Contents/MacOS/Chromium'
-          ),
-          path.join(
-            base,
-            'chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
-          ),
-          path.join(base, 'chrome-mac/Chromium.app/Contents/MacOS/Chromium'),
-          path.join(
-            base,
-            'chrome-mac/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
-          ),
-        ],
-        linux: (base) => [path.join(base, 'chrome-linux/chrome')],
-        win32: (base) => [
-          path.join(base, 'chrome-win64/chrome.exe'),
-          path.join(base, 'chrome-win/chrome.exe'),
-        ],
-      };
-
-      let chromeExe: string | null = null;
-      for (const dir of chromiumDirs) {
-        const base = path.join(cacheDir, dir);
-        const candidates = platformPaths[platform](base);
-        const found = candidates.find((p) => existsSync(p));
-        if (found) {
-          chromeExe = found;
-          break;
-        }
-      }
-      if (!chromeExe) {
-        return { success: false, error: 'Chromium executable not found' };
-      }
-
-      // 3. Launch browser
-      const userDataDir = path.join(
-        app.getPath('userData'),
-        `cdp_browser_profile_${port}`
-      );
-      if (!existsSync(userDataDir)) {
-        await fsp.mkdir(userDataDir, { recursive: true });
-      }
-
-      const proc = spawn(
-        chromeExe,
-        [
-          `--remote-debugging-port=${port}`,
-          `--user-data-dir=${userDataDir}`,
-          '--no-first-run',
-          '--no-default-browser-check',
-          '--disable-blink-features=AutomationControlled',
-          'about:blank',
-        ],
-        { detached: false, stdio: 'ignore' }
-      );
-
-      proc.on('error', (err) =>
-        log.error(`[CDP LAUNCH] Process error port=${port}: ${err}`)
-      );
-
-      // 4. Poll for readiness (max 5s)
-      let data: any = null;
-      const start = Date.now();
-      while (Date.now() - start < 5000) {
-        try {
-          const resp = await axios.get(
-            `http://localhost:${port}/json/version`,
-            { timeout: 1000 }
-          );
-          if (resp.status === 200) {
-            data = resp.data;
-            break;
-          }
-        } catch {}
-        await new Promise((r) => setTimeout(r, 300));
-      }
-
-      if (!data) {
-        proc.kill();
-        return {
-          success: false,
-          error: `Browser not responding on port ${port} after 5s`,
-        };
-      }
-
-      // 5. Add to pool automatically
-      const newBrowser: CdpBrowser = {
-        id: `cdp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        port,
-        isExternal: false,
-        name: `Launched Browser (${port})`,
-        addedAt: Date.now(),
-      };
-      cdp_browser_pool.push(newBrowser);
-      cdpLastAssignedPort = port;
-      saveCdpPool();
-      notifyCdpPoolChanged();
-
-      log.info(
-        `[CDP LAUNCH] Success: port=${port}, id=${newBrowser.id}, pool_size=${cdp_browser_pool.length}`
-      );
-      return { success: true, port, data };
-    } catch (err: any) {
-      log.error(`[CDP LAUNCH] Failed: ${err}`);
-      return { success: false, error: err.message };
-    }
   });
 
   ipcMain.handle('get-app-version', () => app.getVersion());
@@ -2389,10 +1870,6 @@ async function createWindowInternal() {
   ensureEigentDirectories();
   await seedDefaultSkillsIfEmpty();
 
-  if (CDP_BROWSERS_ENABLED) {
-    loadCdpPool();
-  }
-
   log.info('[PROJECT BROWSER WINDOW] Creating BrowserWindow (CDP disabled)');
   log.info(
     `[PROJECT BROWSER WINDOW] Current user data path: ${app.getPath(
@@ -2633,11 +2110,6 @@ async function createWindowInternal() {
   setupExternalLinkHandling();
   handleBeforeClose();
 
-  // Start CDP health-check polling (probes every 3s, removes dead browsers)
-  if (CDP_BROWSERS_ENABLED) {
-    startCdpHealthCheck();
-  }
-
   // ==================== auto update ====================
   update(win);
 
@@ -2815,14 +2287,6 @@ const handleBeforeClose = () => {
 
 // ==================== app event handle ====================
 app.whenReady().then(async () => {
-  // Wait for profile initialization to complete
-  log.info('[MAIN] Waiting for profile initialization...');
-  try {
-    await profileInitPromise;
-    log.info('[MAIN] Profile initialization completed');
-  } catch (error) {
-    log.error('[MAIN] Profile initialization failed:', error);
-  }
 
   // ==================== install React DevTools ====================
   // Only install in development mode
@@ -2982,9 +2446,6 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   log.info('window-all-closed');
 
-  // Stop polling when no window is open (important on macOS reopen flow).
-  stopCdpHealthCheck();
-
   // Clean up WebView manager
   if (webViewManager) {
     webViewManager.destroy();
@@ -3023,9 +2484,6 @@ app.on('activate', async () => {
 // ==================== app exit event ====================
 app.on('before-quit', async (event) => {
   log.info('before-quit');
-
-  // Stop CDP health-check polling
-  stopCdpHealthCheck();
 
   // Prevent default quit to ensure cleanup completes
   event.preventDefault();

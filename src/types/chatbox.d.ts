@@ -77,6 +77,20 @@ declare global {
     url: string;
     processTaskId: string;
     img: string;
+    /**
+     * The browser is somewhere this app cannot attach a WebContentsView to —
+     * a headless Chromium inside a sandbox pod. `img` is then a captured
+     * frame rather than a live surface, so handing the window over is not an
+     * offer that can be honored.
+     */
+    remote?: boolean;
+    /**
+     * Recent viewfinder frames, oldest first, as resolved download URLs. Only
+     * the tail is carried: each URL is a time-boxed grant minted per frame.
+     */
+    frames?: string[];
+    /** How many frames the run produced, which is usually more than `frames`. */
+    frameCount?: number;
   }
 
   interface Agent {

@@ -230,6 +230,62 @@ describe('EdgeTransport REST (golden fixtures)', () => {
       'https://edge.local/eigent/v1/projects?page_size=2&page_token=page-2'
     );
   });
+
+  it('uploads an attachment from the golden pair, with no idempotency key', async () => {
+    const { transport, fetchImpl } = transportWith(
+      jsonResponse(fixture('upload_attachment_response.json'), 201)
+    );
+    const artifact = await transport.uploadAttachment(
+      'prj_01JY0000000000000000000001',
+      fixture('upload_attachment_request.json') as Parameters<
+        typeof transport.uploadAttachment
+      >[1]
+    );
+    expect(artifact.artifact_id).toBe('art_01JY0000000000000000000004');
+    expect(artifact.media_type).toBe('image/png');
+
+    const { url, init, headers } = requestOf(fetchImpl);
+    expect(url).toBe(
+      'https://edge.local/eigent/v1/projects/prj_01JY0000000000000000000001/attachments'
+    );
+    expect(init.method).toBe('POST');
+    // No Idempotency-Key by contract: a retried upload mints the next version
+    // and identical bytes dedupe, so the route defines its own replay story.
+    expect(headers['Idempotency-Key']).toBeUndefined();
+    expect(JSON.parse(init.body as string)).toEqual(
+      fixture('upload_attachment_request.json')
+    );
+  });
+
+  it('raises the typed attachment problems', async () => {
+    for (const { fixtureName, status, code } of [
+      {
+        fixtureName: 'problem_attachment_invalid.json',
+        status: 422,
+        code: 'attachment_invalid',
+      },
+      {
+        fixtureName: 'problem_artifacts_not_configured.json',
+        status: 501,
+        code: 'artifacts_not_configured',
+      },
+    ]) {
+      const { transport } = transportWith(problemResponse(fixtureName, status));
+      const failure = await transport
+        .uploadAttachment('prj_1', {
+          name: 'shot.png',
+          media_type: 'image/png',
+          data_base64: 'aGVsbG8=',
+        })
+        .then(
+          () => null,
+          (error: unknown) => error
+        );
+      expect(failure).toBeInstanceOf(EdgeProblemError);
+      expect((failure as EdgeProblemError).problem.code).toBe(code);
+      expect((failure as EdgeProblemError).problem.status).toBe(status);
+    }
+  });
 });
 
 describe('EdgeTransport skills (golden fixtures)', () => {

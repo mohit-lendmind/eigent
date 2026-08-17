@@ -52,7 +52,6 @@ const requiredStringFields = [
   'event_id',
   'schema_version',
   'project_id',
-  'run_id',
   'sequence',
   'kind',
   'visibility',
@@ -80,6 +79,11 @@ export function decodeProjectEvent(value: unknown): ProjectEvent {
     if (typeof object[field] !== 'string' || object[field].length === 0) {
       throw new TypeError(`ProjectEvent.${field} must be a non-empty string`);
     }
+  }
+  // run_id must be present but may be EMPTY: an event recorded before any
+  // run exists (an attachment uploaded into a project) is project-scoped.
+  if (typeof object.run_id !== 'string') {
+    throw new TypeError('ProjectEvent.run_id must be a string');
   }
   // Only the schema MAJOR version is a compatibility boundary; unknown kind
   // and visibility values decode fine (see the open-set types above).

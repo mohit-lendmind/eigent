@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/artifacts-not-configured",
+  "title": "Artifact storage not configured",
+  "status": 501,
+  "detail": "This server runs without an object store, so uploaded bytes have nowhere durable to land.",
+  "code": "artifacts_not_configured",
+  "trace_id": "trc_01JY0000000000000000000018",
+  "retryable": false
+}

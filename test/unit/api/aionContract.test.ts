@@ -69,4 +69,25 @@ describe('aion public Project event contract', () => {
       'event_id'
     );
   });
+
+  // An artifact uploaded before any run exists publishes an artifact_created
+  // event with run_id "" — project-scoped, not run-scoped. Refusing it made
+  // the first frame of an upload-first project a poison frame that burned the
+  // whole reconnect budget.
+  it('accepts an empty run_id on a runless event', () => {
+    const event = parseProjectEventJSON(
+      readFixture('event_artifact_created_runless.json')
+    );
+    expect(event.run_id).toBe('');
+    expect(event.kind).toBe('artifact_created');
+    expect(JSON.parse(encodeProjectEvent(event))).toHaveProperty('run_id', '');
+  });
+
+  it('still rejects an event with no run_id field at all', () => {
+    const runless = JSON.parse(
+      readFixture('event_artifact_created_runless.json')
+    ) as Record<string, unknown>;
+    delete runless.run_id;
+    expect(() => decodeProjectEvent(runless)).toThrow('run_id');
+  });
 });

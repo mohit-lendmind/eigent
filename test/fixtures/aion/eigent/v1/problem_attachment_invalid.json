@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/attachment-invalid",
+  "title": "Attachment rejected",
+  "status": 422,
+  "detail": "attachment media type \"image/svg+xml\" is not deliverable to a model; allowed kinds are png, jpeg, webp, gif, pdf, json and text/*.",
+  "code": "attachment_invalid",
+  "trace_id": "trc_01JY0000000000000000000017",
+  "retryable": false
+}

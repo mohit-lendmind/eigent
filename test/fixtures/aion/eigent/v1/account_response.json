@@ -4,6 +4,6 @@
   "user_id": "user-ada",
   "scopes": [],
   "cell_id": "cell-local-1",
-  "edge_api_version": "1.15.0",
+  "edge_api_version": "1.16.0",
   "key_management": true
 }

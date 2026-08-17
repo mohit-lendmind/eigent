@@ -443,7 +443,13 @@ export default function WorkspacePage() {
     let webviews: { id: string; agent_id: string; index: number }[] = [];
     taskAssigningArray.map((item) => {
       if (item.type === 'browser_agent') {
-        item.activeWebviewIds?.map((webview, index) => {
+        item.activeWebviewIds?.forEach((webview, index) => {
+          // A remote view is a picture of a browser this app never hosted —
+          // the pod's own Chromium. Asking the main process to capture it
+          // returns null for a WebContentsView that does not exist, and the
+          // write-back below would put that null over the published frame.
+          // The original index is kept because that is what it writes to.
+          if (webview.remote) return;
           webviews.push({ ...webview, agent_id: item.agent_id, index });
         });
       }
@@ -451,21 +457,6 @@ export default function WorkspacePage() {
 
     if (taskAssigningArray.length === 0) {
       return;
-    }
-
-    if (webviews.length === 0) {
-      const browserAgent = taskAssigningArray.find(
-        (agent) => agent.type === 'browser_agent'
-      );
-      if (
-        browserAgent &&
-        browserAgent.activeWebviewIds &&
-        browserAgent.activeWebviewIds.length > 0
-      ) {
-        browserAgent.activeWebviewIds.forEach((webview, index) => {
-          webviews.push({ ...webview, agent_id: browserAgent.agent_id, index });
-        });
-      }
     }
 
     if (webviews.length === 0) {
@@ -490,8 +481,12 @@ export default function WorkspacePage() {
               (agent) => agent.agent_id === webview.agent_id
             );
 
+            // A capture that failed answers null, and the empty-payload check
+            // alone let that through — so a view that was merely busy or
+            // mid-teardown blanked the mirror it was supposed to refresh.
             if (
               browserAgentIndex !== -1 &&
+              base64 &&
               base64 !== 'data:image/jpeg;base64,'
             ) {
               taskAssigning[browserAgentIndex].activeWebviewIds![

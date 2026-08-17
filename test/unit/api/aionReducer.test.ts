@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { decodeProjectEvent, type ProjectEvent } from '@/api/aion/v1/contracts';
 import {
+  BROWSER_FRAME_ARTIFACT_PREFIX,
   initialProjectState,
   reduceProjectEvent,
   reduceProjectEvents,
@@ -36,7 +37,7 @@ describe('aion Project reducer (golden fixtures)', () => {
     const state = reduceProjectEvents(initialProjectState(), goldenStream());
 
     expect(state.projectId).toBe('prj_01JY0000000000000000000001');
-    expect(state.lastSequence).toBe('13');
+    expect(state.lastSequence).toBe('14');
     expect(state.gapCount).toBe(0);
     expect(state.suppressedEventCount).toBe(0);
     expect(state.activeRunId).toBeNull();
@@ -66,7 +67,8 @@ describe('aion Project reducer (golden fixtures)', () => {
     // parked and later moved again — the entry stays because a run that
     // stalled did not have the same history as one that never did),
     // worker(started then ended — ONE lane, not two entries),
-    // approval(resolved), artifact, then three terminal boundaries.
+    // approval(resolved), artifact, the runless upload artifact, then three
+    // terminal boundaries.
     expect(state.timeline.map((entry) => entry.type)).toEqual([
       'run_boundary',
       'text',
@@ -74,6 +76,7 @@ describe('aion Project reducer (golden fixtures)', () => {
       'recovery',
       'worker',
       'approval',
+      'artifact',
       'artifact',
       'run_boundary',
       'run_boundary',
@@ -131,6 +134,18 @@ describe('aion Project reducer (golden fixtures)', () => {
     expect(state.artifacts['art_01JY0000000000000000000001']).toMatchObject({
       media_type: 'application/json',
       sha256: '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8',
+    });
+
+    // The runless upload: an artifact published before any run exists carries
+    // run_id "" and must still land on the timeline instead of poisoning the
+    // stream.
+    expect(state.timeline[7]).toMatchObject({
+      type: 'artifact',
+      runId: '',
+      artifact: { artifact_id: 'art_01JY0000000000000000000031', name: 'reading-test.png' },
+    });
+    expect(state.artifacts['art_01JY0000000000000000000031']).toMatchObject({
+      media_type: 'image/png',
     });
   });
 
@@ -507,5 +522,83 @@ describe('aion Project reducer (golden fixtures)', () => {
     );
     expect(state.timeline).toHaveLength(1);
     expect(state.timeline[0]).toMatchObject({ type: 'text', text: 'Hello world', sequence: '2' });
+  });
+});
+
+describe('browser viewfinder frames', () => {
+  const artifactEvent = (
+    sequence: string,
+    name: string,
+    artifactId: string
+  ): ProjectEvent => {
+    const base = fixture('event_artifact_created.json') as Record<string, unknown>;
+    const artifact = (base.data as { artifact: Record<string, unknown> }).artifact;
+    return decodeProjectEvent({
+      ...base,
+      sequence,
+      data: {
+        artifact: {
+          ...artifact,
+          artifact_id: artifactId,
+          name,
+          media_type: 'image/jpeg',
+        },
+      },
+    });
+  };
+
+  const frame = (sequence: string, n: number): ProjectEvent =>
+    artifactEvent(
+      sequence,
+      `${BROWSER_FRAME_ARTIFACT_PREFIX}${n}.jpg`,
+      `art_frame_${n}`
+    );
+
+  it('collects frames in order and keeps them off the timeline', () => {
+    const state = reduceProjectEvents(initialProjectState(), [
+      frame('1', 1),
+      frame('2', 2),
+      frame('3', 3),
+    ]);
+
+    expect(state.browserFrames.map((f) => f.name)).toEqual([
+      'aion-browser-frame-1.jpg',
+      'aion-browser-frame-2.jpg',
+      'aion-browser-frame-3.jpg',
+    ]);
+    expect(state.browserFrames[0]).toMatchObject({
+      artifactId: 'art_frame_1',
+      runId: 'run_01JY0000000000000000000001',
+      sequence: '1',
+    });
+    // A frame is published once per browser action, so a run that browses for
+    // a minute would bury its own transcript under pictures of itself.
+    expect(state.timeline).toHaveLength(0);
+    // It is still an artifact — the download path is the ordinary one.
+    expect(state.artifacts['art_frame_1']).toMatchObject({ media_type: 'image/jpeg' });
+  });
+
+  it('leaves an agent-authored artifact on the timeline', () => {
+    const state = reduceProjectEvents(initialProjectState(), [
+      artifactEvent('1', 'chart.png', 'art_chart'),
+      frame('2', 1),
+    ]);
+
+    // An image the agent deliberately produced is not a viewfinder frame, and
+    // the NAME is the only place that distinction lives: both are image/* and
+    // both are content-addressed.
+    expect(state.timeline).toHaveLength(1);
+    expect(state.timeline[0]).toMatchObject({ type: 'artifact' });
+    expect(state.browserFrames).toHaveLength(1);
+    expect(state.browserFrames[0].artifactId).toBe('art_frame_1');
+  });
+
+  it('replays a frame stream to the same state one-by-one and in batch', () => {
+    const events = [frame('1', 1), frame('2', 2)];
+    let live = initialProjectState();
+    for (const event of events) live = reduceProjectEvent(live, event);
+    expect(JSON.stringify(reduceProjectEvents(initialProjectState(), events))).toBe(
+      JSON.stringify(live)
+    );
   });
 });

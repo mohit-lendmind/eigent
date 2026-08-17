@@ -12,6 +12,7 @@ import {
   supportsConnectors,
   supportsSchedules,
   supportsRunRecovery,
+  supportsAttachments,
 } from '@/api/aion/v1/compat';
 import {
   DESKTOP_CLIENT_VERSION,
@@ -255,6 +256,32 @@ describe('supportsRunRecovery', () => {
       false
     );
     expect(supportsRunRecovery(status({ edge_api_version: '1.fifteen' }))).toBe(
+      false
+    );
+  });
+});
+
+describe('supportsAttachments', () => {
+  it('gates on the 1.16 attachment-upload floor', () => {
+    // Below the floor there is nowhere to put the bytes and submitCommand
+    // rejects attachment_ids outright, so the composer must not offer an
+    // attach affordance it can only fail after the user picked a file.
+    expect(supportsAttachments(status({ edge_api_version: '1.15.9' }))).toBe(
+      false
+    );
+    expect(supportsAttachments(status({ edge_api_version: '1.16.0' }))).toBe(
+      true
+    );
+    expect(supportsAttachments(status({ edge_api_version: '1.17.0' }))).toBe(
+      true
+    );
+  });
+
+  it('fails closed on garbage and on a foreign major', () => {
+    expect(supportsAttachments(status({ edge_api_version: '2.16.0' }))).toBe(
+      false
+    );
+    expect(supportsAttachments(status({ edge_api_version: '1.sixteen' }))).toBe(
       false
     );
   });

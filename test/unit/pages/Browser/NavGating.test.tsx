@@ -1,7 +1,8 @@
 // The Browser nav. The cookie jar was the local backend's — every button on it
-// read or wrote `/browser/*` on the backend this fork removed — and is gone;
-// CDP drives real Chrome instances over IPC and stays. A link to the retired
-// section must still land on a screen.
+// read or wrote `/browser/*` on the backend this fork removed — and the CDP
+// connection pool drove local Chrome instances nothing dispatches to anymore
+// (the browser runs headless inside the aion sandbox pod). Both are gone; a
+// link to a retired section must still land on a screen.
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -30,9 +31,6 @@ vi.mock('@/components/Dashboard/VerticalNav', () => ({
   HISTORY_VERTICAL_SIDEBAR_CLASSNAME: '',
 }));
 
-vi.mock('@/pages/Browser/CDP', () => ({
-  default: () => <div data-testid="screen-cdp" />,
-}));
 vi.mock('@/pages/Browser/Extension', () => ({
   default: () => <div data-testid="screen-extension" />,
 }));
@@ -44,15 +42,15 @@ beforeEach(() => {
 describe('Browser nav', () => {
   it('offers the sections this plane serves', () => {
     render(<Browser />);
-    expect(screen.getByTestId('nav-cdp')).toBeTruthy();
     expect(screen.getByTestId('nav-extension')).toBeTruthy();
+    expect(screen.queryByTestId('nav-cdp')).toBeNull();
     expect(screen.queryByTestId('nav-cookies')).toBeNull();
   });
 
-  it('resolves a link to the retired cookie jar onto a screen that exists', () => {
-    mocks.params = { browserSection: 'cookies' };
+  it('resolves a link to a retired section onto a screen that exists', () => {
+    mocks.params = { browserSection: 'cdp' };
     render(<Browser />);
-    expect(screen.getByTestId('screen-cdp')).toBeTruthy();
-    expect(screen.queryByTestId('screen-cookies')).toBeNull();
+    expect(screen.getByTestId('screen-extension')).toBeTruthy();
+    expect(screen.queryByTestId('screen-cdp')).toBeNull();
   });
 });

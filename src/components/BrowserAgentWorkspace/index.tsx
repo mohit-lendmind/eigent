@@ -117,6 +117,24 @@ export default function BrowserAgentWorkspace({
 
   const [isTakeControl, setIsTakeControl] = useState(false);
 
+  // A browser running inside a sandbox pod has no WebContentsView to attach
+  // to and no takeover to offer, so it gets its own surface: the frames the
+  // run published, newest last.
+  const remoteView = useMemo(() => {
+    const views = activeAgent?.activeWebviewIds ?? [];
+    return views.length === 1 && views[0]?.remote ? views[0] : null;
+  }, [activeAgent]);
+  const shownFrames = useMemo(() => remoteView?.frames ?? [], [remoteView]);
+  // Which frame the user is looking at, pinned by URL rather than by position:
+  // only the tail of a run's frames is resolved, so the same index names a
+  // different frame once the window slides. An unpinned card — and one whose
+  // pinned frame has aged out of the window — follows the newest frame.
+  const [pinnedFrame, setPinnedFrame] = useState<string | null>(null);
+  const shownFrame =
+    pinnedFrame && shownFrames.includes(pinnedFrame)
+      ? pinnedFrame
+      : (shownFrames[shownFrames.length - 1] ?? '');
+
   const getSize = useCallback(() => {
     const webviewContainer = document.getElementById('webview-container');
     if (webviewContainer) {
@@ -269,7 +287,58 @@ export default function BrowserAgentWorkspace({
 					</div> */}
         </div>
 
-        {activeAgent?.activeWebviewIds?.length === 1 ? (
+        {remoteView ? (
+          <div
+            data-testid="browser-filmstrip"
+            data-frame-count={remoteView.frameCount ?? 0}
+            className="flex min-h-0 flex-1 flex-col gap-sm px-2 pb-2"
+          >
+            <div className="flex items-center justify-between gap-sm text-xs leading-17 text-ds-text-neutral-muted-default">
+              <div className="flex items-center gap-1">
+                <GalleryThumbnails size={14} />
+                <span>
+                  {remoteView.frameCount
+                    ? `Filmstrip · ${shownFrames.length} of ${remoteView.frameCount} frames`
+                    : 'Filmstrip'}
+                </span>
+              </div>
+              <span className="truncate">{remoteView.url}</span>
+            </div>
+            <div className="min-h-0 flex-1">
+              {shownFrame ? (
+                <img
+                  data-testid="browser-filmstrip-current"
+                  src={shownFrame}
+                  alt=""
+                  className="h-full w-full rounded-lg object-contain"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center rounded-lg text-sm text-ds-text-neutral-muted-default">
+                  Waiting for the first frame…
+                </div>
+              )}
+            </div>
+            {shownFrames.length > 1 && (
+              <div className="scrollbar flex flex-shrink-0 gap-1 overflow-x-auto">
+                {shownFrames.map((frame) => (
+                  <button
+                    key={frame}
+                    type="button"
+                    data-testid="browser-filmstrip-frame"
+                    onClick={() => setPinnedFrame(frame)}
+                    className={`h-12 flex-shrink-0 overflow-hidden rounded border border-solid ${
+                      frame === shownFrame
+                        ? 'border-ds-border-browser-default-default'
+                        : 'border-ds-border-neutral-default-default'
+                    }`}
+                  >
+                    <img src={frame} alt="" className="h-full w-auto" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : activeAgent?.activeWebviewIds?.length === 1 ? (
           <div className="min-h-0 flex-1">
             {activeAgent?.activeWebviewIds[0]?.img && (
               <div
