@@ -47,37 +47,30 @@ export const ProjectSection = React.forwardRef<
     },
     ref
   ) => {
-    // Subscribe to store changes with throttling to prevent excessive re-renders
+    // Subscribe to store changes, coalescing bursts to one update per
+    // animation frame — the fastest cadence a paint can use, without the
+    // fixed lag a timer throttle adds to every single event.
     const [chatState, setChatState] = React.useState(() =>
       chatStore.getState()
     );
 
     React.useEffect(() => {
-      let timeoutId: NodeJS.Timeout | null = null;
-      let latestState: any = null;
+      let frame: number | null = null;
 
-      const unsubscribe = chatStore.subscribe((state) => {
-        latestState = state;
-
-        // Throttle updates to max once per 100ms
-        if (!timeoutId) {
-          timeoutId = setTimeout(() => {
-            if (latestState) {
-              setChatState(latestState);
-            }
-            timeoutId = null;
-          }, 100);
-        }
+      const unsubscribe = chatStore.subscribe(() => {
+        if (frame !== null) return;
+        frame = requestAnimationFrame(() => {
+          frame = null;
+          setChatState(chatStore.getState());
+        });
       });
 
       return () => {
         unsubscribe();
-        if (timeoutId) {
-          clearTimeout(timeoutId);
+        if (frame !== null) {
+          cancelAnimationFrame(frame);
           // Apply final state on cleanup
-          if (latestState) {
-            setChatState(latestState);
-          }
+          setChatState(chatStore.getState());
         }
       };
     }, [chatStore]);

@@ -13,56 +13,18 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import { isHtmlDocument } from '@/lib/htmlFontStyles';
-import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 export const MarkDown = ({
   content,
-  speed = 15,
-  onTyping,
-  enableTypewriter = true, // Whether to enable typewriter effect
   pTextSize = 'text-xs',
   olPadding = '',
 }: {
   content: string;
-  speed?: number;
-  onTyping?: () => void;
-  enableTypewriter?: boolean;
   pTextSize?: string;
   olPadding?: string;
 }) => {
-  // When the typewriter is off, seed with the full content so the very first
-  // paint already has it — otherwise the content arrives a tick later (via the
-  // effect below) and any height-animated container measures an empty body.
-  const [displayedContent, setDisplayedContent] = useState(
-    enableTypewriter ? '' : content
-  );
-
-  useEffect(() => {
-    if (!enableTypewriter) {
-      setDisplayedContent(content);
-      return;
-    }
-
-    setDisplayedContent('');
-    let index = 0;
-
-    const timer = setInterval(() => {
-      if (index < content.length) {
-        setDisplayedContent(content.slice(0, index + 1));
-        index++;
-        if (onTyping) {
-          onTyping();
-        }
-      } else {
-        clearInterval(timer);
-      }
-    }, speed);
-
-    return () => clearInterval(timer);
-  }, [content, speed, enableTypewriter, onTyping]);
-
   // process line breaks, convert \n to <br> tag
   const processContent = (text: string) => {
     return text.replace(/\\n/g, '  \n '); // add two spaces before \n, so ReactMarkdown will recognize it as a line break
@@ -71,7 +33,7 @@ export const MarkDown = ({
   // If content is a pure HTML document, render in a styled pre block
   if (isHtmlDocument(content)) {
     // Trim leading whitespace from each line for consistent alignment
-    const formattedHtml = displayedContent
+    const formattedHtml = content
       .split('\n')
       .map((line) => line.trimStart())
       .join('\n')
@@ -197,7 +159,7 @@ export const MarkDown = ({
           ),
         }}
       >
-        {processContent(displayedContent)}
+        {processContent(content)}
       </ReactMarkdown>
     </div>
   );

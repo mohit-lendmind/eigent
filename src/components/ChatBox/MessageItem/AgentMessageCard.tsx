@@ -45,38 +45,27 @@ interface AgentMessageCardProps {
   id: string;
   content: string;
   className?: string;
-  typewriter?: boolean;
   attaches?: File[];
-  /** Shown only after markdown (and typewriter, if enabled) has finished rendering — e.g. generated file chips. */
+  /** Shown only after the markdown has finished rendering — e.g. generated file chips. */
   deferredFooter?: ReactNode;
-  onTyping?: () => void;
   onMarkdownRenderComplete?: () => void;
 }
-
-// Tracks agent messages that have already played the typewriter (by stable message id).
-const completedTypewriterByMessageId = new Map<string, boolean>();
 
 export function AgentMessageCard({
   id,
   content,
-  typewriter = true,
-  onTyping,
   onMarkdownRenderComplete,
   className,
   attaches,
   deferredFooter,
 }: AgentMessageCardProps) {
   const openFilePreview = usePageTabStore((s) => s.openFilePreview);
-  const [markdownAndTypingComplete, setMarkdownAndTypingComplete] = useState(
-    () => completedTypewriterByMessageId.has(id)
-  );
+  const [markdownAndTypingComplete, setMarkdownAndTypingComplete] =
+    useState(false);
 
   useEffect(() => {
-    setMarkdownAndTypingComplete(completedTypewriterByMessageId.has(id));
+    setMarkdownAndTypingComplete(false);
   }, [id]);
-
-  const isCompleted = completedTypewriterByMessageId.has(id);
-  const enableTypewriter = !isCompleted;
 
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<MessageFeedback>(null);
@@ -102,15 +91,6 @@ export function AgentMessageCard({
   useEffect(() => {
     setFeedback(null);
   }, [id]);
-
-  const handleTypingComplete = () => {
-    if (!completedTypewriterByMessageId.has(id)) {
-      completedTypewriterByMessageId.set(id, true);
-    }
-    if (onTyping) {
-      onTyping();
-    }
-  };
 
   const handleCopy = useCallback(async () => {
     try {
@@ -151,9 +131,7 @@ export function AgentMessageCard({
     >
       <MarkDown
         content={content}
-        onTyping={handleTypingComplete}
         onMarkdownRenderComplete={handleMarkdownRenderComplete}
-        enableTypewriter={enableTypewriter && typewriter}
       />
       {showDeferredFileUi && attaches && attaches.length > 0 && (
         <div className="gap-2 mt-[10px] flex flex-wrap">

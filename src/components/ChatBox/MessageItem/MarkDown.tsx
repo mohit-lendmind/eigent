@@ -60,18 +60,12 @@ marked.setOptions({
 export const MarkDown = memo(
   ({
     content,
-    speed = 10,
-    onTyping,
     onMarkdownRenderComplete,
-    enableTypewriter = true,
     contentBasePath,
   }: {
     content: string;
-    speed?: number;
-    onTyping?: () => void;
-    /** Fires once per stable `content` when full text is shown and markdown HTML has been applied (after typewriter catches up if enabled). */
+    /** Fires once per `content` when the rendered markdown HTML has been applied. */
     onMarkdownRenderComplete?: () => void;
-    enableTypewriter?: boolean;
     pTextSize?: string;
     olPadding?: string;
     /** Base directory for resolving relative image paths (e.g. markdown file's directory). */
@@ -81,96 +75,45 @@ export const MarkDown = memo(
     const electronAPI = host?.electronAPI;
     const openFilePreview = usePageTabStore((s) => s.openFilePreview);
     const openBrowserPreview = usePageTabStore((s) => s.openBrowserPreview);
-    const [displayedContent, setDisplayedContent] = useState('');
     const [html, setHtml] = useState('');
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const contentRef = useRef<HTMLDivElement>(null);
-    const lastContentRef = useRef<string | null>(null);
-    /** Tracks how many characters have been typed so far — lets streaming
-     *  appends continue from the current position instead of restarting. */
-    const typingIndexRef = useRef(0);
-    const typingCallbackRef = useRef(onTyping);
     const renderCompleteRef = useRef(onMarkdownRenderComplete);
-
-    useEffect(() => {
-      typingCallbackRef.current = onTyping;
-    }, [onTyping]);
 
     useEffect(() => {
       renderCompleteRef.current = onMarkdownRenderComplete;
     }, [onMarkdownRenderComplete]);
 
-    // Typewriter effect
+    // Convert markdown to HTML and process images. Streaming appends re-run
+    // this whole pipeline; one parse per content change (not per character)
+    // keeps the pane caught up with the stream at every paint.
     useEffect(() => {
-      if (!enableTypewriter) {
-        lastContentRef.current = content;
-        typingIndexRef.current = content.length;
-        setDisplayedContent(content);
-        if (typingCallbackRef.current) {
-          typingCallbackRef.current();
-        }
-        return;
-      }
-
-      if (lastContentRef.current === content) {
-        return;
-      }
-
-      const prevContent = lastContentRef.current ?? '';
-      lastContentRef.current = content;
-
-      // When content is a streaming append of the previous value, continue
-      // typing from the current position instead of restarting from zero.
-      // This prevents the displayed text from blanking out on every SSE chunk.
-      const isAppend = content.startsWith(prevContent);
-      if (!isAppend) {
-        setDisplayedContent('');
-        typingIndexRef.current = 0;
-      }
-      let index = isAppend ? typingIndexRef.current : 0;
-
-      const timer = setInterval(() => {
-        if (index < content.length) {
-          setDisplayedContent(content.slice(0, index + 1));
-          index++;
-          typingIndexRef.current = index;
-        } else {
-          clearInterval(timer);
-          if (typingCallbackRef.current) {
-            typingCallbackRef.current();
-          }
-        }
-      }, speed);
-
-      return () => clearInterval(timer);
-    }, [content, speed, enableTypewriter]);
-
-    // Convert markdown to HTML and process images
-    useEffect(() => {
+      // Guards against out-of-order resolution: streaming appends re-trigger
+      // this effect faster than the async image resolution inside can finish.
+      let cancelled = false;
       const processMarkdown = async () => {
-        if (!displayedContent) {
+        if (!content) {
           setHtml('');
           return;
         }
 
         // If content is pure HTML, handle it separately
-        if (isHtmlDocument(displayedContent)) {
-          const formattedHtml = displayedContent
-            .split('\n')
-            .map((line) => line.trimStart())
-            .join('\n')
-            .trim();
+        if (isHtmlDocument(content)) {
           setHtml(
-            `<pre class="bg-ds-bg-neutral-strong-default p-2 rounded text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all" style="word-break: break-all;"><code>${escapeHtml(formattedHtml)}</code></pre>`
+            `<pre class="bg-ds-bg-neutral-strong-default p-2 rounded text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all" style="word-break: break-all;"><code>${escapeHtml(
+              content
+                .split('\n')
+                .map((line) => line.trimStart())
+                .join('\n')
+                .trim()
+            )}</code></pre>`
           );
-          if (displayedContent === content && renderCompleteRef.current) {
-            renderCompleteRef.current();
-          }
+          renderCompleteRef.current?.();
           return;
         }
 
         // Parse markdown to HTML
-        let rawHtml = await marked.parse(displayedContent);
+        let rawHtml = await marked.parse(content);
 
         // Process images: replace relative paths with data URLs
         if (contentBasePath) {
@@ -268,14 +211,16 @@ export const MarkDown = memo(
         const sanitized = DOMPurify.sanitize(rawHtml, {
           ADD_ATTR: ['class'],
         });
+        if (cancelled) return;
         setHtml(sanitized);
-        if (displayedContent === content && renderCompleteRef.current) {
-          renderCompleteRef.current();
-        }
+        renderCompleteRef.current?.();
       };
 
       processMarkdown();
-    }, [displayedContent, content, contentBasePath, electronAPI]);
+      return () => {
+        cancelled = true;
+      };
+    }, [content, contentBasePath, electronAPI]);
 
     // Add click handlers for images
     useEffect(() => {

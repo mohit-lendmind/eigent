@@ -1,0 +1,97 @@
+// ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
+
+// A tool row must settle when its result lands — the work log builds its
+// done/error state and the Response fold exclusively from DEACTIVATE_TOOLKIT
+// entries, so a log that only ever activates leaves every row shimmering
+// forever over an empty Response block.
+import type { TimelineEntry } from '@/api/aion/v1/reducer';
+import { projectToolLog } from '@/store/aionChatBridge';
+import { AgentMessageStatus, AgentStep } from '@/types/constants';
+import { describe, expect, it } from 'vitest';
+
+type ToolEntry = Extract<TimelineEntry, { type: 'tool' }>;
+
+function toolEntry(overrides: Partial<ToolEntry> = {}): ToolEntry {
+  return {
+    type: 'tool',
+    runId: 'run-1',
+    sequence: '7',
+    toolCallId: 'call-1',
+    toolName: 'bash',
+    argumentsJson: '{"command":"ls"}',
+    ...overrides,
+  };
+}
+
+describe('projectToolLog', () => {
+  it('leaves an unresolved call as a single running activation', () => {
+    const log = projectToolLog('run-1', [toolEntry()]);
+    expect(log).toHaveLength(1);
+    expect(log[0]!.step).toBe(AgentStep.ACTIVATE_TOOLKIT);
+    expect(log[0]!.status).toBe(AgentMessageStatus.RUNNING);
+  });
+
+  it('closes a resolved call with a deactivation carrying the result', () => {
+    const log = projectToolLog('run-1', [
+      toolEntry({
+        result: { sequence: '8', content: 'total 4\nREADME.md', isError: false },
+      }),
+    ]);
+    expect(log.map((e) => e.step)).toEqual([
+      AgentStep.ACTIVATE_TOOLKIT,
+      AgentStep.DEACTIVATE_TOOLKIT,
+    ]);
+    expect(log[1]!.data.toolkit_name).toBe('bash');
+    expect(log[1]!.data.message).toContain('README.md');
+    expect(log[1]!.status).toBe(AgentMessageStatus.COMPLETED);
+  });
+
+  it('marks an error result as failed, still carrying its message', () => {
+    const log = projectToolLog('run-1', [
+      toolEntry({
+        result: { sequence: '8', content: 'command not found', isError: true },
+      }),
+    ]);
+    expect(log[1]!.status).toBe(AgentMessageStatus.FAILED);
+    expect(log[1]!.data.message).toBe('command not found');
+  });
+
+  it('interleaves settled and in-flight calls in order', () => {
+    const log = projectToolLog('run-1', [
+      toolEntry({
+        toolCallId: 'call-1',
+        result: { sequence: '8', content: 'done', isError: false },
+      }),
+      toolEntry({ toolCallId: 'call-2', sequence: '9' }),
+    ]);
+    expect(log.map((e) => e.step)).toEqual([
+      AgentStep.ACTIVATE_TOOLKIT,
+      AgentStep.DEACTIVATE_TOOLKIT,
+      AgentStep.ACTIVATE_TOOLKIT,
+    ]);
+    expect(log[2]!.status).toBe(AgentMessageStatus.RUNNING);
+  });
+
+  it('caps a huge result so the store never holds the full payload', () => {
+    const log = projectToolLog('run-1', [
+      toolEntry({
+        result: { sequence: '8', content: 'x'.repeat(100_000), isError: false },
+      }),
+    ]);
+    const message = log[1]!.data.message as string;
+    expect(message.length).toBeLessThan(5_000);
+    expect(message.endsWith('…')).toBe(true);
+  });
+});

@@ -67,39 +67,12 @@ const AgentResultCard: React.FC<{
         className={`duration-[160ms] ease-[cubic-bezier(0.23,1,0.32,1)] overflow-hidden transition-opacity ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
       >
         <div className="border-t border-ds-border-neutral-default-default px-1 py-1">
-          <AgentMessageCard
-            id={id}
-            content={content}
-            typewriter={false}
-            onTyping={() => {}}
-            attaches={attaches}
-          />
+          <AgentMessageCard id={id} content={content} attaches={attaches} />
         </div>
       </div>
     </div>
   );
 };
-
-/** Typewriter only for the agent message currently being produced (latest agent row while task is running). */
-function shouldUseLiveAgentTypewriter(
-  task: {
-    type?: string;
-    delayTime?: number;
-    status: string;
-    messages: any[];
-  } | null,
-  messageId: string
-): boolean {
-  const replayAllows =
-    task?.type !== 'replay' ||
-    (task?.type === 'replay' && task?.delayTime !== 0);
-  if (!replayAllows) return false;
-  if (!task || task.status !== ChatTaskStatus.RUNNING) return false;
-  const msgs = task.messages;
-  if (!msgs.length) return false;
-  const last = msgs[msgs.length - 1];
-  return last.role === 'agent' && last.id === messageId;
-}
 
 interface QueryGroup {
   queryId: string;
@@ -302,14 +275,24 @@ export const UserQueryGroup: React.FC<UserQueryGroupProps> = ({
       (m: any) => m.step === AgentStep.TO_SUB_TASKS && m.isConfirm
     )
   );
+  // Accepted but not yet visible: the run is RUNNING while the backend
+  // provisions its workspace, so nothing renderable exists yet. Without this
+  // the indicator dies at acceptance and the stretch reads as a hang.
+  const hasRenderableActivity = Boolean(
+    queryGroup.otherMessages.length > 0 ||
+      task?.taskAssigning?.some((a) => (a.log?.length ?? 0) > 0)
+  );
   const showPreparingExecute =
     Boolean(activeTaskId && task) &&
-    task!.status === ChatTaskStatus.PENDING &&
-    (isInitialTaskPreparation ||
-      // Workforce: after the user confirms the plan, before the work log.
-      (showTaskPlanCard && hasConfirmedSubTasks) ||
-      // Single agent: from submit until the first `todo_state` arrives.
-      shouldShowDirectWorkLog);
+    (task!.status === ChatTaskStatus.PENDING
+      ? isInitialTaskPreparation ||
+        // Workforce: after the user confirms the plan, before the work log.
+        (showTaskPlanCard && hasConfirmedSubTasks) ||
+        // Single agent: from submit until the first `todo_state` arrives.
+        shouldShowDirectWorkLog
+      : task!.status === ChatTaskStatus.RUNNING &&
+        Boolean(shouldShowDirectWorkLog) &&
+        !hasRenderableActivity);
   const shouldShowPlanTaskBox = Boolean(
     !hasConfirmedSubTasks && (isLastUserQuery || queryGroup.taskMessage)
   );
@@ -437,10 +420,8 @@ export const UserQueryGroup: React.FC<UserQueryGroupProps> = ({
                 className="flex flex-col gap-4"
               >
                 <AgentMessageCard
-                  typewriter={shouldUseLiveAgentTypewriter(task, message.id)}
                   id={message.id}
                   content={message.content}
-                  onTyping={() => {}}
                   deferredFooter={
                     message.fileList?.length ? (
                       <div className="my-2 flex flex-wrap gap-2">
@@ -490,7 +471,6 @@ export const UserQueryGroup: React.FC<UserQueryGroupProps> = ({
                   key={message.id}
                   id={message.id}
                   content="No reply received, task continues..."
-                  onTyping={() => {}}
                 />
               </motion.div>
             );
@@ -523,10 +503,8 @@ export const UserQueryGroup: React.FC<UserQueryGroupProps> = ({
               >
                 <AgentMessageCard
                   key={message.id}
-                  typewriter={shouldUseLiveAgentTypewriter(task, message.id)}
                   id={message.id}
                   content={message.content}
-                  onTyping={() => {}}
                   attaches={message.attaches}
                 />
               </motion.div>

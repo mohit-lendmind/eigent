@@ -78,7 +78,9 @@ async function freshStartAionTask(edgeApiVersion: string) {
 }
 
 const chatStoreHandle = () =>
-  ({ getState: () => ({ setSummaryTask: vi.fn() }) }) as never;
+  ({
+    getState: () => ({ setSummaryTask: vi.fn(), setTaskTime: vi.fn() }),
+  }) as never;
 
 describe('aionChatBridge attachments', () => {
   it('publishes each attach and names the ids on the command in order', async () => {

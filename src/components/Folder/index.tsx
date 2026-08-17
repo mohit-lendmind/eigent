@@ -2961,7 +2961,6 @@ export function FileViewerPanel({
                 <div className="prose prose-sm max-w-none">
                   <MarkDown
                     content={selectedFile.content || ''}
-                    enableTypewriter={false}
                     contentBasePath={
                       selectedFile.isRemote
                         ? null

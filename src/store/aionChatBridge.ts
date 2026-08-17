@@ -80,6 +80,12 @@ interface TurnBinding {
   chatStore: ChatStoreHandle;
   sawRun: boolean;
   settled: boolean;
+  /**
+   * JSON digest of the last workspace projection written to the store. Most
+   * events change only one turn's slice; skipping the byte-identical rewrites
+   * keeps the other panes' subscribers quiet.
+   */
+  projectionDigest?: string;
 }
 
 interface ProjectBinding {
@@ -283,7 +289,11 @@ async function createBinding(
     projectId: project.project_id,
     onState: (state) => {
       binding.latest = state;
+      // A settled turn's projection is final — its run can produce no further
+      // events — so only live turns re-project. (Reopening a conversation
+      // projects settled turns once, explicitly, from `binding.latest`.)
       for (const turn of binding.turns) {
+        if (turn.settled) continue;
         projectTurn(binding, turn, state);
       }
     },
@@ -404,7 +414,11 @@ export async function startAionTask(args: StartAionTaskArgs): Promise<void> {
     settled: false,
   };
   binding.turns.push(turn);
-  args.chatStore.getState().setSummaryTask(args.taskId, question);
+  const store = args.chatStore.getState();
+  store.setSummaryTask(args.taskId, question);
+  // Start the elapsed clock at submission: the header timer derives from
+  // `taskTime`, which only the legacy plan-confirm path used to set.
+  store.setTaskTime(args.taskId, Date.now());
   if (binding.latest) {
     projectTurn(binding, turn, binding.latest);
   }
@@ -713,19 +727,7 @@ function projectTurn(
     toolkits,
     terminal,
   };
-  const agentLog: AgentMessage[] = toolEntries.map((tool) => ({
-    step: AgentStep.ACTIVATE_TOOLKIT,
-    data: {
-      agent_name: 'single_agent',
-      toolkit_name: tool.toolName,
-      method_name: '',
-      message: previewToolArgs(tool.argumentsJson),
-      process_task_id: turn.runId,
-    },
-    status: tool.result
-      ? AgentMessageStatus.COMPLETED
-      : AgentMessageStatus.RUNNING,
-  }));
+  const agentLog = projectToolLog(turn.runId, toolEntries);
   const agent: Agent = {
     agent_id: `${turn.taskId}-single-agent`,
     name: 'Aion Agent',
@@ -780,11 +782,26 @@ function projectTurn(
       activeWebviewIds: [view],
     });
   }
-  store.setTaskAssigning(turn.taskId, agents);
-  store.setTaskRunning(turn.taskId, [taskInfo]);
+  // Events that leave this turn's slice unchanged (another run's events,
+  // internal-visibility records) must not wake every subscriber of the task.
+  const digest = JSON.stringify([agents, taskInfo]);
+  if (digest !== turn.projectionDigest) {
+    turn.projectionDigest = digest;
+    store.setTaskAssigning(turn.taskId, agents);
+    store.setTaskRunning(turn.taskId, [taskInfo]);
+  }
 
   if (settled && !turn.settled) {
     turn.settled = true;
+    // Freeze the clock: fold the running window into `elapsed` so the
+    // "worked for" label survives the RUNNING → FINISHED transition.
+    if (task.taskTime !== 0) {
+      store.setElapsed(
+        turn.taskId,
+        task.elapsed + (Date.now() - task.taskTime)
+      );
+      store.setTaskTime(turn.taskId, 0);
+    }
     store.setProgressValue(turn.taskId, 100);
     store.setIsPending(turn.taskId, false);
     store.setStatus(turn.taskId, ChatTaskStatus.FINISHED);
@@ -925,10 +942,66 @@ function workerOutcomeLine(worker: WorkerState): string {
     : 'This worker was not persisted, so no outcome could be matched to it.';
 }
 
+/**
+ * The single agent's work-log entries for a run's tool calls. Each call
+ * activates a row; its result — success or error — closes the row and carries
+ * the response the fold renders, so a row can never shimmer past its own
+ * settlement.
+ *
+ * Exported for unit tests.
+ */
+export function projectToolLog(
+  runId: string,
+  toolEntries: Extract<TimelineEntry, { type: 'tool' }>[]
+): AgentMessage[] {
+  return toolEntries.flatMap((tool): AgentMessage[] => {
+    const activate: AgentMessage = {
+      step: AgentStep.ACTIVATE_TOOLKIT,
+      data: {
+        agent_name: 'single_agent',
+        toolkit_name: tool.toolName,
+        method_name: '',
+        message: previewToolArgs(tool.argumentsJson),
+        process_task_id: runId,
+      },
+      status: tool.result
+        ? AgentMessageStatus.COMPLETED
+        : AgentMessageStatus.RUNNING,
+    };
+    if (!tool.result) return [activate];
+    return [
+      activate,
+      {
+        step: AgentStep.DEACTIVATE_TOOLKIT,
+        data: {
+          agent_name: 'single_agent',
+          toolkit_name: tool.toolName,
+          method_name: '',
+          message: previewToolResult(tool.result.content),
+          process_task_id: runId,
+        },
+        status: tool.result.isError
+          ? AgentMessageStatus.FAILED
+          : AgentMessageStatus.COMPLETED,
+      },
+    ];
+  });
+}
+
 function previewToolArgs(argumentsJson: string): string {
   return argumentsJson.length > 400
     ? `${argumentsJson.slice(0, 400)}…`
     : argumentsJson;
+}
+
+// A tool result can be up to 256 KiB; the work-log fold only needs enough of
+// it to read what happened.
+const TOOL_RESULT_PREVIEW_MAX = 4000;
+
+function previewToolResult(content: string): string {
+  return content.length > TOOL_RESULT_PREVIEW_MAX
+    ? `${content.slice(0, TOOL_RESULT_PREVIEW_MAX)}…`
+    : content;
 }
 
 function bashCommand(argumentsJson: string): string | null {
