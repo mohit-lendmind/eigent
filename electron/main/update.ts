@@ -20,7 +20,6 @@ import type {
 } from 'electron-updater';
 import { createRequire } from 'node:module';
 import {
-  DEFAULT_CDN_RELEASE_BASE_URL,
   getGitHubReleaseChannel,
   getUpdatePlatformDirectory,
   GitHubReleaseCdnProvider,
@@ -74,19 +73,29 @@ export function update(win: Electron.BrowserWindow) {
     return;
   }
 
-  const cdnBaseUrl =
-    process.env.EIGENT_UPDATER_CDN_BASE_URL || DEFAULT_CDN_RELEASE_BASE_URL;
+  // The feed must name the same repository electron-builder.json publishes
+  // to; a CDN mirror is opt-in because release assets live on plain GitHub
+  // releases.
+  const cdnBaseUrl = process.env.EIGENT_UPDATER_CDN_BASE_URL;
   const channel = getGitHubReleaseChannel(process.platform, process.arch);
-  const feed = {
-    provider: 'custom' as const,
-    updateProvider: GitHubReleaseCdnProvider,
-    owner: 'eigent-ai',
-    repo: 'eigent',
-    releaseType: 'release' as const,
-    channel,
-    cdnBaseUrl,
-    platformDir,
-  };
+  const feed = cdnBaseUrl
+    ? {
+        provider: 'custom' as const,
+        updateProvider: GitHubReleaseCdnProvider,
+        owner: 'mohit-lendmind',
+        repo: 'eigent',
+        releaseType: 'release' as const,
+        channel,
+        cdnBaseUrl,
+        platformDir,
+      }
+    : {
+        provider: 'github' as const,
+        owner: 'mohit-lendmind',
+        repo: 'eigent',
+        releaseType: 'release' as const,
+        channel,
+      };
 
   autoUpdater.setFeedURL(feed);
   console.log('[AutoUpdater] setFeedURL:', feed);

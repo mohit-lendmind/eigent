@@ -39,8 +39,6 @@ const { resolveFiles } = require('electron-updater/out/providers/Provider') as {
   ) => Array<ResolvedUpdateFileInfo>;
 };
 
-export const DEFAULT_CDN_RELEASE_BASE_URL = 'https://cdn.eigent.ai/releases';
-
 export type UpdatePlatformDirectory =
   | 'mac-arm64'
   | 'mac-intel'
