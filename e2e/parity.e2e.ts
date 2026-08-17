@@ -129,18 +129,11 @@ const DESTINATIONS: Destination[] = [
     absent: ['aion-account-banner', 'aion-account-error'],
   },
   {
-    // Chrome over CDP, driven from the main process. No plane behind it to be
-    // dead, on either side.
-    id: 'browser/cdp',
-    bucket: 'local',
-    query: 'tab=browser',
-    present: 'cdp-connections',
-  },
-  {
+    // The CDP connection pool is gone: the browser runs headless inside the
+    // aion sandbox pod, so extensions are the tab's only (placeholder) screen.
     id: 'browser/extension',
     bucket: 'soon',
     query: 'tab=browser',
-    navItem: 'extension',
     present: 'coming-soon',
   },
   {

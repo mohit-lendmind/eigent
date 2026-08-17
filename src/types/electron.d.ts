@@ -193,26 +193,6 @@ interface ElectronAPI {
     folderPath: string,
     ide: string
   ) => Promise<{ success: boolean; error?: string }>;
-  // Skills: all operations via Brain REST API
-  setBrowserPort: (port: number, isExternal?: boolean) => Promise<any>;
-  getBrowserPort: () => Promise<number>;
-  getCdpBrowsers: () => Promise<any[]>;
-  addCdpBrowser: (
-    port: number,
-    isExternal: boolean,
-    name?: string
-  ) => Promise<{ success: boolean; browser?: any; error?: string }>;
-  removeCdpBrowser: (
-    browserId: string,
-    closeBrowser?: boolean
-  ) => Promise<{ success: boolean; browser?: any; error?: string }>;
-  onCdpPoolChanged: (callback: (browsers: any[]) => void) => () => void;
-  launchCdpBrowser: () => Promise<{
-    success: boolean;
-    port?: number;
-    data?: any;
-    error?: string;
-  }>;
   terminalCreate: (options: {
     id: string;
     cwd?: string;
