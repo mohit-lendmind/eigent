@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { decodeProjectEvent, type ProjectEvent } from '@/api/aion/v1/contracts';
 import {
+  BROWSER_FRAME_ARTIFACT_PREFIX,
   initialProjectState,
   reduceProjectEvent,
   reduceProjectEvents,
@@ -507,5 +508,83 @@ describe('aion Project reducer (golden fixtures)', () => {
     );
     expect(state.timeline).toHaveLength(1);
     expect(state.timeline[0]).toMatchObject({ type: 'text', text: 'Hello world', sequence: '2' });
+  });
+});
+
+describe('browser viewfinder frames', () => {
+  const artifactEvent = (
+    sequence: string,
+    name: string,
+    artifactId: string
+  ): ProjectEvent => {
+    const base = fixture('event_artifact_created.json') as Record<string, unknown>;
+    const artifact = (base.data as { artifact: Record<string, unknown> }).artifact;
+    return decodeProjectEvent({
+      ...base,
+      sequence,
+      data: {
+        artifact: {
+          ...artifact,
+          artifact_id: artifactId,
+          name,
+          media_type: 'image/jpeg',
+        },
+      },
+    });
+  };
+
+  const frame = (sequence: string, n: number): ProjectEvent =>
+    artifactEvent(
+      sequence,
+      `${BROWSER_FRAME_ARTIFACT_PREFIX}${n}.jpg`,
+      `art_frame_${n}`
+    );
+
+  it('collects frames in order and keeps them off the timeline', () => {
+    const state = reduceProjectEvents(initialProjectState(), [
+      frame('1', 1),
+      frame('2', 2),
+      frame('3', 3),
+    ]);
+
+    expect(state.browserFrames.map((f) => f.name)).toEqual([
+      'aion-browser-frame-1.jpg',
+      'aion-browser-frame-2.jpg',
+      'aion-browser-frame-3.jpg',
+    ]);
+    expect(state.browserFrames[0]).toMatchObject({
+      artifactId: 'art_frame_1',
+      runId: 'run_01JY0000000000000000000001',
+      sequence: '1',
+    });
+    // A frame is published once per browser action, so a run that browses for
+    // a minute would bury its own transcript under pictures of itself.
+    expect(state.timeline).toHaveLength(0);
+    // It is still an artifact — the download path is the ordinary one.
+    expect(state.artifacts['art_frame_1']).toMatchObject({ media_type: 'image/jpeg' });
+  });
+
+  it('leaves an agent-authored artifact on the timeline', () => {
+    const state = reduceProjectEvents(initialProjectState(), [
+      artifactEvent('1', 'chart.png', 'art_chart'),
+      frame('2', 1),
+    ]);
+
+    // An image the agent deliberately produced is not a viewfinder frame, and
+    // the NAME is the only place that distinction lives: both are image/* and
+    // both are content-addressed.
+    expect(state.timeline).toHaveLength(1);
+    expect(state.timeline[0]).toMatchObject({ type: 'artifact' });
+    expect(state.browserFrames).toHaveLength(1);
+    expect(state.browserFrames[0].artifactId).toBe('art_frame_1');
+  });
+
+  it('replays a frame stream to the same state one-by-one and in batch', () => {
+    const events = [frame('1', 1), frame('2', 2)];
+    let live = initialProjectState();
+    for (const event of events) live = reduceProjectEvent(live, event);
+    expect(JSON.stringify(reduceProjectEvents(initialProjectState(), events))).toBe(
+      JSON.stringify(live)
+    );
   });
 });

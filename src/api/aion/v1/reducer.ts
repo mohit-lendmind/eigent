@@ -153,6 +153,22 @@ export type TimelineEntry =
   // full decoded event is retained so nothing additive is lost.
   | { type: 'opaque'; runId: string; sequence: string; kind: string; event: ProjectEvent };
 
+/**
+ * The reserved artifact-name prefix that marks a browser viewfinder frame.
+ * Mirrors aion's `engine.BrowserFrameArtifactPrefix`: the object itself is
+ * content-addressed, so this name is the only place a frame is distinguishable
+ * from a report the agent deliberately wrote.
+ */
+export const BROWSER_FRAME_ARTIFACT_PREFIX = 'aion-browser-frame-';
+
+/** One viewfinder frame, as named by the event that published it. */
+export interface BrowserFrame {
+  artifactId: string;
+  runId: string;
+  sequence: string;
+  name: string;
+}
+
 export interface ProjectUIState {
   projectId: string | null;
   /** Last applied event sequence — the resume cursor. "0" before any event. */
@@ -170,6 +186,13 @@ export interface ProjectUIState {
     { approvalId: string; runId: string; sequence: string; toolName?: string; reason?: string }
   >;
   artifacts: Record<string, Record<string, unknown>>;
+  /**
+   * The browser viewfinder, oldest first. Kept apart from `timeline` because
+   * frames are produced by the tool layer after every browser action rather
+   * than by anything the agent decided to say, and tens of them interleaved
+   * into a transcript would bury the run they are a picture of.
+   */
+  browserFrames: BrowserFrame[];
   /** The run fan-out, keyed by WorkerState.workerKey, in observation order. */
   workers: Record<string, WorkerState>;
   /** user-invisible (internal/audit/unknown-visibility) events applied. */
@@ -188,6 +211,7 @@ export function initialProjectState(projectId?: string): ProjectUIState {
     timeline: [],
     pendingApprovals: {},
     artifacts: {},
+    browserFrames: [],
     workers: {},
     suppressedEventCount: 0,
     gapCount: 0,
@@ -277,6 +301,7 @@ export function reduceProjectEvent(
     timeline: [...state.timeline],
     pendingApprovals: { ...state.pendingApprovals },
     artifacts: { ...state.artifacts },
+    browserFrames: [...state.browserFrames],
     workers: { ...state.workers },
   };
   // The edge replays gapless from any admitted cursor (including a snapshot
@@ -430,6 +455,11 @@ export function reduceProjectEvent(
           : {};
       const artifactId = str(artifact.artifact_id) ?? `seq-${sequence}`;
       next.artifacts[artifactId] = artifact;
+      const name = str(artifact.name) ?? '';
+      if (name.startsWith(BROWSER_FRAME_ARTIFACT_PREFIX)) {
+        next.browserFrames.push({ artifactId, runId, sequence, name });
+        return next;
+      }
       next.timeline.push({ type: 'artifact', runId, sequence, artifact });
       return next;
     }

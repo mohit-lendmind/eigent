@@ -7,6 +7,7 @@
 // store's public setters, so legacy mode stays byte-identical.
 
 import type {
+  BrowserFrame,
   ProjectUIState,
   RunRecoveryState,
   RunUIStatus,
@@ -475,6 +476,16 @@ const RUN_TERMINAL: Record<string, true> = {
 const artifactUrlCache = new Map<string, string>();
 const artifactUrlPending = new Set<string>();
 
+/**
+ * How many of a run's viewfinder frames get a download URL. Every resolve
+ * mints a presigned GET — a time-boxed grant against a default-deny bucket —
+ * and a browsing run produces one frame per action, so resolving all of them
+ * would spend a grant and start a clock for every frame nobody looks at. The
+ * card reports the true total beside the window so the tail reads as older
+ * frames rather than as frames that were never taken.
+ */
+const FRAME_WINDOW = 8;
+
 function resolveArtifactUrl(
   binding: ProjectBinding,
   turn: TurnBinding,
@@ -694,21 +705,13 @@ function projectTurn(
           : null;
       pageUrl = fromResult ?? browserArgUrl(tool.argumentsJson) ?? pageUrl;
     }
-    const shots = entries.filter(
-      (e): e is Extract<TimelineEntry, { type: 'artifact' }> =>
-        e.type === 'artifact' &&
-        typeof e.artifact.media_type === 'string' &&
-        (e.artifact.media_type as string).startsWith('image/')
+    const view = projectBrowserView(
+      turn.runId,
+      pageUrl,
+      entries,
+      state.browserFrames.filter((f) => f.runId === turn.runId),
+      (artifactId) => resolveArtifactUrl(binding, turn, artifactId)
     );
-    const lastShot = shots[shots.length - 1];
-    const img =
-      lastShot && typeof lastShot.artifact.artifact_id === 'string'
-        ? (resolveArtifactUrl(
-            binding,
-            turn,
-            lastShot.artifact.artifact_id as string
-          ) ?? '')
-        : '';
     const browsing = browserEntries.some((tool) => !tool.result);
     agents.push({
       agent_id: `${turn.taskId}-browser-agent`,
@@ -722,14 +725,7 @@ function projectTurn(
       // Browser tool activity already rides the single agent's log; the card
       // exists for the page mirror.
       log: [],
-      activeWebviewIds: [
-        {
-          id: `aion:${turn.runId}:browser`,
-          url: pageUrl,
-          processTaskId: turn.runId,
-          img,
-        },
-      ],
+      activeWebviewIds: [view],
     });
   }
   store.setTaskAssigning(turn.taskId, agents);
@@ -741,6 +737,58 @@ function projectTurn(
     store.setIsPending(turn.taskId, false);
     store.setStatus(turn.taskId, ChatTaskStatus.FINISHED);
   }
+}
+
+/**
+ * The browser card's view: which picture of the page to show, and the recent
+ * frames behind it.
+ *
+ * `resolveUrl` is the caller's presigned-GET resolver, which answers undefined
+ * until a URL is minted — so a frame this returns is one that can actually be
+ * rendered, and the count says how many exist regardless.
+ *
+ * Exported for unit tests.
+ */
+export function projectBrowserView(
+  runId: string,
+  pageUrl: string,
+  entries: TimelineEntry[],
+  frames: BrowserFrame[],
+  resolveUrl: (artifactId: string) => string | undefined
+): ActiveWebView {
+  const resolved = frames
+    .slice(-FRAME_WINDOW)
+    .map((f) => resolveUrl(f.artifactId))
+    .filter((url): url is string => url !== undefined);
+  let img = resolved[resolved.length - 1] ?? '';
+  if (frames.length === 0) {
+    // A pod running a browserctl from before frames existed publishes only the
+    // screenshots the model asked for. Any image the agent wrote qualifies, so
+    // this is the wrong picture as often as the right one — but a stale mirror
+    // beats a blank card, and it costs nothing once that pod rolls forward.
+    const shots = entries.filter(
+      (e): e is Extract<TimelineEntry, { type: 'artifact' }> =>
+        e.type === 'artifact' &&
+        typeof e.artifact.media_type === 'string' &&
+        (e.artifact.media_type as string).startsWith('image/')
+    );
+    const lastShot = shots[shots.length - 1];
+    img =
+      lastShot && typeof lastShot.artifact.artifact_id === 'string'
+        ? (resolveUrl(lastShot.artifact.artifact_id as string) ?? '')
+        : '';
+  }
+  return {
+    id: `aion:${runId}:browser`,
+    url: pageUrl,
+    processTaskId: runId,
+    img,
+    // The browser is inside a sandbox pod. There is nothing to hand over, on
+    // either path — a screenshot is no more attachable than a frame.
+    remote: true,
+    frames: resolved,
+    frameCount: frames.length,
+  };
 }
 
 /**
