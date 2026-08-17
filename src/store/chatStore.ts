@@ -118,7 +118,6 @@ interface Task {
   delayTime: number;
   selectedFile: FileInfo | null;
   snapshots: any[];
-  snapshotsTemp: any[];
   isTakeControl: boolean;
   planDirty: boolean;
   autoConfirmDeadline: number | null;
@@ -392,7 +391,6 @@ export interface ChatStore {
   setSelectedFile: (taskId: string, selectedFile: FileInfo | null) => void;
   setSnapshots: (taskId: string, snapshots: any[]) => void;
   setIsTakeControl: (taskId: string, isTakeControl: boolean) => void;
-  setSnapshotsTemp: (taskId: string, snapshot: any) => void;
   setPlanDirty: (taskId: string, dirty: boolean) => void;
   setAutoConfirmDeadline: (taskId: string, deadline: number | null) => void;
   savePlan: (taskId: string) => Promise<void>;
@@ -693,7 +691,6 @@ const chatStore = (initial?: Partial<ChatStore>) =>
             delayTime: 0,
             selectedFile: null,
             snapshots: [],
-            snapshotsTemp: [],
             isTakeControl: false,
             planDirty: false,
             autoConfirmDeadline: null,
@@ -1582,24 +1579,6 @@ const chatStore = (initial?: Partial<ChatStore>) =>
           },
         },
       }));
-    },
-    setSnapshotsTemp(taskId: string, snapshot: any) {
-      set((state) => {
-        const oldList = state.tasks[taskId]?.snapshotsTemp || [];
-        if (oldList.find((item) => item.browser_url === snapshot.browser_url)) {
-          return state;
-        }
-        return {
-          ...state,
-          tasks: {
-            ...state.tasks,
-            [taskId]: {
-              ...state.tasks[taskId],
-              snapshotsTemp: [...state.tasks[taskId].snapshotsTemp, snapshot],
-            },
-          },
-        };
-      });
     },
     setPlanDirty(taskId: string, dirty: boolean) {
       set((state) => ({

@@ -90,10 +90,6 @@ an error — a screen built on it stayed clickable and inert.
 their exports anywhere in tracked source fails the gate, so the aion edge
 (`src/api/aion/v1/transport.ts`) stays the only remote this app has.
 
-One upstream name deliberately remains: `camel_task_id`, in
-`src/pages/Workspace.tsx` and `src/store/chatStore.ts`. It is a wire-format
-field, so it cannot be renamed unilaterally.
-
 ## Prerequisites
 
 | Tool   | Version                        | Needed for                        |

@@ -496,21 +496,6 @@ export default function WorkspacePage() {
                 chatStore.activeTaskId as string,
                 taskAssigning
               );
-              const { processTaskId, url } =
-                taskAssigning[browserAgentIndex].activeWebviewIds![
-                  webview.index
-                ];
-              const projectId = activeProjectId || undefined;
-              chatStore.setSnapshotsTemp(chatStore.activeTaskId as string, {
-                api_task_id: chatStore.activeTaskId,
-                run_id: chatStore.activeTaskId,
-                space_id:
-                  activeProjectMeta?.spaceId || activeSpaceId || undefined,
-                project_id: projectId,
-                camel_task_id: processTaskId,
-                browser_url: url,
-                image_base64: base64,
-              });
             }
           })
           .catch((error: unknown) => {
