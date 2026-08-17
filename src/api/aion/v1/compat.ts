@@ -81,9 +81,9 @@ export function negotiateCompatibility(
     return {
       compatible: false,
       reason:
-        `This Eigent build (v${DESKTOP_CLIENT_VERSION}) is older than the ` +
+        `This Eternyl build (v${DESKTOP_CLIENT_VERSION}) is older than the ` +
         `backend supports (minimum v${status.minimum_desktop_version}). ` +
-        `Update Eigent to reconnect.`,
+        `Update Eternyl to reconnect.`,
     };
   }
   if (serverEdge[0] !== clientEdge[0]) {
@@ -91,7 +91,7 @@ export function negotiateCompatibility(
       compatible: false,
       reason:
         `The backend speaks edge API ${status.edge_api_version} but this ` +
-        `Eigent build understands ${EDGE_API_VERSION}; the major versions ` +
+        `Eternyl build understands ${EDGE_API_VERSION}; the major versions ` +
         `differ, so update the older side to continue.`,
     };
   }
@@ -100,8 +100,8 @@ export function negotiateCompatibility(
       compatible: false,
       reason:
         `The backend emits event schema ${status.event_schema_version} but ` +
-        `this Eigent build reads schema ${EVENT_SCHEMA_VERSION}. Update ` +
-        `Eigent to continue.`,
+        `this Eternyl build reads schema ${EVENT_SCHEMA_VERSION}. Update ` +
+        `Eternyl to continue.`,
     };
   }
   return { compatible: true };

@@ -239,7 +239,7 @@ describe('Terminal Component', async () => {
             .flat()
             .map(String);
           const joined = calls.join('\n');
-          expect(joined).toContain('=== Eigent Terminal ===');
+          expect(joined).toContain('=== Eternyl Terminal ===');
           expect(joined).toContain('Instance: test-instance');
           expect(joined).toContain('Ready for commands...');
         },
@@ -258,7 +258,7 @@ describe('Terminal Component', async () => {
       const welcomeCalls = (mockTerminal.writeln as any).mock.calls
         .flat()
         .map(String)
-        .filter((c: string) => c.includes('=== Eigent Terminal ==='));
+        .filter((c: string) => c.includes('=== Eternyl Terminal ==='));
       expect(welcomeCalls).toHaveLength(0);
     });
 
@@ -296,7 +296,7 @@ describe('Terminal Component', async () => {
         const calls = (mockTerminal.writeln as any).mock.calls
           .flat()
           .map(String);
-        const found = calls.some((c) => c.includes('[Eigent]'));
+        const found = calls.some((c) => c.includes('[Eternyl]'));
         expect(found).toBe(true);
       });
     });
@@ -357,7 +357,7 @@ describe('Terminal Component', async () => {
       keyHandler(mockEvent);
 
       expect(mockTerminal.writeln).toHaveBeenCalledWith('');
-      expect(mockTerminal.write).toHaveBeenCalledWith('Eigent:~$ ');
+      expect(mockTerminal.write).toHaveBeenCalledWith('Eternyl:~$ ');
     });
 
     it('should handle Backspace key to delete character', () => {

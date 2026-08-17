@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "productName": "Eigent",
-  "appId": "com.eigent.app",
+  "productName": "Eternyl",
+  "appId": "com.eternyl.app",
   "asar": true,
   "asarUnpack": ["node_modules/node-pty/**", "node_modules/koffi/**"],
   "directories": {
@@ -19,14 +19,14 @@
   ],
   "protocols": [
     {
-      "name": "Eigent OAuth",
-      "schemes": ["eigent"]
+      "name": "Eternyl OAuth",
+      "schemes": ["eternyl"]
     }
   ],
   "publish": [
     {
       "provider": "github",
-      "owner": "eigent-ai",
+      "owner": "mohit-lendmind",
       "repo": "eigent",
       "releaseType": "release"
     }
@@ -59,8 +59,8 @@
     "extendInfo": {
       "CFBundleURLTypes": [
         {
-          "CFBundleURLName": "com.eigent.app",
-          "CFBundleURLSchemes": ["eigent"]
+          "CFBundleURLName": "com.eternyl.app",
+          "CFBundleURLSchemes": ["eternyl"]
         }
       ]
     }
