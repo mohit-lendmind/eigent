@@ -379,7 +379,9 @@ test('a real browsing task through the UI, on the pod-local Chromium', async () 
 
     // 3. The screenshot the task demanded, as a durable artifact whose
     //    presigned bytes are a real PNG — the model cannot narrate this into
-    //    existence.
+    //    existence. The run also publishes JPEG viewfinder frames after every
+    //    mutating browser action; each artifact's bytes must match its own
+    //    declared media type, and the demanded screenshot is the PNG one.
     const artifactEvents = events.filter((e) => e.kind === 'artifact_created');
     summary.artifact_events = artifactEvents.map((e) => e.data);
     const artifacts: Record<string, unknown>[] = [];
@@ -398,15 +400,26 @@ test('a real browsing task through the UI, on the pod-local Chromium', async () 
       const isPng = bytes
         .subarray(0, 4)
         .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+      const isJpeg = bytes
+        .subarray(0, 3)
+        .equals(Buffer.from([0xff, 0xd8, 0xff]));
+      const mediaType = String(artifact.media_type ?? '');
+      const magicOk =
+        mediaType === 'image/png'
+          ? isPng
+          : mediaType === 'image/jpeg'
+            ? isJpeg
+            : false;
       artifacts.push({
         artifact_id: artifactId,
         name: artifact.name,
-        media_type: artifact.media_type,
+        media_type: mediaType,
         sha256: artifact.sha256,
         bytes: bytes.length,
         png_magic: isPng,
+        magic_ok: magicOk,
       });
-      if (isPng) {
+      if (magicOk) {
         fs.writeFileSync(
           path.join(OUT_DIR, `artifact-${String(artifact.name ?? artifactId)}`),
           bytes
@@ -447,13 +460,14 @@ test('a real browsing task through the UI, on the pod-local Chromium', async () 
       'a browser action failed inside a settled tool_result'
     ).toEqual([]);
     expect(
-      artifacts.length,
+      artifacts.some((a) => a.png_magic === true),
       'no screenshot artifact was published'
-    ).toBeGreaterThanOrEqual(1);
+    ).toBe(true);
     for (const artifact of artifacts) {
-      expect(artifact.png_magic, `${artifact.artifact_id} is not a PNG`).toBe(
-        true
-      );
+      expect(
+        artifact.magic_ok,
+        `${artifact.artifact_id} bytes do not match declared ${artifact.media_type}`
+      ).toBe(true);
       expect(Number(artifact.bytes)).toBeGreaterThan(0);
     }
     expect(summary.off_edge_requests).toEqual([]);
