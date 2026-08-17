@@ -65,7 +65,7 @@ async function generate() {
     values.map((v) => `  '${v}',`).join('\n');
   const meta = `${banner('contract/openapi.yaml + contract/compatibility.json')}
 // The compatibility tuple the edge advertises (getIntegrationStatus and the
-// X-Eigent-Edge-Api-Version / X-Eigent-Min-Desktop-Version headers).
+// X-Aion-Edge-Api-Version / X-Aion-Min-Desktop-Version headers).
 export const EDGE_API_VERSION = '${compatibility.edge_api}' as const;
 export const EVENT_SCHEMA_VERSION = '${compatibility.event_schema}' as const;
 export const DESKTOP_CLIENT_VERSION = '${compatibility.desktop_client}' as const;

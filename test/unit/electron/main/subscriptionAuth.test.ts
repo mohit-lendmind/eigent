@@ -240,7 +240,7 @@ describe('resolverServer', () => {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-eigent-resolver-secret': resolver.secret,
+        'x-aion-resolver-secret': resolver.secret,
       },
       body: JSON.stringify({ email }),
     });
@@ -266,7 +266,7 @@ describe('resolverServer', () => {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-eigent-resolver-secret': resolver.secret,
+        'x-aion-resolver-secret': resolver.secret,
       },
       body: JSON.stringify({ email }),
     });
@@ -318,7 +318,7 @@ describe('resolverServer', () => {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-eigent-resolver-secret': resolver.secret,
+        'x-aion-resolver-secret': resolver.secret,
       },
       body: JSON.stringify({ email }),
     });

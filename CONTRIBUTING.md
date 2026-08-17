@@ -64,8 +64,7 @@ These are enforced by gates because they are easy to break by accident:
   reference in config. If a match is genuinely legitimate, add it to the
   script's exemption lists *with the reason*, and expect that to be reviewed.
   Legitimate today: skill payloads under `resources/example-skills/` (they run
-  in the aion cell, not on the desktop) and `camel_task_id`, a wire-format field
-  of a hosted API this fork does not own.
+  in the aion cell, not on the desktop).
 - **The aion edge is the only remote.** Two other HTTP clients used to ship
   here. One resolved the local backend this fork removed, so every call on it
   failed silently — a screen built on it looked like it worked. The other read

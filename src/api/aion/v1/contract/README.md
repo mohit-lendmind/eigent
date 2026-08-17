@@ -10,9 +10,17 @@ sync), record the aion-v1 commit below, then run `pnpm gen:aion-edge` so the
 generated client under `../gen/` matches. `bazel test //:aion_edge_client_gen`
 fails until mirror and generated output agree.
 
-- Contract version: edge_api `1.16.0`
+- Contract version: edge_api `1.17.0`
 - Source path: `aion-v1/api/eigent/v1/`
-- Last synced from: aion-v1 commit `69d9cc5`, which makes `run_id` on
+- Last synced from: aion-v1 commit `15f7d78`, which renames the version
+  headers the edge stamps on every response from `X-Eigent-Edge-Api-Version` /
+  `X-Eigent-Min-Desktop-Version` to `X-Aion-Edge-Api-Version` /
+  `X-Aion-Min-Desktop-Version`. No route or body shape moves; the desktop
+  negotiates versions from the getIntegrationStatus body and never read the
+  headers. Synced together with `test/fixtures/aion/eigent/v1/` (whose
+  `integration_status_response.json` and `account_response.json` move with
+  the contract).
+- Previously synced from: aion-v1 commit `69d9cc5`, which makes `run_id` on
   `ProjectEvent` required-but-may-be-empty: an artifact uploaded into a
   project before any run exists publishes an `artifact_created` event that
   is project-scoped, so it carries `run_id: ""` — previously the schema

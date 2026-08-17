@@ -52,9 +52,6 @@ const EXEMPT_FILE = [
 
 // Substrings that make an individual matched line legitimate.
 const EXEMPT_LINE = [
-  // Wire-format field of Eigent's hosted cloud API; renaming it unilaterally
-  // would break the contract with a service we do not own.
-  'camel_task_id',
   // Unrelated word: casing helpers in dependency and vendored code.
   'camelCase',
   'camelcase',
