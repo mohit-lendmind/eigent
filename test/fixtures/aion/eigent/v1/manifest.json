@@ -58,6 +58,7 @@
     "event_approval_required.json",
     "event_approval_resolved.json",
     "event_artifact_created.json",
+    "event_artifact_created_runless.json",
     "event_run_completed.json",
     "event_run_failed.json",
     "event_run_cancelled.json"

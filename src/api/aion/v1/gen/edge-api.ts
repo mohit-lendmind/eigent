@@ -1123,7 +1123,7 @@ export type components = {
             event_id: components["schemas"]["Identifier"];
             schema_version: string;
             project_id: components["schemas"]["Identifier"];
-            run_id: components["schemas"]["Identifier"];
+            run_id: string;
             sequence: components["schemas"]["Sequence"];
             kind: string;
             visibility: string;

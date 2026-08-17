@@ -12,7 +12,15 @@ fails until mirror and generated output agree.
 
 - Contract version: edge_api `1.16.0`
 - Source path: `aion-v1/api/eigent/v1/`
-- Last synced from: aion-v1 commit `b874efd`, which adds attachments:
+- Last synced from: aion-v1 commit `69d9cc5`, which makes `run_id` on
+  `ProjectEvent` required-but-may-be-empty: an artifact uploaded into a
+  project before any run exists publishes an `artifact_created` event that
+  is project-scoped, so it carries `run_id: ""` — previously the schema
+  said `Identifier` (min length 3) while the edge already emitted the
+  empty value, and both pinned readers refused their own wire. Synced
+  together with `test/fixtures/aion/eigent/v1/` (which gains
+  `event_artifact_created_runless.json` pinning the runless shape).
+- Previously synced from: aion-v1 commit `b874efd`, which adds attachments:
   `POST /projects/{projectId}/attachments` takes `{name, media_type,
   data_base64}` and answers 201 with the published `Artifact` (re-uploading
   the same name mints the next version; identical bytes dedupe in the CAS,

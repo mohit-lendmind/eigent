@@ -1632,7 +1632,10 @@ components:
         event_id: {$ref: '#/components/schemas/Identifier'}
         schema_version: {type: string, pattern: '^1\.'}
         project_id: {$ref: '#/components/schemas/Identifier'}
-        run_id: {$ref: '#/components/schemas/Identifier'}
+        # run_id is always present but EMPTY when the event is not tied to a
+        # run: an artifact uploaded into a project before any run exists is
+        # project-scoped, so its artifact_created event carries run_id "".
+        run_id: {type: string, maxLength: 128}
         sequence: {$ref: '#/components/schemas/Sequence'}
         # kind and visibility are OPEN string sets: the event schema is
         # additive-only, so a consumer must pass unknown values through

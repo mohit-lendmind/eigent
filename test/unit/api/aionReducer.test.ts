@@ -37,7 +37,7 @@ describe('aion Project reducer (golden fixtures)', () => {
     const state = reduceProjectEvents(initialProjectState(), goldenStream());
 
     expect(state.projectId).toBe('prj_01JY0000000000000000000001');
-    expect(state.lastSequence).toBe('13');
+    expect(state.lastSequence).toBe('14');
     expect(state.gapCount).toBe(0);
     expect(state.suppressedEventCount).toBe(0);
     expect(state.activeRunId).toBeNull();
@@ -67,7 +67,8 @@ describe('aion Project reducer (golden fixtures)', () => {
     // parked and later moved again — the entry stays because a run that
     // stalled did not have the same history as one that never did),
     // worker(started then ended — ONE lane, not two entries),
-    // approval(resolved), artifact, then three terminal boundaries.
+    // approval(resolved), artifact, the runless upload artifact, then three
+    // terminal boundaries.
     expect(state.timeline.map((entry) => entry.type)).toEqual([
       'run_boundary',
       'text',
@@ -75,6 +76,7 @@ describe('aion Project reducer (golden fixtures)', () => {
       'recovery',
       'worker',
       'approval',
+      'artifact',
       'artifact',
       'run_boundary',
       'run_boundary',
@@ -132,6 +134,18 @@ describe('aion Project reducer (golden fixtures)', () => {
     expect(state.artifacts['art_01JY0000000000000000000001']).toMatchObject({
       media_type: 'application/json',
       sha256: '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8',
+    });
+
+    // The runless upload: an artifact published before any run exists carries
+    // run_id "" and must still land on the timeline instead of poisoning the
+    // stream.
+    expect(state.timeline[7]).toMatchObject({
+      type: 'artifact',
+      runId: '',
+      artifact: { artifact_id: 'art_01JY0000000000000000000031', name: 'reading-test.png' },
+    });
+    expect(state.artifacts['art_01JY0000000000000000000031']).toMatchObject({
+      media_type: 'image/png',
     });
   });
 

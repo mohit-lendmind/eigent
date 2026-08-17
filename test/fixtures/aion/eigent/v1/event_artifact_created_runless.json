@@ -1,0 +1,11 @@
+{
+  "event_id": "evt_01JY0000000000000000000031",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "",
+  "sequence": "1",
+  "kind": "artifact_created",
+  "visibility": "user",
+  "occurred_at": "2026-08-08T09:00:31Z",
+  "data": {"artifact": {"artifact_id": "art_01JY0000000000000000000031", "project_id": "prj_01JY0000000000000000000001", "name": "reading-test.png", "version": 1, "media_type": "image/png", "size_bytes": "8695", "sha256": "1caf41a9d7cbd90a5a4978aa8e2eaa1e4b0fcf3ec8a54cf8e42bdd2e468c8b12", "created_at": "2026-08-08T09:00:31Z"}}
+}
