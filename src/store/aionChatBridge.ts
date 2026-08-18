@@ -30,6 +30,7 @@ import { EdgeTransport, type ModelAliasCatalog } from '@/api/aion/v1/transport';
 import { latestArtifactIdByName } from '@/components/Session/SidePanelSections/buildPlanRows';
 import { useAionModelStore } from './aionModelStore';
 import { noteAionArtifactsChanged } from './aionArtifactsStore';
+import { noteAionCommentsChanged } from './aionCommentsStore';
 import { fileProjectUnderBoundSpace } from './aionSpaceBinding';
 import {
   AgentMessageStatus,
@@ -113,6 +114,13 @@ interface ProjectBinding {
    * published something without polling for it.
    */
   documentCount: number;
+  /**
+   * How many artifact_comment events the Project had applied last time its
+   * state moved. A count change (creation, dismissal, settlement — every
+   * comment mutation is one event) wakes the comment rail the same way
+   * documentCount wakes the artifact panel.
+   */
+  commentEventCount: number;
 }
 
 // Mode is decided once per renderer lifetime, mirroring the main process
@@ -303,6 +311,7 @@ async function createBinding(
     latest: null,
     turns: [],
     documentCount: 0,
+    commentEventCount: 0,
   };
   binding.session = new ProjectSession({
     transport,
@@ -317,6 +326,10 @@ async function createBinding(
       if (documents > binding.documentCount) {
         binding.documentCount = documents;
         noteAionArtifactsChanged(binding.aionProjectId);
+      }
+      if (state.commentEvents !== binding.commentEventCount) {
+        binding.commentEventCount = state.commentEvents;
+        noteAionCommentsChanged(binding.aionProjectId);
       }
       // A settled turn's projection is final — its run can produce no further
       // events — so only live turns re-project. (Reopening a conversation
@@ -377,6 +390,12 @@ export interface StartAionTaskArgs {
   question: string;
   /** Files attached in the composer, as paths only the desktop can read. */
   attaches?: { fileName: string; filePath: string }[];
+  /**
+   * Artifact comments this turn is asked to address. The worker inlines each
+   * one's anchor and body ahead of the text, and the settling run's republish
+   * is what marks them addressed.
+   */
+  commentIds?: string[];
 }
 
 // The exact shape the read-file-dataurl IPC produces; anything else means the
@@ -446,10 +465,12 @@ export async function startAionTask(args: StartAionTaskArgs): Promise<void> {
     attaches.length > 0
       ? await uploadAttaches(binding.transport, binding.aionProjectId, attaches)
       : [];
+  const commentIds = args.commentIds ?? [];
   const receipt = await binding.session.submitCommand({
     command_id: newCommandId(),
     text: question,
     ...(attachmentIds.length > 0 ? { attachment_ids: attachmentIds } : {}),
+    ...(commentIds.length > 0 ? { comment_ids: commentIds } : {}),
   });
   const turn: TurnBinding = {
     taskId: args.taskId,

@@ -58,6 +58,7 @@
     "event_todo_created.json",
     "event_todo_updated.json",
     "event_todo_closed.json",
+  "event_artifact_comment.json",
     "event_tool_result.json",
     "event_run_recovery.json",
     "event_subagent_started.json",

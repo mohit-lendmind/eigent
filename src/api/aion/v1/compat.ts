@@ -289,3 +289,13 @@ const TODO_EVENTS_MINIMUM_EDGE = [1, 20];
 export function supportsTodoEvents(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, TODO_EVENTS_MINIMUM_EDGE);
 }
+
+// Artifact comments (1.21): the comment routes, comment_ids on submitCommand,
+// and the artifact_comment event. Against an older edge every comment POST is
+// a 404, so the floor gates the whole review affordance — a comment button
+// that cannot save is worse than none.
+const ARTIFACT_COMMENTS_MINIMUM_EDGE = [1, 21];
+
+export function supportsArtifactComments(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, ARTIFACT_COMMENTS_MINIMUM_EDGE);
+}

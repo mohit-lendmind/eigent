@@ -28,11 +28,36 @@ import {
   type AionArtifactsMode,
 } from '@/store/aionArtifactsStore';
 import { boundAionProjectId } from '@/store/aionChatBridge';
+import {
+  createAionComment,
+  getAionCommentsMode,
+  loadAionComments,
+  setAionCommentStatus,
+  subscribeAionComments,
+  type AionComment,
+  type AionCommentsMode,
+} from '@/store/aionCommentsStore';
+import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import { usePageTabStore, type SessionArtifactTab } from '@/store/pageTabStore';
-import { Columns2, Download, FileBox, Image as ImageIcon } from 'lucide-react';
+import {
+  Columns2,
+  Download,
+  FileBox,
+  Image as ImageIcon,
+  MessageSquare,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArtifactViewer } from './ArtifactViewer';
+import { ArtifactViewer, type ViewerSelection } from './ArtifactViewer';
+import {
+  buildRevisionText,
+  captureAnchor,
+  captureSelectionAnchor,
+  relocateComment,
+  type CommentAnchor,
+  type CommentRelocation,
+} from './commentAnchors';
+import { CommentRail } from './CommentRail';
 import {
   formatArtifactSize,
   groupArtifacts,
@@ -43,6 +68,22 @@ import {
 export interface ArtifactTabProps {
   tab: SessionArtifactTab;
 }
+
+/** A comment made with nothing selected is about the whole artifact. */
+const DOCUMENT_ANCHOR: CommentAnchor = {
+  quotedText: '',
+  prefixContext: '',
+  suffixContext: '',
+  startOffset: 0,
+};
+
+/**
+ * How many versions of a name the rail reads comments across. A comment made
+ * on v1 must stay visible while v4 is on screen — the loop's receipts are the
+ * addressed rows on earlier versions — but a listing per version is a call
+ * per version, so a pathological history is read to a bound.
+ */
+const MAX_COMMENT_VERSIONS = 20;
 
 /**
  * The artifact surface for one session: a rail of everything this Project
@@ -80,6 +121,20 @@ export function ArtifactTab({ tab }: ArtifactTabProps) {
   const [showSource, setShowSource] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
+  const { chatStore } = useChatStoreAdapter();
+  const [commentsMode, setCommentsMode] = useState<AionCommentsMode | null>(
+    null
+  );
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [comments, setComments] = useState<AionComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [commentReloads, setCommentReloads] = useState(0);
+  const [pendingSelection, setPendingSelection] =
+    useState<ViewerSelection | null>(null);
+  const [commentBusy, setCommentBusy] = useState(false);
+  const [revisionBusy, setRevisionBusy] = useState(false);
+
   // The panel is keyed by the desktop's project id; artifacts are keyed by
   // aion's. The binding is resolved rather than created — opening a viewer
   // must never mint a Project as a side effect of looking.
@@ -91,12 +146,14 @@ export function ArtifactTab({ tab }: ArtifactTabProps) {
       return;
     }
     void (async () => {
-      const [bound, viewerMode] = await Promise.all([
+      const [bound, viewerMode, commentMode] = await Promise.all([
         boundAionProjectId(eigentProjectId),
         getAionArtifactViewerMode(),
+        getAionCommentsMode(),
       ]);
       if (cancelled) return;
       setMode(viewerMode);
+      setCommentsMode(commentMode);
       setProjectId(bound);
       if (!bound) setListLoading(false);
     })();
@@ -110,6 +167,13 @@ export function ArtifactTab({ tab }: ArtifactTabProps) {
     if (!projectId) return;
     return subscribeAionArtifacts(projectId, () =>
       setReloads((count) => count + 1)
+    );
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    return subscribeAionComments(projectId, () =>
+      setCommentReloads((count) => count + 1)
     );
   }, [projectId]);
 
@@ -182,6 +246,7 @@ export function ArtifactTab({ tab }: ArtifactTabProps) {
   useEffect(() => {
     setCompare(null);
     setShowSource(false);
+    setPendingSelection(null);
     if (!projectId || !selectedId) {
       setContent(null);
       return;
@@ -256,6 +321,165 @@ export function ArtifactTab({ tab }: ArtifactTabProps) {
     invalidateAionArtifacts(projectId);
     setReloads((count) => count + 1);
   }, [projectId]);
+
+  // Comments live on specific versions but the conversation is about the
+  // NAME: a comment made on v1 is settled by the run that published v3, and
+  // hiding it while v3 is on screen would hide the loop's receipt. So the
+  // rail reads every version's list and relocation sorts out what still
+  // anchors in the text being shown.
+  useEffect(() => {
+    if (!commentsOpen || !projectId || commentsMode?.kind !== 'remote') return;
+    if (versions.length === 0) {
+      setComments([]);
+      return;
+    }
+    let cancelled = false;
+    setCommentsLoading(true);
+    void Promise.all(
+      versions
+        .slice(0, MAX_COMMENT_VERSIONS)
+        .map((row) => loadAionComments(projectId, row.artifactId))
+    )
+      .then((pages) => {
+        if (cancelled) return;
+        setComments(
+          pages
+            .flat()
+            .sort(
+              (a, b) =>
+                a.createdAt.localeCompare(b.createdAt) ||
+                a.commentId.localeCompare(b.commentId)
+            )
+        );
+        setCommentsError(null);
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled) setCommentsError(messageOf(cause));
+      })
+      .finally(() => {
+        if (!cancelled) setCommentsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [commentReloads, commentsMode?.kind, commentsOpen, projectId, versions]);
+
+  // Where each comment's quote lives in the text on screen — recomputed per
+  // version shown, never persisted (the A4 anchor rule).
+  const relocations = useMemo(() => {
+    const map = new Map<string, CommentRelocation>();
+    const text = content?.content;
+    if (text === undefined) return map;
+    for (const comment of comments) {
+      map.set(
+        comment.commentId,
+        relocateComment(
+          {
+            quotedText: comment.quotedText,
+            prefixContext: comment.prefixContext,
+            suffixContext: comment.suffixContext,
+            startOffset: comment.startOffset,
+          },
+          text
+        )
+      );
+    }
+    return map;
+  }, [comments, content]);
+
+  const versionLabels = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of versions) map.set(row.artifactId, row.version);
+    return map;
+  }, [versions]);
+
+  const handleSelect = useCallback((selection: ViewerSelection | null) => {
+    setPendingSelection(selection);
+  }, []);
+
+  const createComment = useCallback(
+    async (body: string) => {
+      if (!projectId || !selectedId) return;
+      const source = content?.content;
+      // Editor selections carry exact offsets; a rendered-markdown selection
+      // carries only its text and is located by search. No selection, or a
+      // lane with no text, is a document-level comment.
+      const anchor: CommentAnchor =
+        (pendingSelection && source !== undefined
+          ? pendingSelection.start >= 0
+            ? captureAnchor(source, pendingSelection.start, pendingSelection.end)
+            : captureSelectionAnchor(source, pendingSelection.text)
+          : null) ?? DOCUMENT_ANCHOR;
+      setCommentBusy(true);
+      try {
+        await createAionComment(projectId, selectedId, {
+          quotedText: anchor.quotedText,
+          prefixContext: anchor.prefixContext,
+          suffixContext: anchor.suffixContext,
+          startOffset: anchor.startOffset,
+          body,
+        });
+        setPendingSelection(null);
+        setCommentsError(null);
+        setCommentReloads((count) => count + 1);
+      } catch (cause) {
+        setCommentsError(messageOf(cause));
+      } finally {
+        setCommentBusy(false);
+      }
+    },
+    [content, pendingSelection, projectId, selectedId]
+  );
+
+  const setCommentStatus = useCallback(
+    async (comment: AionComment, status: 'open' | 'dismissed') => {
+      if (!projectId) return;
+      setCommentBusy(true);
+      try {
+        await setAionCommentStatus(projectId, comment.commentId, status);
+        setCommentsError(null);
+        setCommentReloads((count) => count + 1);
+      } catch (cause) {
+        setCommentsError(messageOf(cause));
+      } finally {
+        setCommentBusy(false);
+      }
+    },
+    [projectId]
+  );
+
+  const activeTaskId = chatStore?.activeTaskId ?? null;
+  const requestRevision = useCallback(async () => {
+    if (!eigentProjectId || !chatStore?.activeTaskId || !selectedName) return;
+    const open = comments.filter((comment) => comment.status === 'open');
+    if (open.length === 0) return;
+    setRevisionBusy(true);
+    try {
+      // Through startTask, not the bridge directly: startTask renders the
+      // user bubble, so the request is visible in the conversation instead
+      // of arriving invisibly. The worker inlines each comment's anchor
+      // server-side from comment_ids.
+      await chatStore.startTask(
+        chatStore.activeTaskId,
+        buildRevisionText(
+          selectedName,
+          open.map((comment) => ({
+            quotedText: comment.quotedText,
+            body: comment.body,
+          }))
+        ),
+        [],
+        undefined,
+        eigentProjectId,
+        undefined,
+        { commentIds: open.map((comment) => comment.commentId) }
+      );
+    } catch (cause) {
+      setCommentsError(messageOf(cause));
+    } finally {
+      setRevisionBusy(false);
+    }
+  }, [chatStore, comments, eigentProjectId, selectedName]);
 
   if (!eigentProjectId || (!projectId && !listLoading)) {
     return (
@@ -394,6 +618,23 @@ export function ArtifactTab({ tab }: ArtifactTabProps) {
               <Columns2 className="h-3.5 w-3.5" aria-hidden />
             </Button>
           ) : null}
+          {commentsMode?.kind === 'remote' ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              buttonContent="icon-only"
+              data-comment-toggle="1"
+              aria-label={t('artifact.comments-toggle', {
+                defaultValue: 'Comments',
+              })}
+              aria-pressed={commentsOpen}
+              onClick={() => setCommentsOpen((on) => !on)}
+              className="shrink-0"
+            >
+              <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="ghost"
@@ -408,8 +649,9 @@ export function ArtifactTab({ tab }: ArtifactTabProps) {
           </Button>
         </div>
 
+        <div className="flex min-h-0 flex-1 overflow-hidden">
         <div
-          className="min-h-0 flex-1 overflow-hidden"
+          className="min-h-0 min-w-0 flex-1 overflow-hidden"
           data-artifact-lane={lane ?? 'none'}
           data-artifact-name={content?.artifact.name ?? ''}
           data-artifact-version={content?.artifact.version ?? ''}
@@ -439,6 +681,7 @@ export function ArtifactTab({ tab }: ArtifactTabProps) {
               compareWith={compare}
               onDownload={() => void download()}
               downloading={downloading}
+              onSelect={commentsOpen ? handleSelect : undefined}
             />
           ) : contentLoading || listLoading ? (
             <EmptyState
@@ -461,6 +704,26 @@ export function ArtifactTab({ tab }: ArtifactTabProps) {
               })}
             />
           )}
+        </div>
+        {commentsOpen && commentsMode?.kind === 'remote' ? (
+          <CommentRail
+            comments={comments}
+            relocations={relocations}
+            versionLabels={versionLabels}
+            selectedArtifactId={selectedId ?? null}
+            pendingSelection={pendingSelection}
+            loading={commentsLoading}
+            error={commentsError}
+            busy={commentBusy}
+            onCreate={(body) => void createComment(body)}
+            onSetStatus={(comment, status) =>
+              void setCommentStatus(comment, status)
+            }
+            onRequestRevision={() => void requestRevision()}
+            revisionBusy={revisionBusy}
+            canRequestRevision={Boolean(activeTaskId && selectedName)}
+          />
+        ) : null}
         </div>
       </div>
     </div>

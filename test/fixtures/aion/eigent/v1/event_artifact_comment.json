@@ -1,0 +1,27 @@
+{
+  "event_id": "evt_01JY0000000000000000000027",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "run_01JY0000000000000000000002",
+  "sequence": "27",
+  "kind": "artifact_comment",
+  "visibility": "user",
+  "occurred_at": "2026-08-18T09:00:27Z",
+  "data": {
+    "comment": {
+      "comment_id": "cmt_01JY0000000000000000000001",
+      "project_id": "prj_01JY0000000000000000000001",
+      "artifact_id": "art_01JY0000000000000000000001",
+      "quoted_text": "the moon is made of cheese",
+      "prefix_context": "Mars has two moons. ",
+      "suffix_context": " Their orbits differ.",
+      "start_offset": "128",
+      "body": "This claim is wrong; correct it and cite a source.",
+      "status": "addressed",
+      "created_at": "2026-08-18T08:59:00Z",
+      "resolved_at": "2026-08-18T09:00:27Z",
+      "resolved_by_run_id": "run_01JY0000000000000000000002"
+    },
+    "prior_status": "open"
+  }
+}

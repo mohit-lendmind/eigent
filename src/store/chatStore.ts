@@ -314,6 +314,8 @@ export interface StartTaskOptions {
   preserveTaskId?: boolean;
   skipHistoryCreate?: boolean;
   historyId?: string | number | null;
+  /** Artifact comments this turn addresses; rides the command as comment_ids. */
+  commentIds?: string[];
 }
 
 export interface ChatStore {
@@ -965,6 +967,7 @@ const chatStore = (initial?: Partial<ChatStore>) =>
             fileName: f.fileName,
             filePath: f.filePath,
           })),
+          commentIds: startOptions.commentIds,
         });
       } catch (error) {
         recordTaskFailed({

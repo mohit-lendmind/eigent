@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/store/authStore';
 import type { AionArtifactContent } from '@/store/aionArtifactsStore';
 import { Download } from 'lucide-react';
+import type { editor as monacoEditor } from 'monaco-editor';
 import { Suspense, lazy, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArtifactHtmlPreview } from './ArtifactHtmlPreview';
@@ -59,6 +60,18 @@ const EDITOR_OPTIONS = {
   wordWrap: 'on',
 } as const;
 
+/**
+ * What the user has selected in the shown text. Offsets index into the SOURCE
+ * text when the lane knows them (the editor lanes); the rendered-markdown
+ * lane only knows the selected string, and reports -1 offsets so the caller
+ * locates it by search instead of trusting a rendered position.
+ */
+export interface ViewerSelection {
+  text: string;
+  start: number;
+  end: number;
+}
+
 export interface ArtifactViewerProps {
   content: AionArtifactContent;
   /** Rendered markdown, or its source. Ignored outside the markdown lane. */
@@ -67,6 +80,11 @@ export interface ArtifactViewerProps {
   compareWith?: { label: string; text: string } | null;
   onDownload: () => void;
   downloading?: boolean;
+  /**
+   * Reports the live selection (null when it collapses) so a comment can
+   * anchor to it. Absent = the surface hosting this viewer takes no comments.
+   */
+  onSelect?: (selection: ViewerSelection | null) => void;
 }
 
 /**
@@ -81,6 +99,7 @@ export function ArtifactViewer({
   compareWith,
   onDownload,
   downloading,
+  onSelect,
 }: ArtifactViewerProps) {
   const { t } = useTranslation();
   const appearance = useAuthStore((s) => s.appearance);
@@ -165,6 +184,7 @@ export function ArtifactViewer({
       <div
         data-artifact-markdown="1"
         className="h-full min-h-0 w-full overflow-auto px-6 py-4"
+        onMouseUp={() => reportDomSelection(onSelect)}
       >
         <MarkDown content={text} />
       </div>
@@ -186,11 +206,54 @@ export function ArtifactViewer({
           language={language}
           theme={monacoTheme}
           options={EDITOR_OPTIONS}
-          onMount={() => setMonacoReady(true)}
+          onMount={(codeEditor) => {
+            setMonacoReady(true);
+            watchEditorSelection(codeEditor, onSelect);
+          }}
         />
       </Suspense>
     </div>
   );
+}
+
+/**
+ * Streams the editor's selection out as source offsets. The model owns the
+ * offset arithmetic, so this works identically for code, source-view
+ * markdown, and source-view HTML.
+ */
+function watchEditorSelection(
+  codeEditor: monacoEditor.IStandaloneCodeEditor,
+  onSelect: ArtifactViewerProps['onSelect']
+): void {
+  if (!onSelect) return;
+  codeEditor.onDidChangeCursorSelection(() => {
+    const model = codeEditor.getModel();
+    const selection = codeEditor.getSelection();
+    if (!model || !selection || selection.isEmpty()) {
+      onSelect(null);
+      return;
+    }
+    onSelect({
+      text: model.getValueInRange(selection),
+      start: model.getOffsetAt(selection.getStartPosition()),
+      end: model.getOffsetAt(selection.getEndPosition()),
+    });
+  });
+}
+
+/**
+ * The rendered-markdown selection: the DOM knows the selected string but not
+ * where it sits in the source, so offsets report -1 and the caller searches.
+ */
+function reportDomSelection(onSelect: ArtifactViewerProps['onSelect']): void {
+  if (!onSelect) return;
+  const selection = window.getSelection();
+  const text = selection ? selection.toString() : '';
+  if (!text.trim()) {
+    onSelect(null);
+    return;
+  }
+  onSelect({ text, start: -1, end: -1 });
 }
 
 /** Raw text while the editor chunk loads, so the pane is never blank. */

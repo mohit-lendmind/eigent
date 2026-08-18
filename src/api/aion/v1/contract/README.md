@@ -10,9 +10,18 @@ sync), record the aion-v1 commit below, then run `pnpm gen:aion-edge` so the
 generated client under `../gen/` matches. `bazel test //:aion_edge_client_gen`
 fails until mirror and generated output agree.
 
-- Contract version: edge_api `1.19.0`
+- Contract version: edge_api `1.21.0`
 - Source path: `aion-v1/api/eigent/v1/`
-- Last synced from: aion-v1 commit `2f26d54` (edge contract **1.20.0**): the
+- Last synced from: aion-v1 commit `01ea179` (edge contract **1.21.0**):
+  anchored artifact comments. `artifact_comment` joins `x-aion-known-values`
+  (the comment row + `prior_status`); routes
+  `POST|GET /projects/{id}/artifacts/{id}/comments` and
+  `PATCH /projects/{id}/comments/{id}`; `comment_ids` on submitCommand
+  (each must name an OPEN comment; the run that republishes a commented
+  artifact's name settles them as `addressed`). Fixtures gain
+  `event_artifact_comment.json`; `integration_status_response.json` moves
+  with the contract.
+- Previous sync: aion-v1 commit `2f26d54` (edge contract **1.20.0**): the
   plan becomes user-visible. Three typed event kinds — `todo_created`,
   `todo_updated`, `todo_closed` — join `x-aion-known-values`; each carries the
   todo row (`todo_id`, `title`, `status`, `parent_id`, plus `child_execution`,
