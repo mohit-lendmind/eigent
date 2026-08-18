@@ -10,9 +10,23 @@ sync), record the aion-v1 commit below, then run `pnpm gen:aion-edge` so the
 generated client under `../gen/` matches. `bazel test //:aion_edge_client_gen`
 fails until mirror and generated output agree.
 
-- Contract version: edge_api `1.18.0`
+- Contract version: edge_api `1.19.0`
 - Source path: `aion-v1/api/eigent/v1/`
-- Last synced from: aion-v1 commit `94d1842`, which adds two typed event
+- Last synced from: aion-v1 commit `4bf708c`, which makes an artifact's
+  versions addressable and its bytes readable without leaving the edge:
+  `GET /projects/{projectId}/artifacts` gains `?name=`, because revisions of
+  a deliverable share a name and differ only in `version`, so one file's
+  history otherwise means paging a whole Project and regrouping client-side;
+  and `GET /projects/{projectId}/artifacts/{artifactId}` gains `?inline=true`,
+  answering with `content` for text-like artifacts at most 1 MiB. Inline is
+  all-or-nothing — over the cap or non-text sets `content_truncated: true`
+  and omits `content`, because a prefix of a document reads as a whole one —
+  and the presigned `download_url` is served either way. Synced together with
+  `test/fixtures/aion/eigent/v1/` (which gains `artifact_access_response.json`
+  and `artifact_access_truncated_response.json` pinning the two shapes, and
+  whose `integration_status_response.json` and `account_response.json` move
+  with the contract).
+- Previously synced from: aion-v1 commit `94d1842`, which adds two typed event
   kinds: `run_progress` (dispatch-stage announcements — `dispatching`,
   `workspace_ready`, `starting` — filling the formerly silent admission
   window; the stage vocabulary is closed for now but readers must tolerate

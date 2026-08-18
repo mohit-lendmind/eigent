@@ -1,0 +1,16 @@
+{
+  "artifact": {
+    "artifact_id": "art_01JY0000000000000000000005",
+    "project_id": "prj_01JY0000000000000000000001",
+    "name": "dashboard.html",
+    "version": 1,
+    "media_type": "text/html",
+    "size_bytes": "4194304",
+    "sha256": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d",
+    "created_at": "2026-08-08T09:25:00Z",
+    "published_at": "2026-08-08T09:25:04Z"
+  },
+  "download_url": "https://cas.example/artifacts/art_01JY0000000000000000000005?sig=REDACTED",
+  "expires_at": "2026-08-08T10:25:04Z",
+  "content_truncated": true
+}

@@ -239,9 +239,10 @@ export class EdgeTransport {
    */
   listArtifacts(
     projectId: string,
-    options: { pageSize?: number; pageToken?: string } = {}
+    options: { name?: string; pageSize?: number; pageToken?: string } = {}
   ): Promise<ArtifactList> {
     const query = new URLSearchParams();
+    if (options.name) query.set('name', options.name);
     if (options.pageSize !== undefined) {
       query.set('page_size', String(options.pageSize));
     }
@@ -253,10 +254,22 @@ export class EdgeTransport {
     );
   }
 
-  getArtifact(projectId: string, artifactId: string): Promise<ArtifactAccess> {
+  /**
+   * Artifact metadata and a download grant. With `inline` the edge also
+   * returns the bytes of a small text artifact, which is how a viewer renders
+   * a document at all: fetching the presigned URL from the renderer would be
+   * a cross-origin request to the object store. Inline is all-or-nothing —
+   * `content_truncated` means too large or not text, never a partial body.
+   */
+  getArtifact(
+    projectId: string,
+    artifactId: string,
+    options: { inline?: boolean } = {}
+  ): Promise<ArtifactAccess> {
+    const suffix = options.inline ? '?inline=true' : '';
     return this.json(
       'GET',
-      `/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifactId)}`
+      `/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifactId)}${suffix}`
     );
   }
 

@@ -241,6 +241,15 @@ export type paths = {
             };
             cookie?: never;
         };
+        /**
+         * @description Artifact metadata and a short-lived authorized download URL.
+         *
+         *     With `inline=true` a small text artifact also comes back with its
+         *     bytes in the response, so a viewer can render a document without a
+         *     cross-origin request to the object store. The download URL is
+         *     returned either way — inline content is a convenience for reading,
+         *     never the way to fetch a file.
+         */
         get: operations["getArtifact"];
         put?: never;
         post?: never;
@@ -1185,6 +1194,19 @@ export type components = {
             download_url: string;
             /** Format: date-time */
             expires_at: string;
+            /**
+             * @description The artifact's bytes as text, present only when `inline=true` was
+             *     asked for and the artifact qualifies. Always the complete file:
+             *     absent means not sent, never partially sent.
+             */
+            content?: string;
+            /**
+             * @description Present whenever `inline=true` was asked for. True means the
+             *     artifact is too large or not text-like to inline and `content` is
+             *     absent — the client should offer the download instead of showing an
+             *     empty document.
+             */
+            content_truncated?: boolean;
         } & {
             [key: string]: unknown;
         };
@@ -2313,6 +2335,14 @@ export interface operations {
         parameters: {
             query?: {
                 /**
+                 * @description Restrict the page to one artifact name. Revisions of a deliverable
+                 *     share a name and differ only in `version`, so this is how a client
+                 *     reads the history of one file; without it, assembling that history
+                 *     means paging the whole Project and grouping client-side. Omitted
+                 *     lists every name.
+                 */
+                name?: string;
+                /**
                  * @description Entries per page (default 50). A value outside the documented bounds is
                  *     refused with `400 invalid_argument` rather than clamped, so a client
                  *     that asks for 5000 learns it instead of silently receiving 200.
@@ -2350,7 +2380,17 @@ export interface operations {
     };
     getArtifact: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description Return the artifact's bytes in `content` when it is text-like and
+                 *     at most 1048576 bytes. Outside those bounds the response sets
+                 *     `content_truncated: true` and omits `content` — a prefix of a
+                 *     document reads as a whole one and there is no way to tell where it
+                 *     was cut, so none is sent. Binary and oversized artifacts are read
+                 *     through `download_url`.
+                 */
+                inline?: boolean;
+            };
             header?: never;
             path: {
                 projectId: components["parameters"]["ProjectId"];

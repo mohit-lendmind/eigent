@@ -265,3 +265,15 @@ const LIVE_ACTIVITY_MINIMUM_EDGE = [1, 18];
 export function supportsLiveActivity(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, LIVE_ACTIVITY_MINIMUM_EDGE);
 }
+
+// Artifact viewing (1.19): the edge serves a text artifact's bytes inline and
+// filters the listing by name. Both are what a viewer is built on — without
+// them there is no document to render and no version history to page through
+// — so the floor gates the viewer itself, not a detail inside it. An older
+// edge ignores the query parameters and answers metadata only, which would
+// render as a permanently empty document.
+const ARTIFACT_VIEWER_MINIMUM_EDGE = [1, 19];
+
+export function supportsArtifactViewer(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, ARTIFACT_VIEWER_MINIMUM_EDGE);
+}
