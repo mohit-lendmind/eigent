@@ -277,3 +277,15 @@ const ARTIFACT_VIEWER_MINIMUM_EDGE = [1, 19];
 export function supportsArtifactViewer(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, ARTIFACT_VIEWER_MINIMUM_EDGE);
 }
+
+// Plan visibility (1.20): the edge projects todo_created / todo_updated /
+// todo_closed as typed user events. An older edge retains them as internal
+// rows the reducer suppresses, so `todos` simply stays empty — the floor
+// exists for affordances that PROMISE a plan (an always-on Plan section
+// would read as "the agent never plans" against an old cell, which is a
+// statement about the edge version, not the agent).
+const TODO_EVENTS_MINIMUM_EDGE = [1, 20];
+
+export function supportsTodoEvents(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, TODO_EVENTS_MINIMUM_EDGE);
+}

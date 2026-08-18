@@ -1,0 +1,20 @@
+{
+  "event_id": "evt_01JY0000000000000000000025",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "run_01JY0000000000000000000001",
+  "sequence": "25",
+  "kind": "todo_updated",
+  "visibility": "user",
+  "occurred_at": "2026-08-17T09:00:25Z",
+  "correlation": {
+    "aion_sequence": "33"
+  },
+  "data": {
+    "todo_id": "tdo_01JY0000000000000000000002",
+    "title": "Summarize findings into report.md",
+    "prior_status": "pending",
+    "status": "in_progress",
+    "parent_id": "tdo_01JY0000000000000000000001"
+  }
+}

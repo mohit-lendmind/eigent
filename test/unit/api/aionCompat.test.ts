@@ -15,6 +15,7 @@ import {
   supportsAttachments,
   supportsLiveActivity,
   supportsArtifactViewer,
+  supportsTodoEvents,
 } from '@/api/aion/v1/compat';
 import {
   DESKTOP_CLIENT_VERSION,
@@ -338,5 +339,31 @@ describe('supportsArtifactViewer', () => {
     expect(
       supportsArtifactViewer(status({ edge_api_version: '1.nineteen' }))
     ).toBe(false);
+  });
+});
+
+describe('supportsTodoEvents', () => {
+  it('gates on the 1.20 typed-plan floor', () => {
+    // An older edge retains todo events as internal rows the reducer
+    // suppresses, so the plan is simply absent — the floor gates affordances
+    // that would otherwise read that absence as "the agent never plans".
+    expect(supportsTodoEvents(status({ edge_api_version: '1.19.0' }))).toBe(
+      false
+    );
+    expect(supportsTodoEvents(status({ edge_api_version: '1.20.0' }))).toBe(
+      true
+    );
+    expect(supportsTodoEvents(status({ edge_api_version: '1.21.0' }))).toBe(
+      true
+    );
+  });
+
+  it('fails closed on garbage and on a foreign major', () => {
+    expect(supportsTodoEvents(status({ edge_api_version: '2.20.0' }))).toBe(
+      false
+    );
+    expect(supportsTodoEvents(status({ edge_api_version: '1.twenty' }))).toBe(
+      false
+    );
   });
 });

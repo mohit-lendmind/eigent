@@ -12,7 +12,18 @@ fails until mirror and generated output agree.
 
 - Contract version: edge_api `1.19.0`
 - Source path: `aion-v1/api/eigent/v1/`
-- Last synced from: aion-v1 commit `4bf708c`, which makes an artifact's
+- Last synced from: aion-v1 commit `2f26d54` (edge contract **1.20.0**): the
+  plan becomes user-visible. Three typed event kinds — `todo_created`,
+  `todo_updated`, `todo_closed` — join `x-aion-known-values`; each carries the
+  todo row (`todo_id`, `title`, `status`, `parent_id`, plus `child_execution`,
+  `assignee`, `depends_on`, `requires_approval` on the create), `prior_status`
+  on transitions, `closing_outcome` on close, and `evidence[]` refs whose
+  `file` / `file_store_id` kinds join a plan step to the artifact that proves
+  it. Synced together with `test/fixtures/aion/eigent/v1/` (which gains
+  `event_todo_created.json`, `event_todo_updated.json`,
+  `event_todo_closed.json`, and whose `integration_status_response.json`
+  moves with the contract).
+- Previously synced from: aion-v1 commit `4bf708c`, which makes an artifact's
   versions addressable and its bytes readable without leaving the edge:
   `GET /projects/{projectId}/artifacts` gains `?name=`, because revisions of
   a deliverable share a name and differ only in `version`, so one file's
