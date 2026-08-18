@@ -34,7 +34,7 @@ in any commit. Treat it like a password.
 
 > **Admin:** the exact commands for all three grants are in
 > [§9 — For the admin](#9-for-the-admin-onboarding-a-teammate).
-
+>
 > The GCP project id is literally spelled `eternly-dev` (no second "e").
 > Copy-paste the commands below rather than typing it.
 
@@ -91,14 +91,14 @@ gcloud auth login
 gcloud container clusters get-credentials cell-dev-1-gke \
   --region europe-west2 --project eternly-dev
 
-# Verify — you should see six deployments' pods Running:
+# Verify — you should see seven deployments' pods Running:
 kubectl -n cell-dev-1 get pods
 ```
 
 Everything lives in namespace `cell-dev-1`. Useful read-only commands:
 
 ```bash
-kubectl -n cell-dev-1 get deploy                                   # the six services
+kubectl -n cell-dev-1 get deploy                                   # the seven services
 kubectl -n cell-dev-1 logs deploy/cell-dev-1-aion-edge --tail=100  # edge (the app's API)
 kubectl -n cell-dev-1 logs deploy/aion-server-managed --tail=100   # the agent harness
 kubectl -n cell-dev-1 logs deploy/sandbox-api --tail=100           # sandbox control plane
@@ -145,6 +145,12 @@ Available models in the picker: `kimi-k3`, `gemini-3-flash`,
 That's it. Rebuild with `bazel run //:package_pipeline` when you pull new
 code.
 
+> **Always start the app with `run-eternyl.sh`.** Opening `Eternyl.app`
+> directly (Finder, Dock, Spotlight) starts it with no backend configuration —
+> the backend URL only reaches the app through the launcher's environment —
+> and it lands on a dead-end "No backend to connect to" screen. If you see
+> that screen, quit the app and relaunch it from the script.
+
 ## 6. Known caveats (current state, not bugs to file)
 
 - **`web_search` / `fetch` work — via a policy proxy.** The agents pod still
@@ -172,7 +178,9 @@ code.
 
 | Symptom | Cause → fix |
 |---------|-------------|
-| App opens on a blank login screen | Backend URL missing or wrong — it must end in `/eigent/v1`. Use the scripts rather than exporting env vars by hand. |
+| "No backend to connect to" screen | The app was launched without the scripts (usually a Dock/Finder open), or the URL doesn't end in `/eigent/v1`. Quit and relaunch via `run-eternyl.sh`. |
+| `edge-tunnel.sh` dies with `Reauthentication failed` / `cannot prompt during non-interactive execution` | Your gcloud tokens expired — run `gcloud auth login`, then rerun the tunnel. |
+| Composer greyed out with a "Legacy Spaces are read-only" hint | Fixed 2026-08-18 (PR #42) — `git pull` + rebuild. On an older build, click **New** in the sidebar to create a Space first. |
 | `edge is not reachable` from `run-eternyl.sh` | Tunnel not running — start `edge-tunnel.sh` in another terminal. |
 | 401 from the edge despite a correct key | Almost always the port-shadowing caveat above; check `lsof -nP -iTCP:18985 -sTCP:LISTEN`. Otherwise your key may have been revoked — ask the admin. |
 | `get-credentials` fails with permission errors | Your Google account isn't granted on `eternly-dev` yet — ask the admin, then `gcloud auth login` again. |
@@ -213,7 +221,9 @@ gcloud projects add-iam-policy-binding eternly-dev \
 
 Keys are minted over the edge API (`POST /eigent/v1/keys`), authenticated
 with **your** admin key — no cluster surgery involved. Needs the edge tunnel
-running (`./scripts/team/edge-tunnel.sh`, §5).
+running (`./scripts/team/edge-tunnel.sh`, §5) and `jq` (`brew install jq`).
+Write endpoints on the edge require an `Idempotency-Key` header (any unique
+16–128 char string) — without it the mint fails with a 400.
 
 ```bash
 # From the aion repo checkout; response lands in a 0600 file so the raw
@@ -223,6 +233,7 @@ install -m 600 /dev/null /tmp/teammate-key.json
 curl -sS -X POST http://127.0.0.1:18985/eigent/v1/keys \
   -H "Authorization: Bearer $(cat deploy/eigent-local/secrets/cell-dev-1-api-key)" \
   -H "Content-Type: application/json" \
+  -H "Idempotency-Key: onboard-<teammate-name>-$(date +%s)" \
   -d '{"label":"<teammate-name>"}' \
   -o /tmp/teammate-key.json
 
@@ -240,7 +251,8 @@ later revocation is unambiguous. The minted key inherits your key's grant
 ### 9.3 Audit and revoke
 
 ```bash
-# List keys — key_id, label, created_at, last_used_at (never a raw key):
+# List keys — key_id, label, created_at, status (never a raw key;
+# last_used_at appears once the key has authenticated):
 curl -sS http://127.0.0.1:18985/eigent/v1/keys \
   -H "Authorization: Bearer $(cat deploy/eigent-local/secrets/cell-dev-1-api-key)" | jq .
 
@@ -250,4 +262,5 @@ curl -sS -X DELETE http://127.0.0.1:18985/eigent/v1/keys/<key_id> \
 ```
 
 A key that never authenticated shows no `last_used_at` — that's the one
-that's safe to revoke without asking around.
+that's safe to revoke without asking around. Revoked keys stay in the list
+with `status: "revoked"`, so the audit trail survives the revocation.
