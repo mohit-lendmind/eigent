@@ -275,6 +275,59 @@ describe('pageTabStore session preview', () => {
     expect(persisted.activeTabId).toBe(slice().activeTabId);
   });
 
+  it('reuses the active chooser when opening an artifact', () => {
+    const store = usePageTabStore.getState();
+    store.toggleSessionPreview();
+    store.openArtifactPreview('art-1', 'report.md');
+
+    expect(slice().tabs.map((tab) => tab.type)).toEqual(['artifact']);
+    expect(slice().tabs[0]).toMatchObject({
+      artifactId: 'art-1',
+      artifactName: 'report.md',
+      title: 'report.md',
+    });
+  });
+
+  it('reuses the tab already showing that artifact instead of appending', () => {
+    const store = usePageTabStore.getState();
+    store.toggleSessionPreview();
+    store.openArtifactPreview('art-1', 'report.md');
+    store.addChooserPreviewTab();
+    store.openArtifactPreview('art-1', 'report.md');
+
+    expect(slice().tabs.map((tab) => tab.type)).toEqual([
+      'artifact',
+      'chooser',
+    ]);
+    expect(slice().activeTabId).toBe(slice().tabs[0].id);
+  });
+
+  it('appends when every tab is already pointed at something', () => {
+    const store = usePageTabStore.getState();
+    store.toggleSessionPreview();
+    store.openArtifactPreview('art-1', 'report.md');
+    store.openArtifactPreview('art-2', 'dashboard.html');
+
+    expect(
+      slice().tabs.map((tab) => (tab.type === 'artifact' ? tab.artifactId : null))
+    ).toEqual(['art-1', 'art-2']);
+  });
+
+  it('retitles an artifact tab when the selection moves inside it', () => {
+    const store = usePageTabStore.getState();
+    store.toggleSessionPreview();
+    store.openArtifactPreview('art-1', 'report.md');
+    const tabId = slice().tabs[0].id;
+    store.selectPreviewArtifact(tabId, 'art-2', 'dashboard.html');
+
+    expect(slice().tabs).toHaveLength(1);
+    expect(slice().tabs[0]).toMatchObject({
+      id: tabId,
+      artifactId: 'art-2',
+      title: 'dashboard.html',
+    });
+  });
+
   it('disposes shells and drops persisted preview state with a project', () => {
     const store = usePageTabStore.getState();
     store.toggleSessionPreview();

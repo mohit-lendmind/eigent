@@ -4,7 +4,10 @@
 // nobody clicks. Rows are published artifacts — a half still being written is
 // absent rather than listed as a download that 404s.
 
-import { supportsArtifactList } from '@/api/aion/v1/compat';
+import {
+  supportsArtifactList,
+  supportsArtifactViewer,
+} from '@/api/aion/v1/compat';
 import {
   EdgeTransport,
   type Artifact,
@@ -59,6 +62,13 @@ export interface AionArtifactGrant {
 interface RemoteContext {
   mode: AionArtifactsMode;
   transport: EdgeTransport | null;
+  /**
+   * The 1.19 floor, negotiated in the same handshake. A listing works from
+   * 1.13, so an edge between the two serves rows this desktop can enumerate
+   * and cannot render — the viewer says so rather than drawing empty
+   * documents.
+   */
+  viewerMode: AionArtifactsMode;
 }
 
 // Mode is negotiated once per renderer lifetime (matching the memory,
@@ -75,35 +85,56 @@ async function resolveContext(): Promise<RemoteContext> {
   try {
     const config = await getAionRemoteConfig();
     if (!config) {
-      return { mode: { kind: 'local' }, transport: null };
+      const local: AionArtifactsMode = { kind: 'local' };
+      return { mode: local, transport: null, viewerMode: local };
     }
     if ('error' in config) {
       contextPromise = null;
-      return { mode: { kind: 'error', message: config.error }, transport: null };
+      const failed: AionArtifactsMode = { kind: 'error', message: config.error };
+      return { mode: failed, transport: null, viewerMode: failed };
     }
     const transport = new EdgeTransport({
       baseUrl: config.edgeBaseUrl,
       apiKey: config.apiKey,
     });
     const status = await transport.getIntegrationStatus();
+    const belowFloor: AionArtifactsMode = {
+      kind: 'unsupported',
+      edgeApiVersion: status.edge_api_version,
+    };
     if (!supportsArtifactList(status)) {
-      return {
-        mode: { kind: 'unsupported', edgeApiVersion: status.edge_api_version },
-        transport: null,
-      };
+      return { mode: belowFloor, transport: null, viewerMode: belowFloor };
     }
-    return { mode: { kind: 'remote' }, transport };
+    return {
+      mode: { kind: 'remote' },
+      transport,
+      viewerMode: supportsArtifactViewer(status)
+        ? { kind: 'remote' }
+        : belowFloor,
+    };
   } catch (error) {
     // A failed handshake is retryable: drop the cache so the next open
     // renegotiates instead of pinning the error forever.
     contextPromise = null;
     const message = error instanceof Error ? error.message : String(error);
-    return { mode: { kind: 'error', message }, transport: null };
+    const failed: AionArtifactsMode = { kind: 'error', message };
+    return { mode: failed, transport: null, viewerMode: failed };
   }
 }
 
 export async function getAionArtifactsMode(): Promise<AionArtifactsMode> {
   return (await getContext()).mode;
+}
+
+/**
+ * How the artifact VIEWER should behave — the same negotiation against the
+ * 1.19 floor, where the edge learned to serve bytes inline and to filter a
+ * listing by name. Below it there is no document to render and no version
+ * history to page through, so the surface reports unsupported rather than
+ * showing a row whose content never arrives.
+ */
+export async function getAionArtifactViewerMode(): Promise<AionArtifactsMode> {
+  return (await getContext()).viewerMode;
 }
 
 async function remoteTransport(): Promise<EdgeTransport> {
@@ -207,5 +238,93 @@ export async function grantAionArtifact(
     artifact: toArtifact(access.artifact),
     downloadUrl: access.download_url,
     expiresAt: access.expires_at,
+  };
+}
+
+/**
+ * One artifact's bytes, alongside the download grant that is the only way to
+ * read the ones this pane cannot render. `content` absent with `truncated`
+ * set means the edge refused to inline it — too large, or not text — never
+ * that it sent a prefix.
+ */
+export interface AionArtifactContent {
+  artifact: AionArtifact;
+  downloadUrl: string;
+  expiresAt: string;
+  content?: string;
+  truncated: boolean;
+}
+
+/**
+ * Reads an artifact for display: metadata, a download grant, and the bytes
+ * when the edge will serve them inline. Deliberately uncached alongside
+ * grantAionArtifact — the grant inside it expires, and an artifact is read
+ * when someone opens it rather than repeatedly.
+ */
+export async function readAionArtifact(
+  projectId: string,
+  artifactId: string
+): Promise<AionArtifactContent> {
+  const transport = await remoteTransport();
+  const access = await transport.getArtifact(projectId, artifactId, {
+    inline: true,
+  });
+  return {
+    artifact: toArtifact(access.artifact),
+    downloadUrl: access.download_url,
+    expiresAt: access.expires_at,
+    content: access.content,
+    truncated: access.content_truncated === true,
+  };
+}
+
+/**
+ * Every published version of one name, newest first. Uncached because this is
+ * the read whose whole point is that a name grew a version: caching it would
+ * serve the history a viewer opened with rather than the one it has.
+ *
+ * A name repeats within a Project by design, and nothing records that v2
+ * supersedes v1 — the shared name is the only link — so ordering by version
+ * is what makes the sequence a history.
+ */
+export async function loadAionArtifactVersions(
+  projectId: string,
+  name: string
+): Promise<AionArtifact[]> {
+  const transport = await remoteTransport();
+  const page = toPage(await transport.listArtifacts(projectId, { name }));
+  return [...page.artifacts].sort((a, b) => b.version - a.version);
+}
+
+// Listeners are keyed by Project so a session panel watching one Project is
+// not woken by another's runs. Invalidation and notification are one call:
+// every reason to tell a listener is also a reason the cached page is stale.
+const artifactListeners = new Map<string, Set<() => void>>();
+
+/**
+ * Called when a Project is known to have published something — the desktop
+ * learns this from the artifact_created events it is already consuming, well
+ * before any listing would be re-read. Drops the cached page and wakes every
+ * watcher of that Project.
+ */
+export function noteAionArtifactsChanged(projectId: string): void {
+  invalidateAionArtifacts(projectId);
+  for (const listener of artifactListeners.get(projectId) ?? []) listener();
+}
+
+/** Watches one Project for published artifacts. Returns an unsubscribe. */
+export function subscribeAionArtifacts(
+  projectId: string,
+  listener: () => void
+): () => void {
+  let listeners = artifactListeners.get(projectId);
+  if (!listeners) {
+    listeners = new Set();
+    artifactListeners.set(projectId, listeners);
+  }
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) artifactListeners.delete(projectId);
   };
 }

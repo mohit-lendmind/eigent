@@ -120,3 +120,142 @@ describe('buildTurnMessages', () => {
     expect(messages[1]!.step).toBeUndefined();
   });
 });
+
+// A published deliverable is announced in the conversation where the run
+// produced it. What must NOT be announced is the instrumentation: a browsing
+// run publishes a viewfinder frame per action, and the browser pane already
+// owns those.
+describe('buildTurnMessages artifact cards', () => {
+  function artifactEntry(
+    artifact: Record<string, unknown>,
+    sequence = '7'
+  ): TimelineEntry {
+    return { type: 'artifact', runId: 'run-1', sequence, artifact };
+  }
+
+  it('announces a published document', () => {
+    const messages = buildTurnMessages(
+      'proj-1',
+      'run-1',
+      [
+        artifactEntry({
+          artifact_id: 'art-9',
+          name: 'report.md',
+          media_type: 'text/markdown',
+          size_bytes: '2048',
+          version: 2,
+        }),
+      ],
+      undefined
+    );
+
+    expect(messages[0].id).toBe('aion:run-1:artifact:report.md');
+    expect(messages[0].artifactCard).toEqual({
+      artifactId: 'art-9',
+      name: 'report.md',
+      mediaType: 'text/markdown',
+      sizeBytes: 2048,
+      version: 2,
+    });
+    // The card owns the message; nothing double-renders it as prose.
+    expect(messages[0].content).toBe('');
+  });
+
+  it('announces one card per name, where its newest version landed', () => {
+    // A revised document publishes a version per edit. Announcing each would
+    // leave earlier cards in the conversation claiming a version the viewer
+    // no longer opens by default.
+    const messages = buildTurnMessages(
+      'proj-1',
+      'run-1',
+      [
+        artifactEntry(
+          {
+            artifact_id: 'v1',
+            name: 'report.md',
+            media_type: 'text/markdown',
+            size_bytes: '10',
+            version: 1,
+          },
+          '7'
+        ),
+        textEntry('Revising.', '8'),
+        artifactEntry(
+          {
+            artifact_id: 'v2',
+            name: 'report.md',
+            media_type: 'text/markdown',
+            size_bytes: '20',
+            version: 2,
+          },
+          '9'
+        ),
+      ],
+      undefined
+    );
+
+    expect(messages.map((m) => m.id)).toEqual([
+      'aion:run-1:text:0',
+      'aion:run-1:artifact:report.md',
+    ]);
+    expect(messages[1].artifactCard?.version).toBe(2);
+  });
+
+  it('drops viewfinder frames and screenshots', () => {
+    const messages = buildTurnMessages(
+      'proj-1',
+      'run-1',
+      [
+        artifactEntry({
+          artifact_id: 'f1',
+          name: 'aion-browser-frame-000004.png',
+          media_type: 'image/png',
+          size_bytes: '900',
+          version: 1,
+        }),
+        artifactEntry(
+          {
+            artifact_id: 's1',
+            name: 'checkout.png',
+            media_type: 'image/png',
+            size_bytes: '900',
+            version: 1,
+          },
+          '8'
+        ),
+      ],
+      undefined
+    );
+
+    expect(messages).toEqual([]);
+  });
+
+  it('skips a row with no id rather than rendering a dead affordance', () => {
+    const messages = buildTurnMessages(
+      'proj-1',
+      'run-1',
+      [artifactEntry({ name: 'report.md', media_type: 'text/markdown' })],
+      undefined
+    );
+
+    expect(messages).toEqual([]);
+  });
+
+  it('reports an unparsable size as zero, never NaN', () => {
+    const messages = buildTurnMessages(
+      'proj-1',
+      'run-1',
+      [
+        artifactEntry({
+          artifact_id: 'art-1',
+          name: 'notes.txt',
+          media_type: 'text/plain',
+        }),
+      ],
+      undefined
+    );
+
+    expect(messages[0].artifactCard?.sizeBytes).toBe(0);
+    expect(messages[0].artifactCard?.version).toBe(0);
+  });
+});

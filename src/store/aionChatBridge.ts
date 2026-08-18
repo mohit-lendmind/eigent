@@ -16,7 +16,10 @@ import type {
   WorkerState,
   WorkerUIStatus,
 } from '@/api/aion/v1/reducer';
-import { workersForRun } from '@/api/aion/v1/reducer';
+import {
+  BROWSER_FRAME_ARTIFACT_PREFIX,
+  workersForRun,
+} from '@/api/aion/v1/reducer';
 import {
   IncompatibleBackendError,
   negotiateCompatibility,
@@ -25,6 +28,7 @@ import {
 import { ProjectSession, newCommandId } from '@/api/aion/v1/session';
 import { EdgeTransport, type ModelAliasCatalog } from '@/api/aion/v1/transport';
 import { useAionModelStore } from './aionModelStore';
+import { noteAionArtifactsChanged } from './aionArtifactsStore';
 import { fileProjectUnderBoundSpace } from './aionSpaceBinding';
 import {
   AgentMessageStatus,
@@ -95,6 +99,13 @@ interface ProjectBinding {
   aionProjectId: string;
   latest: ProjectUIState | null;
   turns: TurnBinding[];
+  /**
+   * How many non-frame artifacts the Project had last time its state moved.
+   * A growth here is the signal the artifact panel re-reads its listing on —
+   * the desktop already consumes artifact_created, so it learns a Project
+   * published something without polling for it.
+   */
+  documentCount: number;
 }
 
 // Mode is decided once per renderer lifetime, mirroring the main process
@@ -284,12 +295,22 @@ async function createBinding(
     aionProjectId: project.project_id,
     latest: null,
     turns: [],
+    documentCount: 0,
   };
   binding.session = new ProjectSession({
     transport,
     projectId: project.project_id,
     onState: (state) => {
       binding.latest = state;
+      // Viewfinder frames are artifacts too, and a browsing run produces one
+      // per action — counting them would wake the panel for pictures it does
+      // not list.
+      const documents =
+        Object.keys(state.artifacts).length - state.browserFrames.length;
+      if (documents > binding.documentCount) {
+        binding.documentCount = documents;
+        noteAionArtifactsChanged(binding.aionProjectId);
+      }
       // A settled turn's projection is final — its run can produce no further
       // events — so only live turns re-project. (Reopening a conversation
       // projects settled turns once, explicitly, from `binding.latest`.)
@@ -310,6 +331,24 @@ async function createBinding(
   void binding.session.start();
   liveBindings.push(binding);
   return binding;
+}
+
+/**
+ * The aion Project bound to an Eternyl project, or null when this renderer
+ * has not opened one. Deliberately a lookup and never a create: a surface
+ * that merely wants to list what a project produced must not mint a Project
+ * as a side effect of being opened.
+ */
+export async function boundAionProjectId(
+  eigentProjectId: string
+): Promise<string | null> {
+  const pending = bindings.get(eigentProjectId);
+  if (!pending) return null;
+  try {
+    return (await pending).aionProjectId;
+  } catch {
+    return null;
+  }
 }
 
 async function pickModelAlias(
@@ -578,6 +617,44 @@ function resolveArtifactUrl(
   return undefined;
 }
 
+/** Name → the artifact id of its newest published version in this run. */
+function latestArtifactByName(entries: TimelineEntry[]): Map<string, string> {
+  const latest = new Map<string, string>();
+  for (const entry of entries) {
+    if (entry.type !== 'artifact') continue;
+    const card = artifactCardOf(entry.artifact);
+    if (card) latest.set(card.name, card.artifactId);
+  }
+  return latest;
+}
+
+/**
+ * Narrows a published artifact into the card the chat announces, or `null`
+ * when it is not something to announce. The artifact rides the timeline as an
+ * untyped row (the reducer banks whatever the event carried), so every field
+ * is checked rather than asserted: a row missing its id would render a card
+ * whose only affordance opens nothing.
+ */
+function artifactCardOf(
+  artifact: Record<string, unknown>
+): NonNullable<Message['artifactCard']> | null {
+  const artifactId = artifact.artifact_id;
+  const name = artifact.name;
+  if (typeof artifactId !== 'string' || typeof name !== 'string') return null;
+  if (name.startsWith(BROWSER_FRAME_ARTIFACT_PREFIX)) return null;
+  const mediaType =
+    typeof artifact.media_type === 'string' ? artifact.media_type : '';
+  if (mediaType.startsWith('image/')) return null;
+  return {
+    artifactId,
+    name,
+    mediaType,
+    // `size_bytes` is a 64-bit count and arrives as a decimal string.
+    sizeBytes: Number.parseInt(String(artifact.size_bytes ?? ''), 10) || 0,
+    version: typeof artifact.version === 'number' ? artifact.version : 0,
+  };
+}
+
 /**
  * The chat-pane messages one Run's timeline projects to: streamed text, tool
  * cards interleaved in call order (so say/do reads chronologically), pending
@@ -592,6 +669,7 @@ export function buildTurnMessages(
   run: RunState | undefined
 ): Message[] {
   const settled = run !== undefined && RUN_TERMINAL[run.status] === true;
+  const latestArtifactIds = latestArtifactByName(entries);
   const wanted: Message[] = [];
   let textOrdinal = 0;
   let lastTextIndex = -1;
@@ -632,6 +710,20 @@ export function buildTurnMessages(
             : {}),
         },
       });
+    } else if (entry.type === 'artifact') {
+      const card = artifactCardOf(entry.artifact);
+      // One card per NAME, at the point its newest version landed. A run that
+      // revises a document publishes a version per edit, and announcing each
+      // would put a row of near-identical cards in the conversation whose
+      // earlier members claim a version that no longer exists.
+      if (card && card.artifactId === latestArtifactIds.get(card.name)) {
+        wanted.push({
+          id: `aion:${runId}:artifact:${card.name}`,
+          role: 'agent',
+          content: '',
+          artifactCard: card,
+        });
+      }
     } else if (entry.type === 'approval') {
       // Pending renders the interactive card; a resolved entry keeps the
       // same message id with the verdict, so the card flips in place when
@@ -708,6 +800,26 @@ function toolCardChanged(
 }
 
 /**
+ * An artifact card is keyed by NAME, so a later version of the same document
+ * arrives as a change to an existing message rather than a new one. Without
+ * this the card would keep announcing whichever version happened to publish
+ * first — its content, step and tool card never move.
+ */
+function artifactCardChanged(
+  a: Message['artifactCard'],
+  b: Message['artifactCard']
+): boolean {
+  if (!a && !b) return false;
+  if (!a || !b) return true;
+  return (
+    a.artifactId !== b.artifactId ||
+    a.version !== b.version ||
+    a.sizeBytes !== b.sizeBytes ||
+    a.mediaType !== b.mediaType
+  );
+}
+
+/**
  * Projects one Run's slice of the reducer state into its task pane. Pure
  * function of (turn, state) applied idempotently — replay, reconnect, and
  * overlapping windows all land on the same UI, exactly like the reducer.
@@ -755,7 +867,8 @@ function projectTurn(
       existing.content !== message.content ||
       existing.step !== message.step ||
       existing.reasoning !== message.reasoning ||
-      toolCardChanged(existing.toolCard, message.toolCard)
+      toolCardChanged(existing.toolCard, message.toolCard) ||
+      artifactCardChanged(existing.artifactCard, message.artifactCard)
     ) {
       store.updateMessage(turn.taskId, message.id, {
         ...existing,

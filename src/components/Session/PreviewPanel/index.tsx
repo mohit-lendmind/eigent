@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next';
 import { previewTabIcon } from './tabKinds';
 import { BrowserTab } from './tabs/browser/BrowserTab';
 import { CanvasTab } from './tabs/CanvasTab';
+import { ArtifactTab } from './tabs/artifact/ArtifactTab';
 import { ChooserTab } from './tabs/ChooserTab';
 import { FileTab } from './tabs/FileTab';
 import { ReviewTab } from './tabs/ReviewTab';
@@ -51,7 +52,7 @@ export interface PreviewPanelProps {
 /**
  * Unified preview panel: a tab strip plus a content router that dispatches to
  * one component per tab kind (chooser / browser / file / review / terminal /
- * canvas). Embedded browsers live in the always-mounted PreviewBrowserLayer;
+ * artifact / canvas). Embedded browsers live in the always-mounted PreviewBrowserLayer;
  * this panel only renders their chrome via BrowserTab.
  */
 export function PreviewPanel({
@@ -183,6 +184,9 @@ export function PreviewPanel({
       case 'terminal':
         // Keyed so each terminal tab keeps its own shell / stream state.
         return <TerminalTab key={activeTab.id} tab={activeTab} />;
+      case 'artifact':
+        // Keyed so each artifact tab keeps its own selection and toggle state.
+        return <ArtifactTab key={activeTab.id} tab={activeTab} />;
       case 'canvas':
         return <CanvasTab key={activeTab.id} />;
       default:

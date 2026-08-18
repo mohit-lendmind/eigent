@@ -88,6 +88,21 @@ export interface SessionTerminalTab {
   agentSourceId?: string;
 }
 
+/**
+ * What the agent published, read from the aion artifact registry. The tab
+ * lists a Project's artifacts and renders the selected one; `artifactId` is
+ * the row it opened onto, null when the user picked the kind from the chooser
+ * rather than clicking a specific artifact.
+ */
+export interface SessionArtifactTab {
+  id: string;
+  type: 'artifact';
+  title: string;
+  artifactId: string | null;
+  /** The opened artifact's name — its version history is keyed by it. */
+  artifactName: string | null;
+}
+
 /** Free-form React Flow canvas. */
 export interface SessionCanvasTab {
   id: string;
@@ -101,6 +116,7 @@ export type SessionPreviewTab =
   | SessionFileTab
   | SessionReviewTab
   | SessionTerminalTab
+  | SessionArtifactTab
   | SessionCanvasTab;
 
 /**
@@ -187,6 +203,19 @@ function createFilePreviewTab(file: FileInfo | null = null): SessionFileTab {
   };
 }
 
+function createArtifactPreviewTab(
+  artifactId: string | null = null,
+  artifactName: string | null = null
+): SessionArtifactTab {
+  return {
+    id: nextSessionPreviewTabId('artifact'),
+    type: 'artifact',
+    title: artifactName || 'Artifacts',
+    artifactId,
+    artifactName,
+  };
+}
+
 function createChooserPreviewTab(): SessionChooserTab {
   return {
     id: nextSessionPreviewTabId('chooser'),
@@ -231,6 +260,8 @@ function createPreviewTabOfKind(
         shellId: `session-shell:${projectId ?? 'global'}:${id}`,
       };
     }
+    case 'artifact':
+      return createArtifactPreviewTab();
     case 'canvas':
       return {
         id: nextSessionPreviewTabId('canvas'),
@@ -429,6 +460,23 @@ interface PageTabState {
    * a blank starter tab (chooser or empty browser); otherwise appends.
    */
   openBrowserPreview: (url: string) => void;
+  /**
+   * Open one published artifact in this project's artifact viewer — the
+   * target for the "Open" affordance on an artifact card in the chat, so a
+   * deliverable is one click from where it was announced. Reuses a tab
+   * already showing that artifact, then a blank starter tab; otherwise
+   * appends.
+   */
+  openArtifactPreview: (artifactId: string, name: string) => void;
+  /**
+   * Retitle an artifact tab when the user selects a different artifact inside
+   * it, so the tab strip names what the tab is showing.
+   */
+  selectPreviewArtifact: (
+    tabId: string,
+    artifactId: string,
+    name: string
+  ) => void;
   /**
    * Open an agent terminal stream (read-only) in a terminal tab. Reuses a tab
    * already showing that stream; otherwise converts `fromTabId` (the chooser
@@ -833,6 +881,59 @@ export const usePageTabStore = create<PageTabState>()(
             tabs: [...slice.tabs, tab],
             activeTabId: tab.id,
           };
+        }),
+      openArtifactPreview: (artifactId, name) =>
+        setSessionPreviewSlice(set, (slice) => {
+          const existing = slice.tabs.find(
+            (tab) => tab.type === 'artifact' && tab.artifactId === artifactId
+          );
+          if (existing) {
+            return { ...slice, open: true, activeTabId: existing.id };
+          }
+
+          // Reuse a blank starter tab (the chooser, or an artifact tab that
+          // has not been pointed at anything) in place — preferring the
+          // active one — so opening artifacts doesn't pile up tabs.
+          const isReusable = (tab: SessionPreviewTab) =>
+            tab.type === 'chooser' ||
+            (tab.type === 'artifact' && tab.artifactId === null);
+          const reuseIndex = (() => {
+            const activeIndex = slice.tabs.findIndex(
+              (tab) => tab.id === slice.activeTabId && isReusable(tab)
+            );
+            return activeIndex >= 0
+              ? activeIndex
+              : slice.tabs.findIndex(isReusable);
+          })();
+          if (reuseIndex >= 0) {
+            const tabs = [...slice.tabs];
+            tabs[reuseIndex] = createArtifactPreviewTab(artifactId, name);
+            return { open: true, tabs, activeTabId: tabs[reuseIndex].id };
+          }
+
+          const tab = createArtifactPreviewTab(artifactId, name);
+          return {
+            open: true,
+            tabs: [...slice.tabs, tab],
+            activeTabId: tab.id,
+          };
+        }),
+      selectPreviewArtifact: (tabId, artifactId, name) =>
+        setSessionPreviewSlice(set, (slice) => {
+          const index = slice.tabs.findIndex(
+            (tab) => tab.id === tabId && tab.type === 'artifact'
+          );
+          if (index < 0) return null;
+          const current = slice.tabs[index] as SessionArtifactTab;
+          if (current.artifactId === artifactId) return null;
+          const tabs = [...slice.tabs];
+          tabs[index] = {
+            ...current,
+            artifactId,
+            artifactName: name,
+            title: name || 'Artifacts',
+          };
+          return { ...slice, tabs };
         }),
       openAgentTerminalPreview: (sourceId, title, fromTabId) =>
         setSessionPreviewSlice(set, (slice) => {
