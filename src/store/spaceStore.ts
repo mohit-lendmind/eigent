@@ -97,6 +97,7 @@ interface SpaceStore {
   projectIdIndex: Record<string, string>;
   resetForUser: (userId?: string | number | null) => void;
   ensureLegacySpace: (userId?: string | number | null) => string;
+  ensureWritableActiveSpace: () => string;
   upsertProjectMetas: (projects: SpaceProjectMeta[]) => void;
   updateProjectMeta: (
     projectId: string,
@@ -441,6 +442,42 @@ export const useSpaceStore = create<SpaceStore>()(
           activeSpaceId: state.activeSpaceId ?? spaceId,
         }));
         return spaceId;
+      },
+
+      /**
+       * Guarantees the active Space is one a Project can be started in. A
+       * fresh profile boots with only the read-only legacy container active
+       * (it is the first Space registered), which leaves the composer
+       * permanently disabled; this activates the most recent writable Space
+       * or seeds the initial blank one that the disposable-space pruning
+       * already knows how to reclaim.
+       */
+      ensureWritableActiveSpace: () => {
+        const state = get();
+        const active = state.activeSpaceId
+          ? state.spaces[state.activeSpaceId]
+          : null;
+        if (active && active.status === 'active' && !isLegacySpace(active)) {
+          return active.id;
+        }
+        const writable = activeSpacesByRecentUpdate(state.spaces).find(
+          (space) => !isLegacySpace(space)
+        );
+        if (writable) {
+          set({ activeSpaceId: writable.id });
+          return writable.id;
+        }
+        return get().createSpace({
+          // Both placeholder-name matchers recognize this literal, so the
+          // first Project rename and the blank-space pruning treat the seed
+          // as unnamed.
+          name: 'New Space',
+          sourceType: 'blank',
+          metadata: {
+            createdFrom: INITIAL_BLANK_SPACE_CREATED_FROM,
+            autoCreatedPlaceholder: true,
+          },
+        });
       },
 
       upsertProjectMetas: (projects) =>

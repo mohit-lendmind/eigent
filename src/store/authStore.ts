@@ -162,9 +162,10 @@ const hydrateSpacesForUser = (userId: number | string | null | undefined) => {
   if (userId === null || userId === undefined || userId === '') {
     useSpaceStore.getState().resetForUser(null);
     useSpaceStore.getState().ensureLegacySpace();
-    return;
+  } else {
+    useSpaceStore.getState().resetForUser(userId);
   }
-  useSpaceStore.getState().resetForUser(userId);
+  useSpaceStore.getState().ensureWritableActiveSpace();
 };
 
 const clearAuthForCurrentEnvironment = (

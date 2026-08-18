@@ -146,3 +146,118 @@ describe('spaceStore user scoping', () => {
     });
   });
 });
+
+describe('ensureWritableActiveSpace', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    usePageTabStore.setState({
+      sessionPreviewProjectId: null,
+      sessionPreviewByProject: {},
+    });
+    useSpaceStore.setState({
+      activeSpaceId: null,
+      spaces: {},
+      lastVisitedProjectBySpace: {},
+      projectsBySpaceId: {},
+      projectIdIndex: {},
+    });
+  });
+
+  const legacySpace = (updatedAt = 2) => ({
+    id: 'legacy_1',
+    name: 'Legacy Space',
+    userId: '1',
+    sourceType: 'legacy' as const,
+    status: 'active' as const,
+    schemaVersion: SPACE_SCHEMA_VERSION,
+    createdAt: 1,
+    updatedAt,
+    metadata: { legacy: true },
+  });
+
+  it('seeds a blank placeholder Space when only the legacy container exists', () => {
+    useSpaceStore.setState({
+      activeSpaceId: 'legacy_1',
+      spaces: { legacy_1: legacySpace() },
+    });
+
+    const id = useSpaceStore.getState().ensureWritableActiveSpace();
+
+    const state = useSpaceStore.getState();
+    expect(state.activeSpaceId).toBe(id);
+    expect(id).not.toBe('legacy_1');
+    const seeded = state.spaces[id];
+    expect(seeded.sourceType).toBe('blank');
+    expect(seeded.name).toBe('New Space');
+    expect(seeded.metadata?.createdFrom).toBe('initial_hydrate');
+    expect(seeded.metadata?.autoCreatedPlaceholder).toBe(true);
+  });
+
+  it('seeds a blank placeholder Space on an empty store', () => {
+    const id = useSpaceStore.getState().ensureWritableActiveSpace();
+    expect(useSpaceStore.getState().activeSpaceId).toBe(id);
+    expect(useSpaceStore.getState().spaces[id].sourceType).toBe('blank');
+  });
+
+  it('activates the most recent writable Space instead of creating one', () => {
+    useSpaceStore.setState({
+      activeSpaceId: 'legacy_1',
+      spaces: {
+        legacy_1: legacySpace(9),
+        space_older: {
+          id: 'space_older',
+          name: 'Docs',
+          userId: '1',
+          sourceType: 'blank',
+          status: 'active',
+          schemaVersion: SPACE_SCHEMA_VERSION,
+          createdAt: 1,
+          updatedAt: 3,
+        },
+        space_newer: {
+          id: 'space_newer',
+          name: 'Research',
+          userId: '1',
+          sourceType: 'folder',
+          rootPath: '/tmp/research',
+          status: 'active',
+          schemaVersion: SPACE_SCHEMA_VERSION,
+          createdAt: 1,
+          updatedAt: 7,
+        },
+      },
+    });
+
+    const id = useSpaceStore.getState().ensureWritableActiveSpace();
+
+    expect(id).toBe('space_newer');
+    expect(useSpaceStore.getState().activeSpaceId).toBe('space_newer');
+    expect(Object.keys(useSpaceStore.getState().spaces)).toHaveLength(3);
+  });
+
+  it('keeps a writable active Space untouched', () => {
+    useSpaceStore.setState({
+      activeSpaceId: 'space_mine',
+      spaces: {
+        space_mine: {
+          id: 'space_mine',
+          name: 'Mine',
+          userId: '1',
+          sourceType: 'blank',
+          status: 'active',
+          schemaVersion: SPACE_SCHEMA_VERSION,
+          createdAt: 1,
+          updatedAt: 5,
+        },
+      },
+    });
+
+    const id = useSpaceStore.getState().ensureWritableActiveSpace();
+
+    expect(id).toBe('space_mine');
+    expect(useSpaceStore.getState().activeSpaceId).toBe('space_mine');
+    expect(Object.keys(useSpaceStore.getState().spaces)).toEqual([
+      'space_mine',
+    ]);
+  });
+});
