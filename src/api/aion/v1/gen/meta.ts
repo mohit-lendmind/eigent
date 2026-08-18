@@ -3,7 +3,7 @@
 
 // The compatibility tuple the edge advertises (getIntegrationStatus and the
 // X-Aion-Edge-Api-Version / X-Aion-Min-Desktop-Version headers).
-export const EDGE_API_VERSION = '1.19.0' as const;
+export const EDGE_API_VERSION = '1.20.0' as const;
 export const EVENT_SCHEMA_VERSION = '1.0' as const;
 export const DESKTOP_CLIENT_VERSION = '1.0.2' as const;
 export const MINIMUM_SERVER_VERSION = '0.1.0-m0' as const;
@@ -30,6 +30,9 @@ export const KNOWN_PROJECT_EVENT_KINDS = [
   'run_recovery',
   'run_progress',
   'tool_output',
+  'todo_created',
+  'todo_updated',
+  'todo_closed',
 ] as const;
 
 export const KNOWN_EVENT_VISIBILITIES = [

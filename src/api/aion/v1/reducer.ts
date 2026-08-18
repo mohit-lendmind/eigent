@@ -196,6 +196,39 @@ export interface BrowserFrame {
   name: string;
 }
 
+export interface TodoEvidenceRef {
+  kind: string;
+  ref: string;
+}
+
+/**
+ * One step of the plan the agent wrote down. The map is keyed by todoId and
+ * relies on Record insertion order for creation order; parentId links children
+ * to the step they decompose. An update or close arriving without a prior
+ * create still materializes the row — title and parent_id ride every
+ * transition for exactly that late-joiner case.
+ */
+export interface TodoState {
+  todoId: string;
+  title: string;
+  /** Open set; this contract version emits pending | in_progress | done | cancelled. */
+  status: string;
+  priorStatus?: string;
+  parentId?: string;
+  /** Meaningful on parents: sequential | parallel | any. */
+  childExecution?: string;
+  assignee?: string;
+  dependsOn?: string[];
+  requiresApproval?: boolean;
+  evidence?: TodoEvidenceRef[];
+  closingOutcome?: string;
+  /** True once todo_closed arrived; status then carries done | cancelled. */
+  closed: boolean;
+  runId: string;
+  /** Sequence of the last transition applied to this row. */
+  sequence: string;
+}
+
 export interface ProjectUIState {
   projectId: string | null;
   /** Last applied event sequence — the resume cursor. "0" before any event. */
@@ -222,6 +255,12 @@ export interface ProjectUIState {
   browserFrames: BrowserFrame[];
   /** The run fan-out, keyed by WorkerState.workerKey, in observation order. */
   workers: Record<string, WorkerState>;
+  /**
+   * The plan, keyed by todoId in creation order. Folded from todo_* events;
+   * on an edge older than 1.20 the kinds never arrive and this stays empty,
+   * which is the whole degradation story (see supportsTodoEvents).
+   */
+  todos: Record<string, TodoState>;
   /** user-invisible (internal/audit/unknown-visibility) events applied. */
   suppressedEventCount: number;
   /** Sequence discontinuities observed (diagnostic; transport owns recovery). */
@@ -240,6 +279,7 @@ export function initialProjectState(projectId?: string): ProjectUIState {
     artifacts: {},
     browserFrames: [],
     workers: {},
+    todos: {},
     suppressedEventCount: 0,
     gapCount: 0,
   };
@@ -304,6 +344,23 @@ function str(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+/** Evidence accumulates on the row server-side, so each event carries the
+ * whole set; undefined (absent key) means "no change", never "cleared". */
+function todoEvidenceList(value: unknown): TodoEvidenceRef[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const refs: TodoEvidenceRef[] = [];
+  for (const item of value) {
+    if (item && typeof item === 'object') {
+      const kind = str((item as Record<string, unknown>).kind);
+      const ref = str((item as Record<string, unknown>).ref);
+      if (kind && ref) refs.push({ kind, ref });
+    }
+  }
+  return refs.length > 0 ? refs : undefined;
+}
+
 /**
  * Applies one decoded event. Pure: returns a new state object and never
  * mutates the input. Unknown kinds and visibilities follow the open-set
@@ -330,6 +387,7 @@ export function reduceProjectEvent(
     artifacts: { ...state.artifacts },
     browserFrames: [...state.browserFrames],
     workers: { ...state.workers },
+    todos: { ...state.todos },
   };
   // The edge replays gapless from any admitted cursor (including a snapshot
   // floor), so anything but lastSequence+1 is a protocol anomaly. Recorded,
@@ -482,6 +540,50 @@ export function reduceProjectEvent(
         };
       }
       delete next.pendingApprovals[approvalId];
+      return next;
+    }
+    // The three plan kinds fold into `todos` and leave no timeline entry: the
+    // Plan panel owns rendering them, and a transcript row per status flip
+    // would bury the conversation under its own bookkeeping.
+    case 'todo_created':
+    case 'todo_updated':
+    case 'todo_closed': {
+      const todoId = str(data.todo_id);
+      if (!todoId) {
+        return next;
+      }
+      const existing = next.todos[todoId];
+      const evidence = todoEvidenceList(data.evidence);
+      const row: TodoState = {
+        // Merge onto what we knew: a transition carries title/parent_id but
+        // not the create-only fields, and those must survive the update.
+        ...(existing ?? {}),
+        todoId,
+        title: str(data.title) ?? existing?.title ?? '',
+        status: str(data.status) ?? existing?.status ?? '',
+        closed: event.kind === 'todo_closed' || (existing?.closed ?? false),
+        runId,
+        sequence,
+      };
+      const priorStatus = str(data.prior_status);
+      if (priorStatus !== undefined) row.priorStatus = priorStatus;
+      const parentId = str(data.parent_id);
+      if (parentId) row.parentId = parentId;
+      if (event.kind === 'todo_created') {
+        const childExecution = str(data.child_execution);
+        if (childExecution) row.childExecution = childExecution;
+        const assignee = str(data.assignee);
+        if (assignee) row.assignee = assignee;
+        if (Array.isArray(data.depends_on)) {
+          const deps = data.depends_on.filter((d): d is string => typeof d === 'string');
+          if (deps.length > 0) row.dependsOn = deps;
+        }
+        if (data.requires_approval === true) row.requiresApproval = true;
+      }
+      if (evidence) row.evidence = evidence;
+      const closingOutcome = str(data.closing_outcome);
+      if (closingOutcome) row.closingOutcome = closingOutcome;
+      next.todos[todoId] = row;
       return next;
     }
     case 'artifact_created': {

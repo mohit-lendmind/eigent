@@ -17,6 +17,7 @@ import {
   startAionTask,
   stopAionTurn,
 } from '@/store/aionChatBridge';
+import type { TodoState } from '@/api/aion/v1/reducer';
 import type { AppHost } from '@/host/types';
 import { generateUniqueId } from '@/lib';
 import {
@@ -135,6 +136,16 @@ interface Task {
    * visibility gate decides when it stops rendering.
    */
   runStage?: { stage: string; detail?: string };
+  /**
+   * aion remote mode: the Project's plan — the reducer's todo fold plus the
+   * name → artifact-id join its evidence chips link through. Written outside
+   * the agents/taskInfo digest like `runStage`: a plan change alters no
+   * timeline entry. Absent until the run emits its first todo event.
+   */
+  plan?: {
+    todos: TodoState[];
+    artifactIdByName: Record<string, string>;
+  };
 }
 
 type UploadFileSource = 'project_output' | 'user_attachment';
@@ -389,6 +400,7 @@ export interface ChatStore {
     taskId: string,
     runStage: { stage: string; detail?: string } | undefined
   ) => void;
+  setPlan: (taskId: string, plan: Task['plan']) => void;
   getFormattedTaskTime: (taskId: string) => string;
   addTokens: (taskId: string, tokens: number) => void;
   getTokens: (taskId: string) => number;
@@ -1490,6 +1502,18 @@ const chatStore = (initial?: Partial<ChatStore>) =>
           [taskId]: {
             ...state.tasks[taskId],
             runStage,
+          },
+        },
+      }));
+    },
+    setPlan(taskId: string, plan: Task['plan']) {
+      set((state) => ({
+        ...state,
+        tasks: {
+          ...state.tasks,
+          [taskId]: {
+            ...state.tasks[taskId],
+            plan,
           },
         },
       }));

@@ -37,7 +37,7 @@ describe('aion Project reducer (golden fixtures)', () => {
     const state = reduceProjectEvents(initialProjectState(), goldenStream());
 
     expect(state.projectId).toBe('prj_01JY0000000000000000000001');
-    expect(state.lastSequence).toBe('16');
+    expect(state.lastSequence).toBe('19');
     expect(state.gapCount).toBe(0);
     expect(state.suppressedEventCount).toBe(0);
     expect(state.activeRunId).toBeNull();
@@ -124,8 +124,8 @@ describe('aion Project reducer (golden fixtures)', () => {
         status: 'succeeded',
         reason: 'completed',
         error: undefined,
-        startedSequence: '8',
-        endedSequence: '9',
+        startedSequence: '11',
+        endedSequence: '12',
       },
     ]);
 
@@ -147,6 +147,27 @@ describe('aion Project reducer (golden fixtures)', () => {
     expect(state.artifacts['art_01JY0000000000000000000001']).toMatchObject({
       media_type: 'application/json',
       sha256: '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8',
+    });
+
+    // The plan folded from the todo trio: one row, created pending, driven to
+    // done, with the create-only fields surviving both transitions and the
+    // closed event's evidence landing as structured refs. No timeline entries
+    // — the shape pin above is also the pin that todo events stay out of the
+    // transcript.
+    expect(Object.keys(state.todos)).toEqual(['tdo_01JY0000000000000000000002']);
+    expect(state.todos['tdo_01JY0000000000000000000002']).toEqual({
+      todoId: 'tdo_01JY0000000000000000000002',
+      title: 'Summarize findings into report.md',
+      status: 'done',
+      priorStatus: 'in_progress',
+      parentId: 'tdo_01JY0000000000000000000001',
+      assignee: 'researcher',
+      dependsOn: ['tdo_01JY0000000000000000000003'],
+      evidence: [{ kind: 'file', ref: 'workspace:report.md' }],
+      closingOutcome: 'report.md published at version 2',
+      closed: true,
+      runId: 'run_01JY0000000000000000000001',
+      sequence: '8',
     });
 
     // The runless upload: an artifact published before any run exists carries

@@ -14,6 +14,7 @@
 
 import { AgentFolderSection } from '@/components/Session/SidePanelSections/AgentFolderSection';
 import { ExecutionContextSection } from '@/components/Session/SidePanelSections/ExecutionContextSection';
+import { PlanSection } from '@/components/Session/SidePanelSections/PlanSection';
 import { ProgressSection } from '@/components/Session/SidePanelSections/ProgressSection';
 import { buildContextItems } from '@/components/Session/SidePanelSections/buildContextItems';
 import {
@@ -117,6 +118,11 @@ export function SingleAgentSidePanel() {
           subtasks={subtasks}
           projectId={projectStore.activeProjectId}
           taskId={selectedTaskId}
+        />
+        <PlanSection
+          title={t('layout.plan', { defaultValue: 'Plan' })}
+          todos={selectedTask?.plan?.todos ?? []}
+          artifactIdByName={selectedTask?.plan?.artifactIdByName ?? {}}
         />
         <ExecutionContextSection
           title={t('layout.execution-context', {

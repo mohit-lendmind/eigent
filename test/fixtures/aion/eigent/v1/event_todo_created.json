@@ -1,0 +1,25 @@
+{
+  "event_id": "evt_01JY0000000000000000000024",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "run_01JY0000000000000000000001",
+  "sequence": "24",
+  "kind": "todo_created",
+  "visibility": "user",
+  "occurred_at": "2026-08-17T09:00:24Z",
+  "correlation": {
+    "aion_sequence": "31"
+  },
+  "data": {
+    "todo_id": "tdo_01JY0000000000000000000002",
+    "title": "Summarize findings into report.md",
+    "status": "pending",
+    "parent_id": "tdo_01JY0000000000000000000001",
+    "child_execution": "",
+    "assignee": "researcher",
+    "requires_approval": false,
+    "depends_on": [
+      "tdo_01JY0000000000000000000003"
+    ]
+  }
+}

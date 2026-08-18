@@ -27,6 +27,7 @@ import {
 } from '@/api/aion/v1/compat';
 import { ProjectSession, newCommandId } from '@/api/aion/v1/session';
 import { EdgeTransport, type ModelAliasCatalog } from '@/api/aion/v1/transport';
+import { latestArtifactIdByName } from '@/components/Session/SidePanelSections/buildPlanRows';
 import { useAionModelStore } from './aionModelStore';
 import { noteAionArtifactsChanged } from './aionArtifactsStore';
 import { fileProjectUnderBoundSpace } from './aionSpaceBinding';
@@ -91,6 +92,12 @@ interface TurnBinding {
    * keeps the other panes' subscribers quiet.
    */
   projectionDigest?: string;
+  /**
+   * JSON digest of the last plan projection (todos + evidence join). Its own
+   * digest, outside `projectionDigest`, because the plan folds many events
+   * into slow-moving state and shares no bytes with agents/taskInfo.
+   */
+  planDigest?: string;
 }
 
 interface ProjectBinding {
@@ -977,6 +984,25 @@ function projectTurn(
       turn.taskId,
       progress ? { stage: progress.stage, detail: progress.detail } : undefined
     );
+  }
+
+  // The Project's plan (todo events) also lives outside the agents/taskInfo
+  // digest — the runStage reasoning: a plan change alters no timeline entry.
+  // Todos are project-scoped rather than filtered to this turn's run — the
+  // plan is one plan, and a follow-up turn that touches no todo still shows
+  // it. Absent until the first todo event, so the Plan section stays unmounted
+  // on runs that never plan.
+  const todos = Object.values(state.todos);
+  if (todos.length > 0 || turn.planDigest !== undefined) {
+    const artifactIdByName = latestArtifactIdByName(state.artifacts);
+    const planDigest = JSON.stringify([todos, artifactIdByName]);
+    if (planDigest !== turn.planDigest) {
+      turn.planDigest = planDigest;
+      store.setPlan(
+        turn.taskId,
+        todos.length > 0 ? { todos, artifactIdByName } : undefined
+      );
+    }
   }
 
   // Events that leave this turn's slice unchanged (another run's events,

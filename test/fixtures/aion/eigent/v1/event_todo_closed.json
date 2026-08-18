@@ -1,0 +1,27 @@
+{
+  "event_id": "evt_01JY0000000000000000000026",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "run_01JY0000000000000000000001",
+  "sequence": "26",
+  "kind": "todo_closed",
+  "visibility": "user",
+  "occurred_at": "2026-08-17T09:00:26Z",
+  "correlation": {
+    "aion_sequence": "40"
+  },
+  "data": {
+    "todo_id": "tdo_01JY0000000000000000000002",
+    "title": "Summarize findings into report.md",
+    "prior_status": "in_progress",
+    "status": "done",
+    "parent_id": "tdo_01JY0000000000000000000001",
+    "closing_outcome": "report.md published at version 2",
+    "evidence": [
+      {
+        "kind": "file",
+        "ref": "workspace:report.md"
+      }
+    ]
+  }
+}
