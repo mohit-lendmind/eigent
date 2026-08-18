@@ -229,6 +229,27 @@ export interface TodoState {
   sequence: string;
 }
 
+/**
+ * One anchored comment on a published artifact, folded from artifact_comment
+ * events. Each event carries the comment's full row, so folding is a plain
+ * replace; the rail owns rendering, and relocation against whatever version
+ * is on screen happens there, at read time.
+ */
+export interface CommentState {
+  commentId: string;
+  artifactId: string;
+  quotedText: string;
+  body: string;
+  /** open | addressed | dismissed on this contract version. */
+  status: string;
+  /** What the comment moved from; empty on creation. */
+  priorStatus?: string;
+  resolvedByRunId?: string;
+  runId: string;
+  /** Sequence of the last transition applied to this row. */
+  sequence: string;
+}
+
 export interface ProjectUIState {
   projectId: string | null;
   /** Last applied event sequence — the resume cursor. "0" before any event. */
@@ -261,6 +282,13 @@ export interface ProjectUIState {
    * which is the whole degradation story (see supportsTodoEvents).
    */
   todos: Record<string, TodoState>;
+  /**
+   * Artifact comments, keyed by commentId in creation order. Folded from
+   * artifact_comment events; absent below edge 1.21 (supportsArtifactComments).
+   */
+  comments: Record<string, CommentState>;
+  /** artifact_comment events applied — a change tick for comment watchers. */
+  commentEvents: number;
   /** user-invisible (internal/audit/unknown-visibility) events applied. */
   suppressedEventCount: number;
   /** Sequence discontinuities observed (diagnostic; transport owns recovery). */
@@ -280,6 +308,8 @@ export function initialProjectState(projectId?: string): ProjectUIState {
     browserFrames: [],
     workers: {},
     todos: {},
+    comments: {},
+    commentEvents: 0,
     suppressedEventCount: 0,
     gapCount: 0,
   };
@@ -388,6 +418,7 @@ export function reduceProjectEvent(
     browserFrames: [...state.browserFrames],
     workers: { ...state.workers },
     todos: { ...state.todos },
+    comments: { ...state.comments },
   };
   // The edge replays gapless from any admitted cursor (including a snapshot
   // floor), so anything but lastSequence+1 is a protocol anomaly. Recorded,
@@ -584,6 +615,36 @@ export function reduceProjectEvent(
       const closingOutcome = str(data.closing_outcome);
       if (closingOutcome) row.closingOutcome = closingOutcome;
       next.todos[todoId] = row;
+      return next;
+    }
+    // A comment event carries the whole row, so folding replaces rather than
+    // merges; like the plan kinds it leaves no timeline entry — the comment
+    // rail owns rendering, and a transcript row per status flip would bury
+    // the conversation the comments are about.
+    case 'artifact_comment': {
+      const comment =
+        typeof data.comment === 'object' && data.comment !== null && !Array.isArray(data.comment)
+          ? (data.comment as Record<string, unknown>)
+          : {};
+      const commentId = str(comment.comment_id);
+      if (!commentId) {
+        return next;
+      }
+      const row: CommentState = {
+        commentId,
+        artifactId: str(comment.artifact_id) ?? '',
+        quotedText: str(comment.quoted_text) ?? '',
+        body: str(comment.body) ?? '',
+        status: str(comment.status) ?? '',
+        runId,
+        sequence,
+      };
+      const priorStatus = str(data.prior_status);
+      if (priorStatus) row.priorStatus = priorStatus;
+      const resolvedBy = str(comment.resolved_by_run_id);
+      if (resolvedBy) row.resolvedByRunId = resolvedBy;
+      next.comments[commentId] = row;
+      next.commentEvents += 1;
       return next;
     }
     case 'artifact_created': {

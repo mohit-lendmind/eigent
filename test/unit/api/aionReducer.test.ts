@@ -37,7 +37,7 @@ describe('aion Project reducer (golden fixtures)', () => {
     const state = reduceProjectEvents(initialProjectState(), goldenStream());
 
     expect(state.projectId).toBe('prj_01JY0000000000000000000001');
-    expect(state.lastSequence).toBe('19');
+    expect(state.lastSequence).toBe('20');
     expect(state.gapCount).toBe(0);
     expect(state.suppressedEventCount).toBe(0);
     expect(state.activeRunId).toBeNull();
@@ -124,8 +124,8 @@ describe('aion Project reducer (golden fixtures)', () => {
         status: 'succeeded',
         reason: 'completed',
         error: undefined,
-        startedSequence: '11',
-        endedSequence: '12',
+        startedSequence: '12',
+        endedSequence: '13',
       },
     ]);
 
@@ -169,6 +169,25 @@ describe('aion Project reducer (golden fixtures)', () => {
       runId: 'run_01JY0000000000000000000001',
       sequence: '8',
     });
+
+    // The comment folded off the artifact_comment event: the settling run's
+    // republish stamped it addressed (prior open) with the run recorded as
+    // resolver. Like todos it is state, never a timeline entry — the shape
+    // pin above also pins that. commentEvents is the change tick the bridge
+    // compares to wake rail subscribers.
+    expect(Object.keys(state.comments)).toEqual(['cmt_01JY0000000000000000000001']);
+    expect(state.comments['cmt_01JY0000000000000000000001']).toEqual({
+      commentId: 'cmt_01JY0000000000000000000001',
+      artifactId: 'art_01JY0000000000000000000001',
+      quotedText: 'the moon is made of cheese',
+      body: 'This claim is wrong; correct it and cite a source.',
+      status: 'addressed',
+      priorStatus: 'open',
+      resolvedByRunId: 'run_01JY0000000000000000000002',
+      runId: 'run_01JY0000000000000000000002',
+      sequence: '9',
+    });
+    expect(state.commentEvents).toBe(1);
 
     // The runless upload: an artifact published before any run exists carries
     // run_id "" and must still land on the timeline instead of poisoning the

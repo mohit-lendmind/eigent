@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Eigent Desktop Edge API
-  version: 1.20.0
+  version: 1.21.0
   description: |
     Public, additive-only API used by the Eigent desktop application. The edge
     authenticates the device/user, enforces tenant policy, and projects private
@@ -454,6 +454,102 @@ paths:
         '413': {$ref: '#/components/responses/Problem'}
         '422': {$ref: '#/components/responses/Problem'}
         '501': {$ref: '#/components/responses/Problem'}
+  /projects/{projectId}/artifacts/{artifactId}/comments:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ArtifactId'
+    post:
+      operationId: createComment
+      tags: [artifacts]
+      description: |
+        Record one anchored comment against a published artifact. The anchor
+        is quoted text plus its immediate context — `artifact_id` already pins
+        the exact version, so on a newer version a client relocates the quote
+        by searching `quoted_text` disambiguated by the two context strings,
+        and renders the comment stale when the text is gone rather than
+        pointing somewhere wrong. An empty `quoted_text` is a document-level
+        comment. Only a published artifact accepts comments: a pending half
+        may still change hash and size, so commenting it is
+        `409` (FailedPrecondition). Creation appends an `artifact_comment`
+        Project event, so comments replay with the trajectory.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ArtifactCommentCreate'}
+      responses:
+        '201':
+          description: The recorded comment, status `open`
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactCommentEnvelope'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+    get:
+      operationId: listComments
+      tags: [artifacts]
+      description: |
+        The artifact's comments, oldest first — a comment rail reads as a
+        conversation, unlike the newest-first listings elsewhere. Comments on
+        other versions of the same name are NOT included; a viewer showing
+        relocated comments reads each version's list it renders against.
+      parameters:
+        - name: page_size
+          in: query
+          required: false
+          description: Entries per page (default 50); out-of-bounds values are refused, not clamped.
+          schema: {type: integer, minimum: 1, maximum: 200}
+        - name: page_token
+          in: query
+          required: false
+          description: |
+            Opaque continuation from a prior response's `next_page_token`; one
+            this server cannot decode is `400 invalid_cursor`.
+          schema: {type: string, maxLength: 512}
+      responses:
+        '200':
+          description: One page of comments, oldest first
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactCommentList'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /projects/{projectId}/comments/{commentId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/CommentId'
+    patch:
+      operationId: updateComment
+      tags: [artifacts]
+      description: |
+        Move one comment between `open` and `dismissed` — the caller's half of
+        the lifecycle, reversible in both directions and idempotent when the
+        status already holds. `addressed` is EARNED by the run that
+        republishes the commented artifact's name, never asserted here:
+        naming it is the typed 422 (`code: comment_status_denied`), and an
+        already-addressed comment refuses any move as `409`
+        (FailedPrecondition) — terminal in both directions. Every real
+        transition appends an `artifact_comment` event carrying
+        `prior_status`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ArtifactCommentStatusUpdate'}
+      responses:
+        '200':
+          description: The comment after the transition
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactCommentEnvelope'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
   /skills:
     get:
       operationId: listSkills
@@ -1341,6 +1437,11 @@ components:
       in: path
       required: true
       schema: {$ref: '#/components/schemas/Identifier'}
+    CommentId:
+      name: commentId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Identifier'}
     SkillName:
       name: name
       in: path
@@ -1614,6 +1715,20 @@ components:
           type: array
           maxItems: 32
           items: {$ref: '#/components/schemas/Identifier'}
+        comment_ids:
+          type: array
+          maxItems: 32
+          items: {$ref: '#/components/schemas/Identifier'}
+          description: |
+            Open artifact comments this command asks the run to address. Each
+            id must name an OPEN comment in the Project — a dismissed,
+            addressed, or unknown id is refused here as `400 invalid_argument`
+            rather than at dispatch, where the failure would quarantine the
+            run with the user gone. The worker inlines each comment (anchor,
+            note, and the commented artifact's current text when it is small
+            enough) ahead of `text`; when the run republishes a commented
+            artifact's name, the referenced comments on that name settle as
+            `addressed` with an `artifact_comment` event each.
     CommandReceipt:
       type: object
       required: [command_id, run_id, run_epoch, accepted_sequence]
@@ -1673,7 +1788,7 @@ components:
         # x-aion-known-values documents the values this contract version emits.
         kind:
           type: string
-          x-aion-known-values: [run_accepted, text_delta, tool_call, tool_result, approval_required, approval_resolved, artifact_created, run_completed, run_failed, run_cancelled, subagent_started, subagent_ended, run_recovery, run_progress, tool_output, todo_created, todo_updated, todo_closed]
+          x-aion-known-values: [run_accepted, text_delta, tool_call, tool_result, approval_required, approval_resolved, artifact_created, run_completed, run_failed, run_cancelled, subagent_started, subagent_ended, run_recovery, run_progress, tool_output, todo_created, todo_updated, todo_closed, artifact_comment]
         visibility:
           type: string
           x-aion-known-values: [user, internal, audit]
@@ -1783,6 +1898,110 @@ components:
         attachment. Bytes ride the JSON body inline — an attachment is small
         by contract, and one round trip with no second commit step means
         there is no half-uploaded state a client crash can leak.
+    ArtifactComment:
+      type: object
+      required: [comment_id, project_id, artifact_id, quoted_text, start_offset, body, status, created_at]
+      description: |
+        One anchored comment. `artifact_id` pins the exact version commented
+        on; relocation onto newer versions is computed by the CLIENT at read
+        time from the quote and its context, never persisted per version.
+      properties:
+        comment_id: {$ref: '#/components/schemas/Identifier'}
+        project_id: {$ref: '#/components/schemas/Identifier'}
+        artifact_id: {$ref: '#/components/schemas/Identifier'}
+        quoted_text:
+          type: string
+          description: The commented span, verbatim. Empty means the comment addresses the whole document.
+        prefix_context:
+          type: string
+          description: |
+            Up to a few hundred bytes of text immediately BEFORE the quote,
+            used to disambiguate relocation when the quote repeats. OMITTED
+            when none was captured.
+        suffix_context:
+          type: string
+          description: Text immediately AFTER the quote; omitted like prefix_context.
+        start_offset:
+          type: string
+          pattern: '^[0-9]+$'
+          description: |
+            Byte offset of the quote in the version commented on — a rendering
+            hint for THAT version only; relocation on newer versions searches
+            the text. A 64-bit figure, so a string like the event sequences.
+        body: {type: string, description: "The reviewer's note."}
+        # status is an OPEN string set like kind/visibility. The lifecycle:
+        # open <-> dismissed are the caller's moves (updateComment, reversible);
+        # addressed is stamped by the run that republishes the commented
+        # artifact's name and is terminal in both directions.
+        status:
+          type: string
+          x-aion-known-values: [open, addressed, dismissed]
+        created_at: {type: string, format: date-time}
+        resolved_at:
+          type: string
+          format: date-time
+          description: |
+            When the comment left `open` (set on dismiss or address, cleared
+            on reopen). OMITTED while the comment is open — absence never
+            means the epoch.
+        resolved_by_run_id:
+          type: string
+          description: |
+            The run whose republish settled the comment as addressed. OMITTED
+            unless the comment is addressed — a dismissal names no run.
+      additionalProperties: true
+    ArtifactCommentEnvelope:
+      type: object
+      required: [comment]
+      properties:
+        comment: {$ref: '#/components/schemas/ArtifactComment'}
+      additionalProperties: true
+    ArtifactCommentList:
+      type: object
+      required: [comments]
+      properties:
+        comments:
+          type: array
+          items: {$ref: '#/components/schemas/ArtifactComment'}
+        next_page_token:
+          type: string
+          description: Absent on the last page.
+      additionalProperties: true
+    ArtifactCommentCreate:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        quoted_text:
+          type: string
+          maxLength: 2000
+          description: |
+            The selected span, verbatim. Anchors are excerpts, not documents —
+            each anchor field is bounded at 2000 bytes. Omitted or empty makes
+            a document-level comment.
+        prefix_context: {type: string, maxLength: 2000}
+        suffix_context: {type: string, maxLength: 2000}
+        start_offset:
+          type: string
+          pattern: '^[0-9]+$'
+          description: Byte offset of the quote in this version; omitted means 0.
+        body:
+          type: string
+          minLength: 1
+          maxLength: 20000
+          description: The note. Required — an anchor with nothing to say is not a comment.
+    ArtifactCommentStatusUpdate:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [open, dismissed]
+          description: |
+            The settable half of the lifecycle. `addressed` is not accepted
+            here — it is earned by the revising run (typed 422
+            `comment_status_denied`).
     ModelAliasCatalog:
       type: object
       required: [aliases]

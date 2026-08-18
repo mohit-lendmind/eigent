@@ -32,6 +32,9 @@ export type Artifact = Schemas['Artifact'];
 export type ArtifactList = Schemas['ArtifactList'];
 export type ArtifactAccess = Schemas['ArtifactAccess'];
 export type AttachmentUpload = Schemas['AttachmentUpload'];
+export type ArtifactComment = Schemas['ArtifactComment'];
+export type ArtifactCommentList = Schemas['ArtifactCommentList'];
+export type ArtifactCommentCreate = Schemas['ArtifactCommentCreate'];
 export type UsageSummary = Schemas['UsageSummary'];
 export type UsageTotals = Schemas['UsageTotals'];
 export type RunSpend = Schemas['RunSpend'];
@@ -270,6 +273,63 @@ export class EdgeTransport {
     return this.json(
       'GET',
       `/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifactId)}${suffix}`
+    );
+  }
+
+  /**
+   * Record one anchored comment against a published artifact. The anchor is
+   * quoted text plus context; `artifact_id` in the path pins the exact
+   * version, and relocation onto newer versions is computed by the viewer at
+   * read time, never persisted.
+   */
+  createComment(
+    projectId: string,
+    artifactId: string,
+    comment: ArtifactCommentCreate
+  ): Promise<{ comment: ArtifactComment }> {
+    return this.json(
+      'POST',
+      `/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifactId)}/comments`,
+      { body: comment }
+    );
+  }
+
+  /**
+   * One artifact's comments, oldest first — a rail reads as a conversation.
+   * Comments on other versions of the same name are not included; the viewer
+   * reads each version's list it renders against.
+   */
+  listComments(
+    projectId: string,
+    artifactId: string,
+    options: { pageSize?: number; pageToken?: string } = {}
+  ): Promise<ArtifactCommentList> {
+    const query = new URLSearchParams();
+    if (options.pageSize !== undefined) {
+      query.set('page_size', String(options.pageSize));
+    }
+    if (options.pageToken) query.set('page_token', options.pageToken);
+    const suffix = query.size > 0 ? `?${query}` : '';
+    return this.json(
+      'GET',
+      `/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifactId)}/comments${suffix}`
+    );
+  }
+
+  /**
+   * Move one comment between `open` and `dismissed`. `addressed` is earned
+   * by the run that republishes the commented artifact's name — asserting it
+   * here is the typed 422 the edge refuses.
+   */
+  updateComment(
+    projectId: string,
+    commentId: string,
+    status: 'open' | 'dismissed'
+  ): Promise<{ comment: ArtifactComment }> {
+    return this.json(
+      'PATCH',
+      `/projects/${encodeURIComponent(projectId)}/comments/${encodeURIComponent(commentId)}`,
+      { body: { status } }
     );
   }
 
@@ -709,7 +769,7 @@ export class EdgeTransport {
   }
 
   private async json<T>(
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     path: string,
     options: { body?: unknown; headers?: Record<string, string> } = {}
   ): Promise<T> {

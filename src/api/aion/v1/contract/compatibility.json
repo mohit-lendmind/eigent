@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "edge_api": "1.20.0",
+  "edge_api": "1.21.0",
   "event_schema": "1.0",
   "desktop_client": "1.0.2",
   "minimum_server": "0.1.0-m0",

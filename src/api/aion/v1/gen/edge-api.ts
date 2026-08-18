@@ -300,6 +300,73 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/artifacts/{artifactId}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                artifactId: components["parameters"]["ArtifactId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * @description The artifact's comments, oldest first — a comment rail reads as a
+         *     conversation, unlike the newest-first listings elsewhere. Comments on
+         *     other versions of the same name are NOT included; a viewer showing
+         *     relocated comments reads each version's list it renders against.
+         */
+        get: operations["listComments"];
+        put?: never;
+        /**
+         * @description Record one anchored comment against a published artifact. The anchor
+         *     is quoted text plus its immediate context — `artifact_id` already pins
+         *     the exact version, so on a newer version a client relocates the quote
+         *     by searching `quoted_text` disambiguated by the two context strings,
+         *     and renders the comment stale when the text is gone rather than
+         *     pointing somewhere wrong. An empty `quoted_text` is a document-level
+         *     comment. Only a published artifact accepts comments: a pending half
+         *     may still change hash and size, so commenting it is
+         *     `409` (FailedPrecondition). Creation appends an `artifact_comment`
+         *     Project event, so comments replay with the trajectory.
+         */
+        post: operations["createComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/comments/{commentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * @description Move one comment between `open` and `dismissed` — the caller's half of
+         *     the lifecycle, reversible in both directions and idempotent when the
+         *     status already holds. `addressed` is EARNED by the run that
+         *     republishes the commented artifact's name, never asserted here:
+         *     naming it is the typed 422 (`code: comment_status_denied`), and an
+         *     already-addressed comment refuses any move as `409`
+         *     (FailedPrecondition) — terminal in both directions. Every real
+         *     transition appends an `artifact_comment` event carrying
+         *     `prior_status`.
+         */
+        patch: operations["updateComment"];
+        trace?: never;
+    };
     "/skills": {
         parameters: {
             query?: never;
@@ -1103,6 +1170,18 @@ export type components = {
             command_id: components["schemas"]["Identifier"];
             text: string;
             attachment_ids?: components["schemas"]["Identifier"][];
+            /**
+             * @description Open artifact comments this command asks the run to address. Each
+             *     id must name an OPEN comment in the Project — a dismissed,
+             *     addressed, or unknown id is refused here as `400 invalid_argument`
+             *     rather than at dispatch, where the failure would quarantine the
+             *     run with the user gone. The worker inlines each comment (anchor,
+             *     note, and the commented artifact's current text when it is small
+             *     enough) ahead of `text`; when the run republishes a commented
+             *     artifact's name, the referenced comments on that name settle as
+             *     `addressed` with an `artifact_comment` event each.
+             */
+            comment_ids?: components["schemas"]["Identifier"][];
         };
         CommandReceipt: {
             command_id: components["schemas"]["Identifier"];
@@ -1235,6 +1314,86 @@ export type components = {
              *     maxLength is the exact encoding of.
              */
             data_base64: string;
+        };
+        /**
+         * @description One anchored comment. `artifact_id` pins the exact version commented
+         *     on; relocation onto newer versions is computed by the CLIENT at read
+         *     time from the quote and its context, never persisted per version.
+         */
+        ArtifactComment: {
+            comment_id: components["schemas"]["Identifier"];
+            project_id: components["schemas"]["Identifier"];
+            artifact_id: components["schemas"]["Identifier"];
+            /** @description The commented span, verbatim. Empty means the comment addresses the whole document. */
+            quoted_text: string;
+            /**
+             * @description Up to a few hundred bytes of text immediately BEFORE the quote,
+             *     used to disambiguate relocation when the quote repeats. OMITTED
+             *     when none was captured.
+             */
+            prefix_context?: string;
+            /** @description Text immediately AFTER the quote; omitted like prefix_context. */
+            suffix_context?: string;
+            /**
+             * @description Byte offset of the quote in the version commented on — a rendering
+             *     hint for THAT version only; relocation on newer versions searches
+             *     the text. A 64-bit figure, so a string like the event sequences.
+             */
+            start_offset: string;
+            /** @description The reviewer's note. */
+            body: string;
+            status: string;
+            /** Format: date-time */
+            created_at: string;
+            /**
+             * Format: date-time
+             * @description When the comment left `open` (set on dismiss or address, cleared
+             *     on reopen). OMITTED while the comment is open — absence never
+             *     means the epoch.
+             */
+            resolved_at?: string;
+            /**
+             * @description The run whose republish settled the comment as addressed. OMITTED
+             *     unless the comment is addressed — a dismissal names no run.
+             */
+            resolved_by_run_id?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        ArtifactCommentEnvelope: {
+            comment: components["schemas"]["ArtifactComment"];
+        } & {
+            [key: string]: unknown;
+        };
+        ArtifactCommentList: {
+            comments: components["schemas"]["ArtifactComment"][];
+            /** @description Absent on the last page. */
+            next_page_token?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        ArtifactCommentCreate: {
+            /**
+             * @description The selected span, verbatim. Anchors are excerpts, not documents —
+             *     each anchor field is bounded at 2000 bytes. Omitted or empty makes
+             *     a document-level comment.
+             */
+            quoted_text?: string;
+            prefix_context?: string;
+            suffix_context?: string;
+            /** @description Byte offset of the quote in this version; omitted means 0. */
+            start_offset?: string;
+            /** @description The note. Required — an anchor with nothing to say is not a comment. */
+            body: string;
+        };
+        ArtifactCommentStatusUpdate: {
+            /**
+             * @description The settable half of the lifecycle. `addressed` is not accepted
+             *     here — it is earned by the revising run (typed 422
+             *     `comment_status_denied`).
+             * @enum {string}
+             */
+            status: "open" | "dismissed";
         };
         ModelAliasCatalog: {
             aliases: components["schemas"]["ModelAliasOption"][];
@@ -1952,6 +2111,7 @@ export type components = {
         RunId: components["schemas"]["Identifier"];
         ApprovalId: components["schemas"]["Identifier"];
         ArtifactId: components["schemas"]["Identifier"];
+        CommentId: components["schemas"]["Identifier"];
         SkillName: components["schemas"]["SkillName"];
         /**
          * @description Include the `usage` counters on each returned skill. Opt-in: the
@@ -2443,6 +2603,103 @@ export interface operations {
             413: components["responses"]["Problem"];
             422: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
+        };
+    };
+    listComments: {
+        parameters: {
+            query?: {
+                /** @description Entries per page (default 50); out-of-bounds values are refused, not clamped. */
+                page_size?: number;
+                /**
+                 * @description Opaque continuation from a prior response's `next_page_token`; one
+                 *     this server cannot decode is `400 invalid_cursor`.
+                 */
+                page_token?: string;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                artifactId: components["parameters"]["ArtifactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of comments, oldest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactCommentList"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    createComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                artifactId: components["parameters"]["ArtifactId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtifactCommentCreate"];
+            };
+        };
+        responses: {
+            /** @description The recorded comment, status `open` */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactCommentEnvelope"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    updateComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtifactCommentStatusUpdate"];
+            };
+        };
+        responses: {
+            /** @description The comment after the transition */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactCommentEnvelope"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
         };
     };
     listSkills: {
