@@ -25,6 +25,7 @@ import React, {
   useState,
   useSyncExternalStore,
 } from 'react';
+import { ArtifactCard } from './ArtifactCard';
 import { AgentMessageCard } from './MessageItem/AgentMessageCard';
 import { ApprovalCard } from './MessageItem/ApprovalCard';
 import { ToolCardView } from './ToolCards/ToolCardView';
@@ -412,6 +413,19 @@ export const UserQueryGroup: React.FC<UserQueryGroupProps> = ({
               className="flex flex-col gap-4"
             >
               <ApprovalCard approval={message.approval} />
+            </motion.div>
+          );
+        }
+        if (message.artifactCard) {
+          return (
+            <motion.div
+              key={`artifact-${message.id}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="flex flex-col gap-4"
+            >
+              <ArtifactCard card={message.artifactCard} />
             </motion.div>
           );
         }

@@ -15,6 +15,7 @@
 import type { PreviewTabKind, SessionPreviewTab } from '@/store/pageTabStore';
 import {
   ClipboardCheck,
+  FileBox,
   FileText,
   Globe,
   type LucideIcon,
@@ -61,6 +62,14 @@ export const PREVIEW_TAB_KINDS: PreviewKindMeta[] = [
     defaultDescription: 'Preview files produced or referenced in this session.',
   },
   {
+    kind: 'artifact',
+    icon: FileBox,
+    labelKey: 'layout.preview-kind-artifact',
+    defaultLabel: 'Artifacts',
+    descriptionKey: 'layout.preview-kind-artifact-desc',
+    defaultDescription: 'Read the documents, pages and code this run produced.',
+  },
+  {
     kind: 'terminal',
     icon: SquareTerminal,
     labelKey: 'layout.preview-kind-terminal',
@@ -77,6 +86,7 @@ const KIND_ICONS: Record<SessionPreviewTab['type'], LucideIcon> = {
   file: FileText,
   review: ClipboardCheck,
   terminal: SquareTerminal,
+  artifact: FileBox,
   canvas: Shapes,
 };
 

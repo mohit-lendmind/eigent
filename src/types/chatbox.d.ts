@@ -159,6 +159,18 @@ declare global {
       /** Settled result content (preview-capped). */
       resultContent?: string;
     };
+    /**
+     * A deliverable this run published, announced where it was produced so it
+     * is one click from the conversation rather than something to go hunting
+     * for in a panel.
+     */
+    artifactCard?: {
+      artifactId: string;
+      name: string;
+      mediaType: string;
+      sizeBytes: number;
+      version: number;
+    };
   }
 
   interface AgentMessage {
