@@ -45,7 +45,9 @@
     "clear_memory_response.json",
     "space_response.json",
     "space_list_response.json",
-    "upload_attachment_response.json"
+    "upload_attachment_response.json",
+    "artifact_access_response.json",
+    "artifact_access_truncated_response.json"
   ],
   "events": [
     "event_run_accepted.json",

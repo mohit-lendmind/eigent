@@ -288,6 +288,48 @@ describe('EdgeTransport REST (golden fixtures)', () => {
   });
 });
 
+describe('EdgeTransport artifacts (golden fixtures)', () => {
+  it('reads one deliverable\'s version history through the name filter', async () => {
+    const { transport, fetchImpl } = transportWith(
+      jsonResponse(fixture('artifact_list_response.json'))
+    );
+    await transport.listArtifacts('prj_1', { name: 'test-report.json' });
+    const { url } = requestOf(fetchImpl);
+    expect(url).toContain('name=test-report.json');
+  });
+
+  it('asks for inline content only when told to', async () => {
+    // A fresh Response per call: the second get would otherwise re-read a
+    // body the first one consumed.
+    const { transport, fetchImpl } = transportWith(() =>
+      jsonResponse(fixture('artifact_access_response.json'))
+    );
+    const access = await transport.getArtifact('prj_1', 'art_1', {
+      inline: true,
+    });
+    expect(requestOf(fetchImpl).url).toContain('inline=true');
+    expect(access.content).toContain('# Findings');
+    expect(access.content_truncated).toBe(false);
+    // Inline never replaces the download grant.
+    expect(access.download_url).not.toBe('');
+
+    await transport.getArtifact('prj_1', 'art_1');
+    expect(requestOf(fetchImpl, 1).url).not.toContain('inline');
+  });
+
+  it('reads a refused inline read as a download, not an empty document', async () => {
+    const { transport } = transportWith(
+      jsonResponse(fixture('artifact_access_truncated_response.json'))
+    );
+    const access = await transport.getArtifact('prj_1', 'art_2', {
+      inline: true,
+    });
+    expect(access.content).toBeUndefined();
+    expect(access.content_truncated).toBe(true);
+    expect(access.download_url).toBeTruthy();
+  });
+});
+
 describe('EdgeTransport skills (golden fixtures)', () => {
   it('decodes the skill catalog', async () => {
     const { transport, fetchImpl } = transportWith(

@@ -14,6 +14,7 @@ import {
   supportsRunRecovery,
   supportsAttachments,
   supportsLiveActivity,
+  supportsArtifactViewer,
 } from '@/api/aion/v1/compat';
 import {
   DESKTOP_CLIENT_VERSION,
@@ -310,6 +311,32 @@ describe('supportsLiveActivity', () => {
     );
     expect(
       supportsLiveActivity(status({ edge_api_version: '1.eighteen' }))
+    ).toBe(false);
+  });
+});
+
+describe('supportsArtifactViewer', () => {
+  it('gates on the 1.19 inline-content floor', () => {
+    // Unlike the liveness floor, an older edge here does not degrade: it
+    // ignores ?inline= and answers metadata only, so a viewer opened against
+    // it would show a permanently empty document.
+    expect(supportsArtifactViewer(status({ edge_api_version: '1.18.0' }))).toBe(
+      false
+    );
+    expect(supportsArtifactViewer(status({ edge_api_version: '1.19.0' }))).toBe(
+      true
+    );
+    expect(supportsArtifactViewer(status({ edge_api_version: '1.20.0' }))).toBe(
+      true
+    );
+  });
+
+  it('fails closed on garbage and on a foreign major', () => {
+    expect(supportsArtifactViewer(status({ edge_api_version: '2.19.0' }))).toBe(
+      false
+    );
+    expect(
+      supportsArtifactViewer(status({ edge_api_version: '1.nineteen' }))
     ).toBe(false);
   });
 });
