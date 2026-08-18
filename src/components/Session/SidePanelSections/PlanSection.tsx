@@ -133,6 +133,8 @@ function PlanRowItem({
       className="gap-2 px-1.5 py-1.5 rounded-md min-w-0 w-full flex flex-col hover:bg-ds-bg-neutral-subtle-default"
       style={{ paddingLeft: 6 + row.depth * 14 }}
       data-testid="plan-row"
+      data-todo-id={row.todoId}
+      data-todo-depth={row.depth}
       data-todo-status={row.status}
     >
       <div className="gap-2 min-w-0 w-full flex items-center">
