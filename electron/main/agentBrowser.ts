@@ -23,7 +23,7 @@
 // auto-creation and inactivity sweeps assume product webviews, and any of
 // them touching an agent tab mid-delegation would corrupt the run.
 
-import { BrowserWindow, WebContentsView, session } from 'electron';
+import { app, BrowserWindow, WebContentsView, session } from 'electron';
 import log from 'electron-log';
 import {
   consoleHookScript,
@@ -92,6 +92,19 @@ const VIEW_HEIGHT = 800;
 
 const ISOLATED_PARTITION = 'persist:agent-browse';
 const LOGGED_IN_PARTITION = 'persist:user_login';
+
+/**
+ * The default user agent carries the app and Electron tokens, and Google's
+ * sign-in rejects "embedded framework" browsers on that signal alone
+ * (accounts.google.com/v3/signin/rejected — "this browser or app may not be
+ * secure"). The agent view is a real Chromium; present only the Chrome part.
+ */
+function agentUserAgent(): string {
+  const name = app.getName().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return app.userAgentFallback
+    .replace(new RegExp(`\\s${name}/\\S+`, 'i'), '')
+    .replace(/\sElectron\/\S+/i, '');
+}
 
 // Everything the executor may say over CDP. A verb needing a method outside
 // this set is a code change, never data-driven — the debugger of a view
@@ -331,6 +344,7 @@ export class AgentBrowser {
     this.closedRunId = null;
     this.closeAllTabs();
     this.refreshTitle();
+    session.fromPartition(this.partition()).setUserAgent(agentUserAgent());
     if (this.sessionMode === 'isolated') {
       await session.fromPartition(ISOLATED_PARTITION).clearStorageData();
     }
@@ -425,6 +439,7 @@ export class AgentBrowser {
       },
     });
     const wc = view.webContents;
+    wc.setUserAgent(agentUserAgent());
     // Popups stay closed: the agent navigates with browser_visit_page, and a
     // page-opened window would live outside the delegated tab set.
     wc.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -447,13 +462,15 @@ export class AgentBrowser {
     wc.on('did-navigate-in-page', onNavigated);
     view.setBounds({ x: 0, y: 0, width: VIEW_WIDTH, height: VIEW_HEIGHT });
     win.contentView.addChildView(view);
+    // The first load spawns the renderer process; a CDP command sent before
+    // one exists never resolves (Page.enable hangs until the timeout).
+    await wc.loadURL('about:blank');
     await this.cdp(tab, 'Page.enable');
     // The console hook rides every future document; the eval covers the
     // current one (about:blank) so history never has a gap.
     await this.cdp(tab, 'Page.addScriptToEvaluateOnNewDocument', {
       source: consoleHookScript,
     });
-    await wc.loadURL('about:blank');
     await this.evalRaw(tab, consoleHookScript);
     return tab;
   }

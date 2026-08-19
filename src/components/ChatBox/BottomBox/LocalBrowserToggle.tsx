@@ -55,6 +55,13 @@ const triggerShellClass = cn(
 export interface LocalBrowserToggleProps {
   /** Project whose next run the choice applies to. */
   projectId?: string | null;
+  /**
+   * Fallback scope for a composer whose Project does not exist yet (the
+   * Space's direct chat — the Project is only minted at first send). The
+   * choice parks on the Space and adoptSpaceChoice moves it onto the Project
+   * created from it. Ignored whenever projectId is set.
+   */
+  spaceId?: string | null;
   disabled?: boolean;
   /** When true, hides the text label and shows only the icon (narrow footer). */
   compact?: boolean;
@@ -63,26 +70,46 @@ export interface LocalBrowserToggleProps {
 
 export function LocalBrowserToggle({
   projectId,
+  spaceId,
   disabled,
   compact = false,
   className,
 }: LocalBrowserToggleProps) {
   const { t } = useTranslation();
   const supported = useAionLocalBrowserStore((s) => s.supported);
-  const enabled = useAionLocalBrowserStore((s) =>
-    projectId ? (s.projectLocalBrowser[projectId] ?? false) : false
-  );
-  const sessionMode = useAionLocalBrowserStore((s) =>
-    projectId ? (s.projectSessionMode[projectId] ?? 'isolated') : 'isolated'
-  );
+  const enabled = useAionLocalBrowserStore((s) => {
+    if (projectId) return s.projectLocalBrowser[projectId] ?? false;
+    if (spaceId) return s.spaceLocalBrowser[spaceId] ?? false;
+    return false;
+  });
+  const sessionMode = useAionLocalBrowserStore((s) => {
+    if (projectId) return s.projectSessionMode[projectId] ?? 'isolated';
+    if (spaceId) return s.spaceSessionMode[spaceId] ?? 'isolated';
+    return 'isolated';
+  });
   const setLocalBrowser = useAionLocalBrowserStore((s) => s.setLocalBrowser);
   const setSessionMode = useAionLocalBrowserStore((s) => s.setSessionMode);
+  const setSpaceLocalBrowser = useAionLocalBrowserStore(
+    (s) => s.setSpaceLocalBrowser
+  );
+  const setSpaceSessionMode = useAionLocalBrowserStore(
+    (s) => s.setSpaceSessionMode
+  );
 
   useEffect(() => {
     void probeLocalBrowserSupport();
   }, []);
 
-  if (supported !== true || !projectId) return null;
+  if (supported !== true || (!projectId && !spaceId)) return null;
+
+  const setEnabled = (value: boolean) =>
+    projectId
+      ? setLocalBrowser(projectId, value)
+      : setSpaceLocalBrowser(spaceId!, value);
+  const setMode = (mode: 'isolated' | 'logged_in') =>
+    projectId
+      ? setSessionMode(projectId, mode)
+      : setSpaceSessionMode(spaceId!, mode);
 
   const options = [
     { value: false, label: t('chat.local-browser-cloud'), icon: Cloud },
@@ -141,7 +168,7 @@ export function LocalBrowserToggle({
           return (
             <DropdownMenuItem
               key={String(option.value)}
-              onSelect={() => setLocalBrowser(projectId, option.value)}
+              onSelect={() => setEnabled(option.value)}
               className="flex items-center justify-between gap-2"
             >
               <span className="flex items-center gap-2">
@@ -161,7 +188,7 @@ export function LocalBrowserToggle({
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onSelect={() => setSessionMode(projectId, 'isolated')}
+              onSelect={() => setMode('isolated')}
               className="flex items-center justify-between gap-2"
             >
               <span className="text-body-sm">
@@ -172,7 +199,7 @@ export function LocalBrowserToggle({
               )}
             </DropdownMenuItem>
             <DropdownMenuItem
-              onSelect={() => setSessionMode(projectId, 'logged_in')}
+              onSelect={() => setMode('logged_in')}
               className="flex items-start justify-between gap-2"
             >
               <span className="flex min-w-0 flex-col gap-0.5">

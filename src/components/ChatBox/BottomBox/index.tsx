@@ -70,6 +70,12 @@ interface BottomBoxProps {
   sessionModeSelectInteractive?: boolean;
   /** Project whose pinned model the footer model selector reads and writes. */
   modelSelectProjectId?: string | null;
+  /**
+   * Space scope for the footer's browser-execution toggle when the Project
+   * does not exist yet (the workspace direct-chat composer mints it at first
+   * send); ignored when modelSelectProjectId is set.
+   */
+  localBrowserSpaceId?: string | null;
 
   // Loading states
   loading?: boolean;
@@ -95,6 +101,7 @@ export default function BottomBox({
   onSessionModeChange,
   sessionModeSelectInteractive = false,
   modelSelectProjectId,
+  localBrowserSpaceId,
   loading = false,
   noModelOverlay = false,
   onSelectModel,
@@ -247,6 +254,7 @@ export default function BottomBox({
             sessionMode={sessionMode}
             onSessionModeChange={onSessionModeChange}
             projectId={modelSelectProjectId}
+            spaceId={localBrowserSpaceId}
             interactive={sessionModeSelectInteractive}
             disabled={inputProps.disabled}
           />

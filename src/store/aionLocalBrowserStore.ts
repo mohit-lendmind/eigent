@@ -34,8 +34,21 @@ interface AionLocalBrowserState {
   projectLocalBrowser: Record<string, boolean>;
   /** Per-project session partition; absent → isolated. */
   projectSessionMode: Record<string, BrowserSessionMode>;
+  /**
+   * The choice made on a Space's composer before its Project exists (the
+   * Project is only minted at first send). Consumed once by adoptSpaceChoice
+   * so it seeds exactly the Project it was set up for, never a later one —
+   * a stale logged-in opt-in silently riding a next week's project would be
+   * an escalation, not a convenience.
+   */
+  spaceLocalBrowser: Record<string, boolean>;
+  spaceSessionMode: Record<string, BrowserSessionMode>;
   setLocalBrowser: (projectId: string, enabled: boolean) => void;
   setSessionMode: (projectId: string, mode: BrowserSessionMode) => void;
+  setSpaceLocalBrowser: (spaceId: string, enabled: boolean) => void;
+  setSpaceSessionMode: (spaceId: string, mode: BrowserSessionMode) => void;
+  /** Moves a Space's pending choice onto the Project just created from it. */
+  adoptSpaceChoice: (spaceId: string, projectId: string) => void;
   noteSupport: (supported: boolean) => void;
 }
 
@@ -45,6 +58,8 @@ export const useAionLocalBrowserStore = create<AionLocalBrowserState>()(
       supported: null,
       projectLocalBrowser: {},
       projectSessionMode: {},
+      spaceLocalBrowser: {},
+      spaceSessionMode: {},
       setLocalBrowser: (projectId, enabled) =>
         set((state) => ({
           projectLocalBrowser: {
@@ -59,6 +74,47 @@ export const useAionLocalBrowserStore = create<AionLocalBrowserState>()(
             [projectId]: mode,
           },
         })),
+      setSpaceLocalBrowser: (spaceId, enabled) =>
+        set((state) => ({
+          spaceLocalBrowser: {
+            ...state.spaceLocalBrowser,
+            [spaceId]: enabled,
+          },
+        })),
+      setSpaceSessionMode: (spaceId, mode) =>
+        set((state) => ({
+          spaceSessionMode: {
+            ...state.spaceSessionMode,
+            [spaceId]: mode,
+          },
+        })),
+      adoptSpaceChoice: (spaceId, projectId) =>
+        set((state) => {
+          if (!(spaceId in state.spaceLocalBrowser)) return state;
+          const spaceLocalBrowser = { ...state.spaceLocalBrowser };
+          const spaceSessionMode = { ...state.spaceSessionMode };
+          const enabled = spaceLocalBrowser[spaceId];
+          const mode = spaceSessionMode[spaceId];
+          delete spaceLocalBrowser[spaceId];
+          delete spaceSessionMode[spaceId];
+          return {
+            ...state,
+            spaceLocalBrowser,
+            spaceSessionMode,
+            projectLocalBrowser: {
+              ...state.projectLocalBrowser,
+              [projectId]: enabled,
+            },
+            ...(mode !== undefined
+              ? {
+                  projectSessionMode: {
+                    ...state.projectSessionMode,
+                    [projectId]: mode,
+                  },
+                }
+              : {}),
+          };
+        }),
       noteSupport: (supported) => set({ supported }),
     }),
     {
@@ -68,6 +124,8 @@ export const useAionLocalBrowserStore = create<AionLocalBrowserState>()(
       partialize: (state) => ({
         projectLocalBrowser: state.projectLocalBrowser,
         projectSessionMode: state.projectSessionMode,
+        spaceLocalBrowser: state.spaceLocalBrowser,
+        spaceSessionMode: state.spaceSessionMode,
       }),
     }
   )

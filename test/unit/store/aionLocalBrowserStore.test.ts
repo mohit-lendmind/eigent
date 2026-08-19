@@ -12,9 +12,12 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { browserSubmitFields } from '@/store/aionLocalBrowserStore';
+import {
+  browserSubmitFields,
+  useAionLocalBrowserStore,
+} from '@/store/aionLocalBrowserStore';
 
 describe('browserSubmitFields', () => {
   it('adds nothing when the toggle is off', () => {
@@ -44,5 +47,55 @@ describe('browserSubmitFields', () => {
       browser_session_mode: 'logged_in',
     });
     expect(browserSubmitFields(false, 'logged_in', true)).toEqual({});
+  });
+});
+
+describe('space-scoped pending choice', () => {
+  beforeEach(() => {
+    useAionLocalBrowserStore.setState({
+      projectLocalBrowser: {},
+      projectSessionMode: {},
+      spaceLocalBrowser: {},
+      spaceSessionMode: {},
+    });
+  });
+
+  it('adoptSpaceChoice moves the pending choice onto the new project and consumes it', () => {
+    const store = useAionLocalBrowserStore.getState();
+    store.setSpaceLocalBrowser('space-1', true);
+    store.setSpaceSessionMode('space-1', 'logged_in');
+    useAionLocalBrowserStore.getState().adoptSpaceChoice('space-1', 'proj-1');
+    const after = useAionLocalBrowserStore.getState();
+    expect(after.projectLocalBrowser['proj-1']).toBe(true);
+    expect(after.projectSessionMode['proj-1']).toBe('logged_in');
+    // Consume-once: a second project created in the same space must NOT
+    // inherit a stale logged-in opt-in from last time.
+    expect(after.spaceLocalBrowser['space-1']).toBeUndefined();
+    expect(after.spaceSessionMode['space-1']).toBeUndefined();
+  });
+
+  it('adoptSpaceChoice is a no-op when the space made no choice', () => {
+    useAionLocalBrowserStore.getState().adoptSpaceChoice('space-2', 'proj-2');
+    const after = useAionLocalBrowserStore.getState();
+    expect(after.projectLocalBrowser['proj-2']).toBeUndefined();
+    expect(after.projectSessionMode['proj-2']).toBeUndefined();
+  });
+
+  it('an explicit cloud choice on the space transfers as an explicit off', () => {
+    const store = useAionLocalBrowserStore.getState();
+    store.setSpaceLocalBrowser('space-3', true);
+    useAionLocalBrowserStore
+      .getState()
+      .setSpaceLocalBrowser('space-3', false);
+    useAionLocalBrowserStore.getState().adoptSpaceChoice('space-3', 'proj-3');
+    const after = useAionLocalBrowserStore.getState();
+    expect(after.projectLocalBrowser['proj-3']).toBe(false);
+    expect(
+      browserSubmitFields(
+        after.projectLocalBrowser['proj-3'],
+        after.projectSessionMode['proj-3'],
+        true
+      )
+    ).toEqual({});
   });
 });

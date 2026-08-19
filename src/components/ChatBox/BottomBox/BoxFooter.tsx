@@ -31,6 +31,12 @@ export interface BoxFooterProps {
   /** Project whose pinned model the model selector reads and writes. */
   projectId?: string | null;
   /**
+   * Space scope for the browser-execution toggle on a composer whose Project
+   * does not exist yet (it is minted at first send); ignored when projectId
+   * is set.
+   */
+  spaceId?: string | null;
+  /**
    * Project-setup controls: interactive on the workspace composer only.
    * Once the project has started both controls render read-only.
    */
@@ -48,6 +54,7 @@ export function BoxFooter({
   sessionMode,
   onSessionModeChange,
   projectId,
+  spaceId,
   interactive = false,
   disabled = false,
 }: BoxFooterProps) {
@@ -73,6 +80,7 @@ export function BoxFooter({
         <LocalBrowserToggle
           disabled={disabled}
           projectId={projectId}
+          spaceId={spaceId}
           compact={compact}
         />
         <ModelSelect
