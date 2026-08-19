@@ -121,6 +121,61 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/browser-delegations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * @description Browser actions a local-execution run parked and is still waiting on.
+         *     This is the client's rehydrate surface: pending state is NOT
+         *     reconstructible from the event stream alone (the request events may be
+         *     behind the retention floor), so a client that reconnected resumes from
+         *     this list, executes each entry, and posts results as usual. Only
+         *     `status=pending` is served.
+         */
+        get: operations["listBrowserDelegations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/browser-delegations/{delegationId}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                delegationId: components["parameters"]["DelegationId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Deliver the result of one delegated browser action. Single-use and
+         *     first-write-wins: a repeat with the same Idempotency-Key replays the
+         *     recorded acceptance; a result for a delegation the run already settled
+         *     (timeout, cancel) is `409 delegation_not_pending` — the client treats
+         *     that as already-resolved, never as a retry signal. Inline frame and
+         *     screenshot bytes are published server-side as ordinary Project
+         *     artifacts before the delegation settles, so the trajectory replays
+         *     identically to a pod-executed browser action.
+         */
+        post: operations["respondToBrowserDelegation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/models": {
         parameters: {
             query?: never;
@@ -1182,6 +1237,26 @@ export type components = {
              *     `addressed` with an `artifact_comment` event each.
              */
             comment_ids?: components["schemas"]["Identifier"][];
+            /**
+             * @description Where this run's browser actions execute. Empty and `pod` both
+             *     mean the sandbox pod (today's behavior). `local` parks each
+             *     browser action on a durable delegation that this client executes
+             *     in a browser on the user's machine and answers via
+             *     respondToBrowserDelegation. Fixed for the whole run at admission —
+             *     a run never mixes engines. Any other value is `422
+             *     browser_execution_denied`.
+             * @enum {string}
+             */
+            browser_execution?: "" | "pod" | "local";
+            /**
+             * @description Which browser identity a local run browses under. Empty and
+             *     `isolated` both mean a dedicated partition, cleared per run.
+             *     `logged_in` opts the run into the user's own browser sessions.
+             *     Meaningful only with `browser_execution: local` — `logged_in`
+             *     without it is `422 browser_session_mode_denied`.
+             * @enum {string}
+             */
+            browser_session_mode?: "" | "isolated" | "logged_in";
         };
         CommandReceipt: {
             command_id: components["schemas"]["Identifier"];
@@ -1198,6 +1273,64 @@ export type components = {
             /** @enum {string} */
             decision: "allow" | "deny";
             response_text?: string;
+        };
+        BrowserDelegationResult: {
+            /**
+             * @description The action's result as the browser-control JSON the pod engine
+             *     would have produced for the same verb. The run renders the tool
+             *     body from this shape with the same formatter both execution modes
+             *     share, which is what keeps trajectories byte-identical. In-band
+             *     action failures ride inside this JSON — they are results, not
+             *     transport errors.
+             */
+            result_json: string;
+            /**
+             * @description Optional viewfinder frame captured after the action (JPEG,
+             *     base64; decoded <= 2 MiB). Published server-side under
+             *     `frame_name` so the filmstrip replays identically in both modes.
+             */
+            frame_base64?: string;
+            /**
+             * @description Required with frame_base64. Must carry the reserved
+             *     `aion-browser-frame-` prefix — the one artifact class a client may
+             *     name into the reserved namespace, because these ARE viewfinder
+             *     frames.
+             */
+            frame_name?: string;
+            /**
+             * @description Optional full screenshot for an explicit screenshot verb (PNG,
+             *     base64; decoded <= 8 MiB). Published under `screenshot_name` as an
+             *     ordinary user-facing artifact.
+             */
+            screenshot_base64?: string;
+            /**
+             * @description Required with screenshot_base64. An ordinary artifact name; the
+             *     reserved `aion-` prefix is refused here.
+             */
+            screenshot_name?: string;
+        };
+        BrowserDelegation: {
+            delegation_id: components["schemas"]["Identifier"];
+            run_id: components["schemas"]["Identifier"];
+            tool_call_id: string;
+            tool_name: string;
+            arguments_json: string;
+            session_mode: string;
+            /**
+             * Format: date-time
+             * @description Absolute deadline after which the run abandons the delegation. A
+             *     result posted past it converges as `409 delegation_not_pending`.
+             */
+            deadline_at: string;
+            /** Format: date-time */
+            created_at: string;
+        } & {
+            [key: string]: unknown;
+        };
+        BrowserDelegationList: {
+            delegations: components["schemas"]["BrowserDelegation"][];
+        } & {
+            [key: string]: unknown;
         };
         Sequence: string;
         Run: {
@@ -2110,6 +2243,7 @@ export type components = {
         ProjectId: components["schemas"]["Identifier"];
         RunId: components["schemas"]["Identifier"];
         ApprovalId: components["schemas"]["Identifier"];
+        DelegationId: components["schemas"]["Identifier"];
         ArtifactId: components["schemas"]["Identifier"];
         CommentId: components["schemas"]["Identifier"];
         SkillName: components["schemas"]["SkillName"];
@@ -2393,6 +2527,66 @@ export interface operations {
             401: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+        };
+    };
+    listBrowserDelegations: {
+        parameters: {
+            query: {
+                status: "pending";
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Delegations still awaiting a client result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowserDelegationList"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+        };
+    };
+    respondToBrowserDelegation: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                delegationId: components["parameters"]["DelegationId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrowserDelegationResult"];
+            };
+        };
+        responses: {
+            /** @description Result recorded exactly once */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
         };
     };
     listModelAliases: {

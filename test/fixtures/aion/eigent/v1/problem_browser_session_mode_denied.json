@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/browser-session-mode-denied",
+  "title": "Browser session mode is not allowed",
+  "status": 422,
+  "detail": "browser_session_mode 'logged_in' requires browser_execution 'local'; otherwise it must be empty or 'isolated'.",
+  "code": "browser_session_mode_denied",
+  "trace_id": "trc_01JY0000000000000000000033",
+  "retryable": false
+}

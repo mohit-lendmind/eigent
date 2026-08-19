@@ -1,0 +1,5 @@
+{
+  "result_json": "{\"status\":\"clicked e12\",\"url\":\"https://example.test/form\",\"title\":\"Fixture Form\",\"tab_id\":\"tab-1\"}",
+  "frame_base64": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+  "frame_name": "aion-browser-frame-3.jpg"
+}

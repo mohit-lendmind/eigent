@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/delegation-not-pending",
+  "title": "Browser delegation is not pending",
+  "status": 409,
+  "detail": "The delegation was already resolved or abandoned; the recorded outcome stands. Treat this as already-resolved, never as a retry signal.",
+  "code": "delegation_not_pending",
+  "trace_id": "trc_01JY0000000000000000000031",
+  "retryable": false
+}

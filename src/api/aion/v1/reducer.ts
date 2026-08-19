@@ -134,6 +134,13 @@ export type TimelineEntry =
       liveOutput?: string;
       /** True once any chunk reported the per-tool retention cap was hit. */
       liveOutputTruncated?: boolean;
+      /**
+       * Set when this call was delegated to a browser on the user's machine
+       * (browser_delegation_requested correlated by toolCallId). The card can
+       * then say where the action ran; the executor's queue lives in
+       * `pendingBrowserDelegations`, not here.
+       */
+      delegation?: { delegationId: string; sessionMode: string };
       result?: ToolResultState;
     }
   | {
@@ -194,6 +201,27 @@ export interface BrowserFrame {
   runId: string;
   sequence: string;
   name: string;
+}
+
+/**
+ * One browser action a local-mode run has parked on this desktop, folded from
+ * browser_delegation_requested. Removed by the tool_result that settles the
+ * same toolCallId (result or timeout alike) and by the run's terminal — after
+ * either, a posted result converges server-side as delegation_not_pending, so
+ * keeping the row would tell the executor to do work the run stopped waiting
+ * for. Record insertion order is arrival order, which is execution order.
+ */
+export interface PendingBrowserDelegation {
+  delegationId: string;
+  runId: string;
+  sequence: string;
+  toolCallId: string;
+  toolName: string;
+  argumentsJson: string;
+  /** isolated | logged_in on this contract version (open set; render verbatim). */
+  sessionMode: string;
+  /** RFC 3339 deadline after which the run abandons the delegation. */
+  deadlineAt: string;
 }
 
 export interface TodoEvidenceRef {
@@ -266,6 +294,13 @@ export interface ProjectUIState {
     string,
     { approvalId: string; runId: string; sequence: string; toolName?: string; reason?: string }
   >;
+  /**
+   * Browser actions awaiting local execution, keyed by delegationId in arrival
+   * order — the executor's queue. State only, no timeline entry of its own: a
+   * browse run parks dozens of these and each already has its tool row, so a
+   * second row per action would double the transcript with bookkeeping.
+   */
+  pendingBrowserDelegations: Record<string, PendingBrowserDelegation>;
   artifacts: Record<string, Record<string, unknown>>;
   /**
    * The browser viewfinder, oldest first. Kept apart from `timeline` because
@@ -304,6 +339,7 @@ export function initialProjectState(projectId?: string): ProjectUIState {
     activeRunId: null,
     timeline: [],
     pendingApprovals: {},
+    pendingBrowserDelegations: {},
     artifacts: {},
     browserFrames: [],
     workers: {},
@@ -414,6 +450,7 @@ export function reduceProjectEvent(
     runs: { ...state.runs },
     timeline: [...state.timeline],
     pendingApprovals: { ...state.pendingApprovals },
+    pendingBrowserDelegations: { ...state.pendingBrowserDelegations },
     artifacts: { ...state.artifacts },
     browserFrames: [...state.browserFrames],
     workers: { ...state.workers },
@@ -501,6 +538,16 @@ export function reduceProjectEvent(
     }
     case 'tool_result': {
       const toolCallId = str(data.tool_call_id);
+      // The settling result ends any delegation parked on this call — a
+      // timeout's in-band error settles exactly like a posted result, so this
+      // cleanup, not a resolved-twin event, is what empties the queue.
+      if (toolCallId) {
+        for (const pending of Object.values(next.pendingBrowserDelegations)) {
+          if (pending.toolCallId === toolCallId) {
+            delete next.pendingBrowserDelegations[pending.delegationId];
+          }
+        }
+      }
       const index = toolCallId
         ? next.timeline.findIndex(
             (entry) =>
@@ -525,6 +572,41 @@ export function reduceProjectEvent(
             isError: data.is_error === true,
           },
         };
+      }
+      return next;
+    }
+    case 'browser_delegation_requested': {
+      const delegationId = str(data.delegation_id);
+      const toolCallId = str(data.tool_call_id) ?? '';
+      if (!delegationId) {
+        return next;
+      }
+      next.pendingBrowserDelegations[delegationId] = {
+        delegationId,
+        runId,
+        sequence,
+        toolCallId,
+        toolName: str(data.tool_name) ?? '',
+        argumentsJson: str(data.arguments_json) ?? '',
+        sessionMode: str(data.session_mode) ?? '',
+        deadlineAt: str(data.deadline_at) ?? '',
+      };
+      // The action's tool row (when visible) learns where it runs; a missing
+      // row (pre-snapshot floor) loses nothing — the map above is the record.
+      const index = next.timeline.findIndex(
+        (entry) =>
+          entry.type === 'tool' &&
+          entry.toolCallId === toolCallId &&
+          entry.result === undefined
+      );
+      if (index >= 0) {
+        const entry = next.timeline[index];
+        if (entry.type === 'tool') {
+          next.timeline[index] = {
+            ...entry,
+            delegation: { delegationId, sessionMode: str(data.session_mode) ?? '' },
+          };
+        }
       }
       return next;
     }
@@ -805,6 +887,14 @@ function settleRun(
   next.runs[runId] = { ...existing, status, outcomeReason, outcomeDetail };
   if (next.activeRunId === runId) {
     next.activeRunId = null;
+  }
+  // A terminal ends the park server-side: a result posted after it converges
+  // as delegation_not_pending, so a row kept here would only make the executor
+  // do work the run stopped waiting for.
+  for (const pending of Object.values(next.pendingBrowserDelegations)) {
+    if (pending.runId === runId) {
+      delete next.pendingBrowserDelegations[pending.delegationId];
+    }
   }
   // The run is over, so none of its workers is still running. One whose end
   // never arrived is reported as unknown — the truthful statement is that we

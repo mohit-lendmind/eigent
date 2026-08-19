@@ -37,11 +37,15 @@ describe('aion Project reducer (golden fixtures)', () => {
     const state = reduceProjectEvents(initialProjectState(), goldenStream());
 
     expect(state.projectId).toBe('prj_01JY0000000000000000000001');
-    expect(state.lastSequence).toBe('20');
+    expect(state.lastSequence).toBe('21');
     expect(state.gapCount).toBe(0);
     expect(state.suppressedEventCount).toBe(0);
     expect(state.activeRunId).toBeNull();
     expect(state.pendingApprovals).toEqual({});
+    // The delegation parked mid-stream was never answered by a tool_result,
+    // so it is the run's terminal that must have emptied the queue — a row
+    // outliving its run would tell the executor to answer a park nobody holds.
+    expect(state.pendingBrowserDelegations).toEqual({});
 
     // Every run in the stream reached its pinned terminal status. Run 1 parked
     // partway through and moved again, so it carries no recovery at the end —
@@ -298,6 +302,119 @@ describe('aion Project reducer (golden fixtures)', () => {
     });
     const state = reduceProjectEvent(initialProjectState(), result);
     expect(state.timeline[0]).toMatchObject({ type: 'opaque', kind: 'tool_result' });
+  });
+
+  // The 1.22 delegation kind: a local-mode run parking a browser action on
+  // this desktop. Queue state plus a badge on the action's existing tool row
+  // — never a timeline row of its own, because a browse run parks dozens and
+  // each already has its tool card.
+  describe('browser delegations (local execution queue)', () => {
+    const delegationFixture = fixture('event_browser_delegation_requested.json') as {
+      data: Record<string, unknown>;
+    };
+    const delegation = (
+      sequence: string,
+      data: Record<string, unknown> = {}
+    ): ProjectEvent =>
+      decodeProjectEvent({
+        ...(delegationFixture as unknown as Record<string, unknown>),
+        sequence,
+        data: { ...delegationFixture.data, ...data },
+      });
+    const toolCall = (sequence: string): ProjectEvent =>
+      decodeProjectEvent({
+        ...(fixture('event_tool_call.json') as Record<string, unknown>),
+        sequence,
+      });
+    const toolResult = (
+      sequence: string,
+      toolCallId: string
+    ): ProjectEvent =>
+      decodeProjectEvent({
+        ...(fixture('event_tool_result.json') as Record<string, unknown>),
+        sequence,
+        data: {
+          ...(fixture('event_tool_result.json') as { data: object }).data,
+          tool_call_id: toolCallId,
+        },
+      });
+
+    it('queues the delegation as state, never a timeline entry', () => {
+      const events = goldenStream();
+      const upTo = manifest.events.indexOf('event_browser_delegation_requested.json') + 1;
+      const before = reduceProjectEvents(initialProjectState(), events.slice(0, upTo - 1));
+      const state = reduceProjectEvent(before, events[upTo - 1]);
+
+      expect(state.timeline).toEqual(before.timeline);
+      expect(state.pendingBrowserDelegations).toEqual({
+        'bd-01JY0000000000000000000001': {
+          delegationId: 'bd-01JY0000000000000000000001',
+          runId: 'run_01JY0000000000000000000001',
+          sequence: String(upTo),
+          toolCallId: 'toolu_01JY0000000000000000031',
+          toolName: 'browser_click',
+          argumentsJson: '{"ref":"e12"}',
+          sessionMode: 'isolated',
+          deadlineAt: '2026-08-19T09:02:31Z',
+        },
+      });
+    });
+
+    it('badges the visible tool row and settles the queue on its tool_result', () => {
+      let state = reduceProjectEvent(initialProjectState(), toolCall('1'));
+      state = reduceProjectEvent(
+        state,
+        delegation('2', { tool_call_id: 'toolu_01JY0000000000000000001' })
+      );
+      expect(state.timeline).toHaveLength(1);
+      expect(state.timeline[0]).toMatchObject({
+        type: 'tool',
+        toolCallId: 'toolu_01JY0000000000000000001',
+        delegation: {
+          delegationId: 'bd-01JY0000000000000000000001',
+          sessionMode: 'isolated',
+        },
+      });
+
+      // The settling result — a posted answer and the run's own timeout land
+      // as the same event — is what empties the queue. The badge survives:
+      // where the action ran is history, not bookkeeping.
+      state = reduceProjectEvent(state, toolResult('3', 'toolu_01JY0000000000000000001'));
+      expect(state.pendingBrowserDelegations).toEqual({});
+      expect(state.timeline[0]).toMatchObject({
+        type: 'tool',
+        delegation: { delegationId: 'bd-01JY0000000000000000000001' },
+        result: { isError: true },
+      });
+    });
+
+    it('drops a delegation without an id and a replay without a state change', () => {
+      const state = reduceProjectEvent(
+        initialProjectState(),
+        delegation('1', { delegation_id: '' })
+      );
+      expect(state.pendingBrowserDelegations).toEqual({});
+
+      const queued = reduceProjectEvent(state, delegation('2'));
+      expect(Object.keys(queued.pendingBrowserDelegations)).toHaveLength(1);
+      // The sequence guard makes an overlapping replay return the SAME object,
+      // so the executor's subscriber never re-wakes for an event it applied.
+      expect(reduceProjectEvent(queued, delegation('2'))).toBe(queued);
+    });
+
+    it('abandons the queue for a run that failed while parked', () => {
+      let state = reduceProjectEvent(initialProjectState(), delegation('1'));
+      expect(Object.keys(state.pendingBrowserDelegations)).toHaveLength(1);
+      state = reduceProjectEvent(
+        state,
+        decodeProjectEvent({
+          ...(fixture('event_run_failed.json') as Record<string, unknown>),
+          sequence: '2',
+          run_id: 'run_01JY0000000000000000000001',
+        })
+      );
+      expect(state.pendingBrowserDelegations).toEqual({});
+    });
   });
 
   // The two 1.18 live-activity kinds. run_progress narrates the dispatch

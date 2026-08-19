@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Eigent Desktop Edge API
-  version: 1.21.0
+  version: 1.22.0
   description: |
     Public, additive-only API used by the Eigent desktop application. The edge
     authenticates the device/user, enforces tenant policy, and projects private
@@ -22,6 +22,7 @@ tags:
   - name: commands
   - name: events
   - name: approvals
+  - name: browser-delegations
   - name: artifacts
   - name: catalog
   - name: skills
@@ -211,6 +212,64 @@ paths:
         '401': {$ref: '#/components/responses/Problem'}
         '404': {$ref: '#/components/responses/Problem'}
         '409': {$ref: '#/components/responses/Problem'}
+  /projects/{projectId}/browser-delegations:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      operationId: listBrowserDelegations
+      tags: [browser-delegations]
+      description: |
+        Browser actions a local-execution run parked and is still waiting on.
+        This is the client's rehydrate surface: pending state is NOT
+        reconstructible from the event stream alone (the request events may be
+        behind the retention floor), so a client that reconnected resumes from
+        this list, executes each entry, and posts results as usual. Only
+        `status=pending` is served.
+      parameters:
+        - name: status
+          in: query
+          required: true
+          schema: {type: string, enum: [pending]}
+      responses:
+        '200':
+          description: Delegations still awaiting a client result
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BrowserDelegationList'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+  /projects/{projectId}/browser-delegations/{delegationId}/result:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/DelegationId'
+    post:
+      operationId: respondToBrowserDelegation
+      tags: [browser-delegations]
+      description: |
+        Deliver the result of one delegated browser action. Single-use and
+        first-write-wins: a repeat with the same Idempotency-Key replays the
+        recorded acceptance; a result for a delegation the run already settled
+        (timeout, cancel) is `409 delegation_not_pending` — the client treats
+        that as already-resolved, never as a retry signal. Inline frame and
+        screenshot bytes are published server-side as ordinary Project
+        artifacts before the delegation settles, so the trajectory replays
+        identically to a pod-executed browser action.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BrowserDelegationResult'}
+      responses:
+        '202': {description: Result recorded exactly once}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '413': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
   /models:
     get:
       operationId: listModelAliases
@@ -1432,6 +1491,11 @@ components:
       in: path
       required: true
       schema: {$ref: '#/components/schemas/Identifier'}
+    DelegationId:
+      name: delegationId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Identifier'}
     ArtifactId:
       name: artifactId
       in: path
@@ -1729,6 +1793,26 @@ components:
             enough) ahead of `text`; when the run republishes a commented
             artifact's name, the referenced comments on that name settle as
             `addressed` with an `artifact_comment` event each.
+        browser_execution:
+          type: string
+          enum: ['', pod, local]
+          description: |
+            Where this run's browser actions execute. Empty and `pod` both
+            mean the sandbox pod (today's behavior). `local` parks each
+            browser action on a durable delegation that this client executes
+            in a browser on the user's machine and answers via
+            respondToBrowserDelegation. Fixed for the whole run at admission —
+            a run never mixes engines. Any other value is `422
+            browser_execution_denied`.
+        browser_session_mode:
+          type: string
+          enum: ['', isolated, logged_in]
+          description: |
+            Which browser identity a local run browses under. Empty and
+            `isolated` both mean a dedicated partition, cleared per run.
+            `logged_in` opts the run into the user's own browser sessions.
+            Meaningful only with `browser_execution: local` — `logged_in`
+            without it is `422 browser_session_mode_denied`.
     CommandReceipt:
       type: object
       required: [command_id, run_id, run_epoch, accepted_sequence]
@@ -1751,6 +1835,78 @@ components:
       properties:
         decision: {type: string, enum: [allow, deny]}
         response_text: {type: string, maxLength: 10000}
+    BrowserDelegationResult:
+      type: object
+      additionalProperties: false
+      required: [result_json]
+      properties:
+        result_json:
+          type: string
+          minLength: 1
+          maxLength: 262144
+          description: |
+            The action's result as the browser-control JSON the pod engine
+            would have produced for the same verb. The run renders the tool
+            body from this shape with the same formatter both execution modes
+            share, which is what keeps trajectories byte-identical. In-band
+            action failures ride inside this JSON — they are results, not
+            transport errors.
+        frame_base64:
+          type: string
+          maxLength: 2796204
+          description: |
+            Optional viewfinder frame captured after the action (JPEG,
+            base64; decoded <= 2 MiB). Published server-side under
+            `frame_name` so the filmstrip replays identically in both modes.
+        frame_name:
+          type: string
+          maxLength: 128
+          description: |
+            Required with frame_base64. Must carry the reserved
+            `aion-browser-frame-` prefix — the one artifact class a client may
+            name into the reserved namespace, because these ARE viewfinder
+            frames.
+        screenshot_base64:
+          type: string
+          maxLength: 11184812
+          description: |
+            Optional full screenshot for an explicit screenshot verb (PNG,
+            base64; decoded <= 8 MiB). Published under `screenshot_name` as an
+            ordinary user-facing artifact.
+        screenshot_name:
+          type: string
+          maxLength: 128
+          description: |
+            Required with screenshot_base64. An ordinary artifact name; the
+            reserved `aion-` prefix is refused here.
+    BrowserDelegation:
+      type: object
+      required: [delegation_id, run_id, tool_call_id, tool_name, arguments_json, session_mode, deadline_at, created_at]
+      properties:
+        delegation_id: {$ref: '#/components/schemas/Identifier'}
+        run_id: {$ref: '#/components/schemas/Identifier'}
+        tool_call_id: {type: string, maxLength: 128}
+        tool_name: {type: string, maxLength: 128}
+        arguments_json: {type: string}
+        session_mode:
+          type: string
+          x-aion-known-values: [isolated, logged_in]
+        deadline_at:
+          type: string
+          format: date-time
+          description: |
+            Absolute deadline after which the run abandons the delegation. A
+            result posted past it converges as `409 delegation_not_pending`.
+        created_at: {type: string, format: date-time}
+      additionalProperties: true
+    BrowserDelegationList:
+      type: object
+      required: [delegations]
+      properties:
+        delegations:
+          type: array
+          items: {$ref: '#/components/schemas/BrowserDelegation'}
+      additionalProperties: true
     Sequence: {type: string, pattern: '^[0-9]+$'}
     Run:
       type: object
@@ -1788,7 +1944,7 @@ components:
         # x-aion-known-values documents the values this contract version emits.
         kind:
           type: string
-          x-aion-known-values: [run_accepted, text_delta, tool_call, tool_result, approval_required, approval_resolved, artifact_created, run_completed, run_failed, run_cancelled, subagent_started, subagent_ended, run_recovery, run_progress, tool_output, todo_created, todo_updated, todo_closed, artifact_comment]
+          x-aion-known-values: [run_accepted, text_delta, tool_call, tool_result, approval_required, approval_resolved, artifact_created, run_completed, run_failed, run_cancelled, subagent_started, subagent_ended, run_recovery, run_progress, tool_output, todo_created, todo_updated, todo_closed, artifact_comment, browser_delegation_requested]
         visibility:
           type: string
           x-aion-known-values: [user, internal, audit]

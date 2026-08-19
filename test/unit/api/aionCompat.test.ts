@@ -16,6 +16,7 @@ import {
   supportsLiveActivity,
   supportsArtifactViewer,
   supportsTodoEvents,
+  supportsLocalBrowser,
 } from '@/api/aion/v1/compat';
 import {
   DESKTOP_CLIENT_VERSION,
@@ -365,5 +366,31 @@ describe('supportsTodoEvents', () => {
     expect(supportsTodoEvents(status({ edge_api_version: '1.twenty' }))).toBe(
       false
     );
+  });
+});
+
+describe('supportsLocalBrowser', () => {
+  it('gates on the 1.22 delegated-browser floor', () => {
+    // Below the floor submitCommand rejects browser_execution as a 422 only
+    // AFTER the user framed the task around watching their own browser, so
+    // the composer toggle itself is what the floor gates.
+    expect(supportsLocalBrowser(status({ edge_api_version: '1.21.9' }))).toBe(
+      false
+    );
+    expect(supportsLocalBrowser(status({ edge_api_version: '1.22.0' }))).toBe(
+      true
+    );
+    expect(supportsLocalBrowser(status({ edge_api_version: '1.23.0' }))).toBe(
+      true
+    );
+  });
+
+  it('fails closed on garbage and on a foreign major', () => {
+    expect(supportsLocalBrowser(status({ edge_api_version: '2.22.0' }))).toBe(
+      false
+    );
+    expect(
+      supportsLocalBrowser(status({ edge_api_version: '1.twentytwo' }))
+    ).toBe(false);
   });
 });

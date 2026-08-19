@@ -10,9 +10,22 @@ sync), record the aion-v1 commit below, then run `pnpm gen:aion-edge` so the
 generated client under `../gen/` matches. `bazel test //:aion_edge_client_gen`
 fails until mirror and generated output agree.
 
-- Contract version: edge_api `1.21.0`
+- Contract version: edge_api `1.22.0`
 - Source path: `aion-v1/api/eigent/v1/`
-- Last synced from: aion-v1 commit `01ea179` (edge contract **1.21.0**):
+- Last synced from: aion-v1 commit `12f05d65` (edge contract **1.22.0**):
+  delegated browser execution (ADR-023). `browser_delegation_requested` joins
+  `x-aion-known-values` (delegation id, tool call id/name, arguments_json,
+  session_mode, deadline_unix_ms); submitCommand gains `browser_execution`
+  (`""|"pod"|"local"`) and `browser_session_mode` (`""|"isolated"|"logged_in"`,
+  refused without local); routes
+  `GET /projects/{id}/browser-delegations?status=pending` (mandatory rehydrate
+  surface) and
+  `POST /projects/{id}/browser-delegations/{id}/result` (Idempotency-Key,
+  202; late result = typed 409 `delegation_not_pending`, treat as
+  already-resolved, never retry). Fixtures gain the delegation event, the
+  list/result goldens, the two vocabulary refusals and the 409 problem;
+  `integration_status_response.json` moves with the contract.
+- Previous sync: aion-v1 commit `01ea179` (edge contract **1.21.0**):
   anchored artifact comments. `artifact_comment` joins `x-aion-known-values`
   (the comment row + `prior_status`); routes
   `POST|GET /projects/{id}/artifacts/{id}/comments` and
