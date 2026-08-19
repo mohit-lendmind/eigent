@@ -114,5 +114,7 @@
   "approval-resolved-allow": "承認されました — タスクは続行します。",
   "approval-resolved-deny": "拒否されました — タスクはそのまま続行します。",
   "approval-respond-failed": "決定を送信できませんでした。もう一度お試しください。",
-  "approval-already-resolved": "この承認は既に他の場所で処理されています。"
+  "approval-already-resolved": "この承認は既に他の場所で処理されています。",
+  "local-browser-cloud": "クラウドブラウザ",
+  "local-browser-local": "自分のブラウザを使用"
 }

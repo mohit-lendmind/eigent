@@ -114,5 +114,7 @@
   "approval-resolved-allow": "Aprobado: la tarea continúa.",
   "approval-resolved-deny": "Denegado: la tarea continúa sin ello.",
   "approval-respond-failed": "No se pudo enviar tu decisión. Inténtalo de nuevo.",
-  "approval-already-resolved": "Esta aprobación ya se resolvió en otro lugar."
+  "approval-already-resolved": "Esta aprobación ya se resolvió en otro lugar.",
+  "local-browser-cloud": "Navegador en la nube",
+  "local-browser-local": "Usar mi navegador"
 }

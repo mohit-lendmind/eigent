@@ -114,5 +114,7 @@
   "approval-resolved-allow": "تمت الموافقة — تستمر المهمة.",
   "approval-resolved-deny": "تم الرفض — تستمر المهمة بدونها.",
   "approval-respond-failed": "تعذر إرسال قرارك. حاول مرة أخرى.",
-  "approval-already-resolved": "تمت معالجة هذه الموافقة بالفعل في مكان آخر."
+  "approval-already-resolved": "تمت معالجة هذه الموافقة بالفعل في مكان آخر.",
+  "local-browser-cloud": "متصفح سحابي",
+  "local-browser-local": "استخدام متصفحي"
 }

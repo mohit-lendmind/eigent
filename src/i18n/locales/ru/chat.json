@@ -114,5 +114,7 @@
   "approval-resolved-allow": "Одобрено — задача продолжается.",
   "approval-resolved-deny": "Отклонено — задача продолжается без этого.",
   "approval-respond-failed": "Не удалось отправить решение. Попробуйте ещё раз.",
-  "approval-already-resolved": "Это одобрение уже обработано в другом месте."
+  "approval-already-resolved": "Это одобрение уже обработано в другом месте.",
+  "local-browser-cloud": "Облачный браузер",
+  "local-browser-local": "Использовать мой браузер"
 }

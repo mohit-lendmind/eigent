@@ -15,6 +15,7 @@
 import { ProjectModeToggle } from '@/components/Workspace/ProjectModeToggle';
 import { useIsCompactWidth } from '@/hooks/useIsCompactWidth';
 import type { SessionModeType } from '@/types/constants';
+import { LocalBrowserToggle } from './LocalBrowserToggle';
 import { ModelSelect } from './ModelSelect';
 
 /**
@@ -69,6 +70,11 @@ export function BoxFooter({
         />
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        <LocalBrowserToggle
+          disabled={disabled}
+          projectId={projectId}
+          compact={compact}
+        />
         <ModelSelect
           disabled={disabled}
           projectId={projectId}

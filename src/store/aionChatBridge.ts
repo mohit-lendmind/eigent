@@ -24,6 +24,7 @@ import {
   IncompatibleBackendError,
   negotiateCompatibility,
   supportsAttachments,
+  supportsLocalBrowser,
 } from '@/api/aion/v1/compat';
 import { ProjectSession, newCommandId } from '@/api/aion/v1/session';
 import { EdgeTransport, type ModelAliasCatalog } from '@/api/aion/v1/transport';
@@ -32,6 +33,11 @@ import { useAionModelStore } from './aionModelStore';
 import { noteAionArtifactsChanged } from './aionArtifactsStore';
 import { noteAionCommentsChanged } from './aionCommentsStore';
 import { fileProjectUnderBoundSpace } from './aionSpaceBinding';
+import { browserDelegationExecutor } from './browserDelegationExecutor';
+import {
+  browserSubmitFields,
+  useAionLocalBrowserStore,
+} from './aionLocalBrowserStore';
 import {
   AgentMessageStatus,
   AgentStatusValue,
@@ -338,6 +344,11 @@ async function createBinding(
         if (turn.settled) continue;
         projectTurn(binding, turn, state);
       }
+      browserDelegationExecutor.notePending(
+        binding.aionProjectId,
+        binding.transport,
+        state.pendingBrowserDelegations
+      );
     },
     onStatus: (status) => {
       if (status === 'failed') {
@@ -369,6 +380,44 @@ export async function boundAionProjectId(
   } catch {
     return null;
   }
+}
+
+// Promise-cached: the answer is a fact about this build + backend pairing, so
+// the toggle's mount and every submit share one /status read.
+let localBrowserProbe: Promise<boolean> | null = null;
+
+/**
+ * Whether this desktop can execute a run's browser actions locally: the build
+ * must carry the agent-browser executor AND the edge must serve the delegation
+ * contract (1.22 floor). False hides the composer toggle and strips the
+ * submit fields — the honest rendering of "this cell cannot park a run on
+ * your machine" is the affordance not being offered.
+ */
+export function probeLocalBrowserSupport(): Promise<boolean> {
+  if (!localBrowserProbe) {
+    localBrowserProbe = (async () => {
+      if (typeof hostAPI()?.agentBrowserExecute !== 'function') return false;
+      const config = await getAionRemoteConfig();
+      if (!config || 'error' in config) return false;
+      const transport = new EdgeTransport({
+        baseUrl: config.edgeBaseUrl,
+        apiKey: config.apiKey,
+      });
+      return supportsLocalBrowser(await transport.getIntegrationStatus());
+    })().then(
+      (supported) => {
+        useAionLocalBrowserStore.getState().noteSupport(supported);
+        return supported;
+      },
+      () => {
+        // A failed handshake is retryable — drop the cache so the next ask
+        // renegotiates instead of pinning "unsupported" forever.
+        localBrowserProbe = null;
+        return false;
+      }
+    );
+  }
+  return localBrowserProbe;
 }
 
 async function pickModelAlias(
@@ -466,11 +515,20 @@ export async function startAionTask(args: StartAionTaskArgs): Promise<void> {
       ? await uploadAttaches(binding.transport, binding.aionProjectId, attaches)
       : [];
   const commentIds = args.commentIds ?? [];
+  // The choice binds to THIS run at admission (immutable after submit);
+  // flipping the toggle mid-run affects only the next command.
+  const localBrowserState = useAionLocalBrowserStore.getState();
+  const browserFields = browserSubmitFields(
+    localBrowserState.projectLocalBrowser[args.eigentProjectId],
+    localBrowserState.projectSessionMode[args.eigentProjectId],
+    await probeLocalBrowserSupport()
+  );
   const receipt = await binding.session.submitCommand({
     command_id: newCommandId(),
     text: question,
     ...(attachmentIds.length > 0 ? { attachment_ids: attachmentIds } : {}),
     ...(commentIds.length > 0 ? { comment_ids: commentIds } : {}),
+    ...browserFields,
   });
   const turn: TurnBinding = {
     taskId: args.taskId,

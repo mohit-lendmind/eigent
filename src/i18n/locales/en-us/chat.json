@@ -114,5 +114,7 @@
   "approval-resolved-allow": "Approved — the task continues.",
   "approval-resolved-deny": "Denied — the task continues without it.",
   "approval-respond-failed": "Could not deliver your decision. Try again.",
-  "approval-already-resolved": "This approval was already resolved elsewhere."
+  "approval-already-resolved": "This approval was already resolved elsewhere.",
+  "local-browser-cloud": "Cloud browser",
+  "local-browser-local": "Use my browser"
 }

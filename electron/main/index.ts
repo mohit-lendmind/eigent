@@ -52,6 +52,7 @@ import {
   registerCodexSubscriptionAuthIpcHandlers,
 } from './subscriptionAuth';
 import { disposeAllTerminals, registerTerminalIpcHandlers } from './terminal';
+import { agentBrowser, type AgentBrowserRequest } from './agentBrowser';
 import { registerUpdateIpcHandlers, update } from './update';
 import {
   getEmailFolderPath,
@@ -1210,6 +1211,82 @@ function registerIpcHandlers() {
       }
     }
   );
+
+  // Delegated browser execution: the renderer's delegation executor hands
+  // each parked browser_* call to the visible agent window. Scoped hard, the
+  // capture-preview-guest way: only a top-level app renderer may call it (a
+  // <webview> guest showing arbitrary web content must never reach a surface
+  // that drives an input stream on the user's machine), and the request shape
+  // is validated here before anything touches the window.
+  const fromAppRenderer = (event: Electron.IpcMainInvokeEvent) =>
+    !event.sender.isDestroyed() && event.sender.getType() === 'window';
+
+  const asDelegationRequest = (raw: unknown): AgentBrowserRequest | null => {
+    if (raw === null || typeof raw !== 'object') return null;
+    const r = raw as Record<string, unknown>;
+    if (
+      typeof r.delegationId !== 'string' ||
+      r.delegationId === '' ||
+      typeof r.runId !== 'string' ||
+      r.runId === '' ||
+      typeof r.toolName !== 'string' ||
+      r.toolName === '' ||
+      typeof r.argumentsJson !== 'string' ||
+      r.argumentsJson.length > 10_000
+    ) {
+      return null;
+    }
+    const sessionMode = r.sessionMode ?? '';
+    if (
+      sessionMode !== '' &&
+      sessionMode !== 'isolated' &&
+      sessionMode !== 'logged_in'
+    ) {
+      return null;
+    }
+    return {
+      delegationId: r.delegationId,
+      runId: r.runId,
+      toolName: r.toolName,
+      argumentsJson: r.argumentsJson,
+      sessionMode,
+    };
+  };
+
+  ipcMain.handle('agent-browser:execute', async (event, raw: unknown) => {
+    if (!fromAppRenderer(event)) {
+      return { success: false, error: 'Not an app window' };
+    }
+    const request = asDelegationRequest(raw);
+    if (!request) {
+      return { success: false, error: 'Malformed delegation request' };
+    }
+    try {
+      const result = await agentBrowser.execute(request);
+      return { success: true, result };
+    } catch (error: any) {
+      log.error('Agent browser delegation failed:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('agent-browser:status', async (event) => {
+    if (!fromAppRenderer(event)) {
+      return { success: false, error: 'Not an app window' };
+    }
+    return { success: true, status: agentBrowser.status() };
+  });
+
+  ipcMain.handle('agent-browser:take-control', async (event, taken: unknown) => {
+    if (!fromAppRenderer(event)) {
+      return { success: false, error: 'Not an app window' };
+    }
+    if (typeof taken !== 'boolean') {
+      return { success: false, error: 'Malformed take-control request' };
+    }
+    agentBrowser.takeControl(taken);
+    return { success: true, status: agentBrowser.status() };
+  });
 
   ipcMain.handle('reveal-in-folder', async (event, filePath: string) => {
     try {

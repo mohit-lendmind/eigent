@@ -114,5 +114,7 @@
   "approval-resolved-allow": "Approvato: l’attività continua.",
   "approval-resolved-deny": "Negato: l’attività continua senza.",
   "approval-respond-failed": "Impossibile inviare la decisione. Riprova.",
-  "approval-already-resolved": "Questa approvazione è già stata risolta altrove."
+  "approval-already-resolved": "Questa approvazione è già stata risolta altrove.",
+  "local-browser-cloud": "Browser cloud",
+  "local-browser-local": "Usa il mio browser"
 }
