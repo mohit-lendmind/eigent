@@ -116,5 +116,14 @@
   "approval-respond-failed": "결정을 전달하지 못했습니다. 다시 시도하세요.",
   "approval-already-resolved": "이 승인은 이미 다른 곳에서 처리되었습니다.",
   "local-browser-cloud": "클라우드 브라우저",
-  "local-browser-local": "내 브라우저 사용"
+  "local-browser-local": "내 브라우저 사용",
+  "local-browser-live": "데스크톱에서 실시간",
+  "local-browser-logged-in-badge": "로그인된 세션 사용 중",
+  "local-browser-take-control": "제어 가져오기",
+  "local-browser-give-back": "에이전트에게 돌려주기",
+  "local-browser-taken-notice": "제어 중입니다 — 브라우저를 돌려줄 때까지 에이전트가 일시 중지됩니다.",
+  "local-browser-closed-notice": "에이전트의 브라우저 창이 닫혔습니다 — 이번 실행의 남은 브라우저 작업은 실패합니다.",
+  "local-browser-session-fresh": "새 세션",
+  "local-browser-session-logged-in": "내 로그인된 세션",
+  "local-browser-session-warning": "로그인된 사이트에서 에이전트가 작업할 수 있습니다."
 }

@@ -92,15 +92,36 @@ describe('projectBrowserView', () => {
     expect(view.frameCount).toBe(2);
   });
 
-  it('never offers to take control, on either path', () => {
-    // "Take Control" attaches a WebContentsView. There is none for a pod
-    // browser, so the affordance would do nothing at all.
-    expect(projectBrowserView(RUN, '', [], [frame(1)], resolver().resolve).remote).toBe(
-      true
-    );
+  it('never offers to take control of a pod browser, on either path', () => {
+    // Legacy "Take Control" attaches a WebContentsView. There is none for a
+    // pod browser, so the affordance would do nothing at all.
+    const withFrame = projectBrowserView(RUN, '', [], [frame(1)], resolver().resolve);
+    expect(withFrame.remote).toBe(true);
+    expect(withFrame.local).toBeUndefined();
+    expect(withFrame.sessionMode).toBeUndefined();
     expect(
       projectBrowserView(RUN, '', [imageArtifact('art_1')], [], resolver().resolve).remote
     ).toBe(true);
+  });
+
+  it('marks a delegated run local and carries its session mode', () => {
+    // A delegated run's live picture is the agent's own window on this
+    // desktop; the card gets the local marker (and the session mode, so the
+    // logged-in badge can persist) instead of the remote one.
+    const view = projectBrowserView(
+      RUN,
+      'https://example.com',
+      [],
+      [frame(1)],
+      resolver().resolve,
+      true,
+      'logged_in'
+    );
+    expect(view.remote).toBe(false);
+    expect(view.local).toBe(true);
+    expect(view.sessionMode).toBe('logged_in');
+    // The filmstrip is the same server evidence in both modes.
+    expect(view.frames).toEqual(['https://cas.example/art_frame_1']);
   });
 
   describe('a pod whose browserctl predates frames', () => {

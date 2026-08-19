@@ -27,6 +27,16 @@ import type {
 } from '@/api/aion/v1/transport';
 import { EdgeProblemError } from '@/api/aion/v1/problems';
 
+/**
+ * The main-process executor's in-band answer once the user closes the agent
+ * window mid-run — the kill switch. The renderer cannot import the main
+ * module, so this is a copy of its WINDOW_CLOSED_ERROR, pinned byte-equal by
+ * a parity test; recognizing it is what turns a stream of failing actions
+ * into one legible notice.
+ */
+export const LOCAL_BROWSER_WINDOW_CLOSED =
+  'the user closed the agent browser window; wait, then re-observe the page before continuing';
+
 export interface DelegationTransport {
   respondToBrowserDelegation(
     projectId: string,
@@ -62,6 +72,8 @@ interface ExecutorDeps {
   execute(request: ExecuteRequest): Promise<ExecuteReply>;
   delay(ms: number): Promise<void>;
   now(): number;
+  /** Fired once per run when its window-closed kill switch trips. */
+  onWindowClosed?(runId: string): void;
 }
 
 /** Executed delegations remembered for replay re-POSTs. */
@@ -84,6 +96,8 @@ interface ProjectLane {
 
 export class BrowserDelegationExecutor {
   private lanes = new Map<string, ProjectLane>();
+  /** Runs whose window-closed notice already fired. */
+  private windowClosedRuns = new Set<string>();
 
   constructor(private deps: ExecutorDeps) {}
 
@@ -227,6 +241,7 @@ export class BrowserDelegationExecutor {
     });
     let result: BrowserDelegationResult;
     if (reply.success && reply.result) {
+      this.noteKillSwitch(row.runId, reply.result.resultJson);
       result = {
         result_json: reply.result.resultJson,
         ...(reply.result.frameBase64
@@ -255,6 +270,25 @@ export class BrowserDelegationExecutor {
     lane.completed.set(row.delegationId, result);
     this.trimCompleted(lane);
     await this.post(projectId, lane, row.delegationId);
+  }
+
+  /**
+   * The window-closed NACK repeats on every remaining action of the run;
+   * the user should hear about the kill switch exactly once.
+   */
+  private noteKillSwitch(runId: string, resultJson: string): void {
+    if (!this.deps.onWindowClosed || this.windowClosedRuns.has(runId)) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(resultJson) as { error?: unknown };
+      if (parsed.error === LOCAL_BROWSER_WINDOW_CLOSED) {
+        this.windowClosedRuns.add(runId);
+        this.deps.onWindowClosed(runId);
+      }
+    } catch {
+      // Not JSON — not the kill switch.
+    }
   }
 
   private trimCompleted(lane: ProjectLane): void {
@@ -317,4 +351,13 @@ export const browserDelegationExecutor = new BrowserDelegationExecutor({
   },
   delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   now: () => Date.now(),
+  onWindowClosed: () => {
+    // Loaded on demand: the kill switch is rare, and pulling the i18n
+    // resource graph into this module would tax every importer for it.
+    void Promise.all([import('sonner'), import('@/i18n')]).then(
+      ([{ toast }, i18n]) => {
+        toast.warning(i18n.default.t('chat.local-browser-closed-notice'));
+      }
+    );
+  },
 });

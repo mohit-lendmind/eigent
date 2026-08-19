@@ -116,5 +116,14 @@
   "approval-respond-failed": "Impossibile inviare la decisione. Riprova.",
   "approval-already-resolved": "Questa approvazione è già stata risolta altrove.",
   "local-browser-cloud": "Browser cloud",
-  "local-browser-local": "Usa il mio browser"
+  "local-browser-local": "Usa il mio browser",
+  "local-browser-live": "In diretta sul tuo desktop",
+  "local-browser-logged-in-badge": "Usa le tue sessioni con accesso",
+  "local-browser-take-control": "Prendi il controllo",
+  "local-browser-give-back": "Restituisci all'agente",
+  "local-browser-taken-notice": "Hai il controllo — l'agente è in pausa finché non restituisci il browser.",
+  "local-browser-closed-notice": "La finestra del browser dell'agente è stata chiusa — le sue restanti azioni browser di questa esecuzione falliranno.",
+  "local-browser-session-fresh": "Sessione nuova",
+  "local-browser-session-logged-in": "Le mie sessioni con accesso",
+  "local-browser-session-warning": "L'agente può agire sui siti in cui hai effettuato l'accesso."
 }

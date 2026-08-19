@@ -116,5 +116,14 @@
   "approval-respond-failed": "決定を送信できませんでした。もう一度お試しください。",
   "approval-already-resolved": "この承認は既に他の場所で処理されています。",
   "local-browser-cloud": "クラウドブラウザ",
-  "local-browser-local": "自分のブラウザを使用"
+  "local-browser-local": "自分のブラウザを使用",
+  "local-browser-live": "デスクトップでライブ",
+  "local-browser-logged-in-badge": "ログイン済みセッションを使用中",
+  "local-browser-take-control": "操作を引き継ぐ",
+  "local-browser-give-back": "エージェントに返す",
+  "local-browser-taken-notice": "あなたが操作中です — ブラウザを返すまでエージェントは一時停止します。",
+  "local-browser-closed-notice": "エージェントのブラウザウィンドウが閉じられました — この実行の残りのブラウザ操作は失敗します。",
+  "local-browser-session-fresh": "新規セッション",
+  "local-browser-session-logged-in": "ログイン済みセッション",
+  "local-browser-session-warning": "ログイン中のサイトでエージェントが操作できるようになります。"
 }

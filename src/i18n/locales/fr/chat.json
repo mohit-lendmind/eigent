@@ -116,5 +116,14 @@
   "approval-respond-failed": "Impossible d’envoyer votre décision. Réessayez.",
   "approval-already-resolved": "Cette approbation a déjà été traitée ailleurs.",
   "local-browser-cloud": "Navigateur cloud",
-  "local-browser-local": "Utiliser mon navigateur"
+  "local-browser-local": "Utiliser mon navigateur",
+  "local-browser-live": "En direct sur votre bureau",
+  "local-browser-logged-in-badge": "Utilise vos sessions connectées",
+  "local-browser-take-control": "Prendre le contrôle",
+  "local-browser-give-back": "Rendre à l'agent",
+  "local-browser-taken-notice": "Vous avez le contrôle — l'agent est en pause jusqu'à ce que vous rendiez le navigateur.",
+  "local-browser-closed-notice": "La fenêtre du navigateur de l'agent a été fermée — ses actions de navigateur restantes de cette exécution échoueront.",
+  "local-browser-session-fresh": "Session vierge",
+  "local-browser-session-logged-in": "Mes sessions connectées",
+  "local-browser-session-warning": "L'agent peut agir sur les sites où vous êtes connecté."
 }

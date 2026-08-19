@@ -16,7 +16,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { EdgeProblemError } from '@/api/aion/v1/problems';
 import type { PendingBrowserDelegation } from '@/api/aion/v1/reducer';
-import { BrowserDelegationExecutor } from '@/store/browserDelegationExecutor';
+import {
+  BrowserDelegationExecutor,
+  LOCAL_BROWSER_WINDOW_CLOSED,
+} from '@/store/browserDelegationExecutor';
+import { WINDOW_CLOSED_ERROR } from '../../../electron/main/agentBrowserVerbs';
 
 const FAR_DEADLINE = '2099-01-01T00:00:00Z';
 
@@ -60,6 +64,7 @@ function harness(options?: {
   respond?: ReturnType<typeof vi.fn>;
   list?: ReturnType<typeof vi.fn>;
   now?: () => number;
+  onWindowClosed?: ReturnType<typeof vi.fn>;
 }) {
   const execute =
     options?.execute ??
@@ -74,6 +79,7 @@ function harness(options?: {
     execute: execute as any,
     delay: async () => undefined,
     now: options?.now ?? (() => Date.parse('2026-08-19T00:00:00Z')),
+    onWindowClosed: options?.onWindowClosed,
   });
   const transport = {
     respondToBrowserDelegation: respond,
@@ -267,5 +273,41 @@ describe('BrowserDelegationExecutor', () => {
     await settle();
     expect(order.filter((id) => id.startsWith('a'))).toEqual(['a1', 'a2']);
     expect(order).toContain('b1');
+  });
+
+  it('recognizes the window-closed kill switch byte-for-byte', () => {
+    // The renderer cannot import the main-process executor, so it carries a
+    // copy of the NACK body; drift here would silence the notice.
+    expect(LOCAL_BROWSER_WINDOW_CLOSED).toBe(WINDOW_CLOSED_ERROR);
+  });
+
+  it('surfaces the window-closed kill switch once per run', async () => {
+    const execute = vi.fn(async () => ({
+      success: true,
+      result: {
+        resultJson: JSON.stringify({ error: LOCAL_BROWSER_WINDOW_CLOSED }),
+      },
+    }));
+    const onWindowClosed = vi.fn();
+    const { executor, transport, respond } = harness({
+      execute: execute as any,
+      onWindowClosed,
+    });
+    executor.notePending('p1', transport, asMap(pendingRow('d1'), pendingRow('d2')));
+    await settle();
+    // Every remaining action of the run NACKs, but the user hears it once —
+    // and the NACKs still POST back so the model sees why it is failing.
+    expect(onWindowClosed).toHaveBeenCalledTimes(1);
+    expect(onWindowClosed).toHaveBeenCalledWith('run-1');
+    expect(respond).toHaveBeenCalledTimes(2);
+    // A later run tripping the switch again is its own notice.
+    executor.notePending(
+      'p1',
+      transport,
+      asMap(pendingRow('d3', { runId: 'run-2' }))
+    );
+    await settle();
+    expect(onWindowClosed).toHaveBeenCalledTimes(2);
+    expect(onWindowClosed).toHaveBeenLastCalledWith('run-2');
   });
 });

@@ -31,6 +31,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TaskState } from '../TaskState';
 import { Button } from '../ui/button';
+import { DesktopBrowserControls } from './DesktopBrowserControls';
 
 export default function BrowserAgentWorkspace({
   selectedTurn,
@@ -117,14 +118,18 @@ export default function BrowserAgentWorkspace({
 
   const [isTakeControl, setIsTakeControl] = useState(false);
 
-  // A browser running inside a sandbox pod has no WebContentsView to attach
-  // to and no takeover to offer, so it gets its own surface: the frames the
-  // run published, newest last.
-  const remoteView = useMemo(() => {
+  // An aion run's browser card renders the run's published frames, newest
+  // last, whether the page ran in a sandbox pod (remote — nothing to attach
+  // to, no takeover to offer) or in the agent's own window on this desktop
+  // (local — the filmstrip is the same server evidence, and takeover rides
+  // the agent-browser bridge via the controls strip, not a webview id).
+  const filmView = useMemo(() => {
     const views = activeAgent?.activeWebviewIds ?? [];
-    return views.length === 1 && views[0]?.remote ? views[0] : null;
+    return views.length === 1 && (views[0]?.remote || views[0]?.local)
+      ? views[0]
+      : null;
   }, [activeAgent]);
-  const shownFrames = useMemo(() => remoteView?.frames ?? [], [remoteView]);
+  const shownFrames = useMemo(() => filmView?.frames ?? [], [filmView]);
   // Which frame the user is looking at, pinned by URL rather than by position:
   // only the tail of a run's frames is resolved, so the same index names a
   // different frame once the window slides. An unpinned card — and one whose
@@ -287,22 +292,28 @@ export default function BrowserAgentWorkspace({
 					</div> */}
         </div>
 
-        {remoteView ? (
+        {filmView ? (
           <div
             data-testid="browser-filmstrip"
-            data-frame-count={remoteView.frameCount ?? 0}
+            data-frame-count={filmView.frameCount ?? 0}
             className="flex min-h-0 flex-1 flex-col gap-sm px-2 pb-2"
           >
+            {filmView.local && (
+              <DesktopBrowserControls
+                runId={filmView.processTaskId}
+                sessionMode={filmView.sessionMode}
+              />
+            )}
             <div className="flex items-center justify-between gap-sm text-xs leading-17 text-ds-text-neutral-muted-default">
               <div className="flex items-center gap-1">
                 <GalleryThumbnails size={14} />
                 <span>
-                  {remoteView.frameCount
-                    ? `Filmstrip · ${shownFrames.length} of ${remoteView.frameCount} frames`
+                  {filmView.frameCount
+                    ? `Filmstrip · ${shownFrames.length} of ${filmView.frameCount} frames`
                     : 'Filmstrip'}
                 </span>
               </div>
-              <span className="truncate">{remoteView.url}</span>
+              <span className="truncate">{filmView.url}</span>
             </div>
             <div className="min-h-0 flex-1">
               {shownFrame ? (

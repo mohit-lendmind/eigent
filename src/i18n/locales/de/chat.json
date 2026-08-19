@@ -116,5 +116,14 @@
   "approval-respond-failed": "Entscheidung konnte nicht übermittelt werden. Bitte erneut versuchen.",
   "approval-already-resolved": "Diese Genehmigung wurde bereits an anderer Stelle entschieden.",
   "local-browser-cloud": "Cloud-Browser",
-  "local-browser-local": "Meinen Browser verwenden"
+  "local-browser-local": "Meinen Browser verwenden",
+  "local-browser-live": "Live auf Ihrem Desktop",
+  "local-browser-logged-in-badge": "Verwendet Ihre angemeldeten Sitzungen",
+  "local-browser-take-control": "Kontrolle übernehmen",
+  "local-browser-give-back": "An Agent zurückgeben",
+  "local-browser-taken-notice": "Sie haben die Kontrolle — der Agent pausiert, bis Sie den Browser zurückgeben.",
+  "local-browser-closed-notice": "Das Browserfenster des Agents wurde geschlossen — seine verbleibenden Browser-Aktionen in diesem Lauf schlagen fehl.",
+  "local-browser-session-fresh": "Frische Sitzung",
+  "local-browser-session-logged-in": "Meine angemeldeten Sitzungen",
+  "local-browser-session-warning": "Der Agent kann auf Websites handeln, auf denen Sie angemeldet sind."
 }

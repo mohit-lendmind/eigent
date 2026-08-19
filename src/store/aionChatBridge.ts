@@ -1011,10 +1011,13 @@ function projectTurn(
   ];
 
   // --- browser mirror: aion browser_* tools drive a headless browser inside
-  // the sandbox pod, so there is no local WebContentsView to attach. The
-  // product surface is the run's own evidence — the current page URL from the
-  // tool stream and the latest screenshot artifact as the view image —
-  // projected as the browser_agent card the workspace already renders.
+  // the sandbox pod — or, on a delegated run, a visible window on this
+  // desktop. Either way the card's evidence is the run's own: the current
+  // page URL from the tool stream and the published frames as the view
+  // image, projected as the browser_agent card the workspace already
+  // renders. Whether the run is delegated is read off the tool rows'
+  // delegation markers — the only wire-grounded signal, and one that holds
+  // across rehydrate on a device that never submitted the command.
   const browserEntries = toolEntries.filter((tool) =>
     tool.toolName.startsWith('browser_')
   );
@@ -1027,12 +1030,15 @@ function projectTurn(
           : null;
       pageUrl = fromResult ?? browserArgUrl(tool.argumentsJson) ?? pageUrl;
     }
+    const delegated = browserEntries.filter((tool) => tool.delegation);
     const view = projectBrowserView(
       turn.runId,
       pageUrl,
       entries,
       state.browserFrames.filter((f) => f.runId === turn.runId),
-      (artifactId) => resolveArtifactUrl(binding, turn, artifactId)
+      (artifactId) => resolveArtifactUrl(binding, turn, artifactId),
+      delegated.length > 0,
+      delegated[delegated.length - 1]?.delegation?.sessionMode ?? ''
     );
     const browsing = browserEntries.some((tool) => !tool.result);
     agents.push({
@@ -1125,7 +1131,9 @@ export function projectBrowserView(
   pageUrl: string,
   entries: TimelineEntry[],
   frames: BrowserFrame[],
-  resolveUrl: (artifactId: string) => string | undefined
+  resolveUrl: (artifactId: string) => string | undefined,
+  local = false,
+  sessionMode = ''
 ): ActiveWebView {
   const resolved = frames
     .slice(-FRAME_WINDOW)
@@ -1154,9 +1162,12 @@ export function projectBrowserView(
     url: pageUrl,
     processTaskId: runId,
     img,
-    // The browser is inside a sandbox pod. There is nothing to hand over, on
-    // either path — a screenshot is no more attachable than a frame.
-    remote: true,
+    // A pod run has nothing to hand over — a screenshot is no more
+    // attachable than a frame. A delegated run does: the agent's own window
+    // on this desktop, reached via the agent-browser bridge, so the card
+    // gets the local marker instead.
+    remote: !local,
+    ...(local ? { local: true, sessionMode } : {}),
     frames: resolved,
     frameCount: frames.length,
   };

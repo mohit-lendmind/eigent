@@ -20,18 +20,30 @@
  * edge can serve a delegated run — an affordance the backend cannot honor is
  * not offered. The choice binds per run at submit and is immutable for that
  * run; flipping it here changes the next command only.
+ *
+ * With the local browser on, the menu also carries the session choice: a
+ * fresh isolated partition (default) or the user's logged-in sessions —
+ * an explicit opt-in with the warning inline, because it lets the agent act
+ * on sites where the user is signed in.
  */
 
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { probeLocalBrowserSupport } from '@/store/aionChatBridge';
 import { useAionLocalBrowserStore } from '@/store/aionLocalBrowserStore';
-import { Check, ChevronDown, Cloud, Monitor } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  Cloud,
+  Monitor,
+  TriangleAlert,
+} from 'lucide-react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -60,7 +72,11 @@ export function LocalBrowserToggle({
   const enabled = useAionLocalBrowserStore((s) =>
     projectId ? (s.projectLocalBrowser[projectId] ?? false) : false
   );
+  const sessionMode = useAionLocalBrowserStore((s) =>
+    projectId ? (s.projectSessionMode[projectId] ?? 'isolated') : 'isolated'
+  );
   const setLocalBrowser = useAionLocalBrowserStore((s) => s.setLocalBrowser);
+  const setSessionMode = useAionLocalBrowserStore((s) => s.setSessionMode);
 
   useEffect(() => {
     void probeLocalBrowserSupport();
@@ -141,6 +157,42 @@ export function LocalBrowserToggle({
             </DropdownMenuItem>
           );
         })}
+        {enabled && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => setSessionMode(projectId, 'isolated')}
+              className="flex items-center justify-between gap-2"
+            >
+              <span className="text-body-sm">
+                {t('chat.local-browser-session-fresh')}
+              </span>
+              {sessionMode !== 'logged_in' && (
+                <Check className="h-4 w-4 text-ds-text-success-default-default" />
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => setSessionMode(projectId, 'logged_in')}
+              className="flex items-start justify-between gap-2"
+            >
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="flex items-center gap-1 text-body-sm">
+                  <TriangleAlert
+                    className="h-3.5 w-3.5 shrink-0 text-ds-text-warning-default-default"
+                    aria-hidden
+                  />
+                  {t('chat.local-browser-session-logged-in')}
+                </span>
+                <span className="text-xs text-ds-text-warning-default-default">
+                  {t('chat.local-browser-session-warning')}
+                </span>
+              </span>
+              {sessionMode === 'logged_in' && (
+                <Check className="h-4 w-4 shrink-0 text-ds-text-success-default-default" />
+              )}
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

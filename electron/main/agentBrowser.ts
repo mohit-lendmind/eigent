@@ -56,6 +56,9 @@ import {
   buildTabs,
   marshalOut,
   firstLine,
+  windowTitle,
+  TAKE_CONTROL_ERROR,
+  WINDOW_CLOSED_ERROR,
 } from './agentBrowserVerbs';
 
 export interface AgentBrowserRequest {
@@ -111,11 +114,6 @@ const CDP_ALLOWED = new Set([
 // delegation that silently rides out its server-side deadline.
 const CDP_TIMEOUT_MS = 10_000;
 const READY_TIMEOUT_MS = 8_000;
-
-const TAKE_CONTROL_ERROR =
-  'the user took control of the browser; wait, then re-observe the page before continuing';
-const WINDOW_CLOSED_ERROR =
-  'the user closed the agent browser window; wait, then re-observe the page before continuing';
 
 // The webview.ts stealth script minus its capture-phase mousedown
 // preventDefault: that listener suppresses focus for anything that is not a
@@ -267,6 +265,10 @@ export class AgentBrowser {
 
   takeControl(taken: boolean): void {
     this.takenOver = taken;
+    // Taking control is a decision to look at the window; raise it.
+    if (taken && this.win && !this.win.isDestroyed()) {
+      this.win.focus();
+    }
   }
 
   private async executeInner(
@@ -328,6 +330,7 @@ export class AgentBrowser {
     this.shots = 0;
     this.closedRunId = null;
     this.closeAllTabs();
+    this.refreshTitle();
     if (this.sessionMode === 'isolated') {
       await session.fromPartition(ISOLATED_PARTITION).clearStorageData();
     }
@@ -366,7 +369,25 @@ export class AgentBrowser {
     this.win = win;
     this.tabs.clear();
     this.currentTabId = '';
+    this.refreshTitle();
     return win;
+  }
+
+  /**
+   * The title bar is the window's URL strip. The page cannot write it — the
+   * page lives in a child view, and only setTitle here touches the window —
+   * so what it says about the current origin and the session mode holds.
+   */
+  private refreshTitle(): void {
+    if (!this.win || this.win.isDestroyed()) {
+      return;
+    }
+    const tab = this.tabs.get(this.currentTabId);
+    const url =
+      tab && !tab.view.webContents.isDestroyed()
+        ? tab.view.webContents.getURL()
+        : '';
+    this.win.setTitle(windowTitle(url, this.sessionMode === 'logged_in'));
   }
 
   private closeAllTabs(): void {
@@ -417,6 +438,13 @@ export class AgentBrowser {
     const tab: AgentTab = { tabId, view };
     this.tabs.set(tabId, tab);
     this.currentTabId = tabId;
+    const onNavigated = () => {
+      if (this.currentTabId === tabId) {
+        this.refreshTitle();
+      }
+    };
+    wc.on('did-navigate', onNavigated);
+    wc.on('did-navigate-in-page', onNavigated);
     view.setBounds({ x: 0, y: 0, width: VIEW_WIDTH, height: VIEW_HEIGHT });
     win.contentView.addChildView(view);
     await this.cdp(tab, 'Page.enable');
@@ -783,6 +811,7 @@ export class AgentBrowser {
     // Re-adding an attached view raises it to the top of the stack.
     win.contentView.addChildView(tab.view);
     this.currentTabId = tab.tabId;
+    this.refreshTitle();
     const outcome = await this.finish(tab, { result: 'switched tab' });
     return this.addTabs(outcome);
   }

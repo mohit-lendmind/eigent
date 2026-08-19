@@ -313,3 +313,27 @@ export function firstLine(s: string): string {
   const idx = s.indexOf('\n');
   return idx >= 0 ? s.slice(0, idx) : s;
 }
+
+/**
+ * In-band NACK bodies the executor answers with instead of driving the page.
+ * The renderer keeps its own copy of the window-closed string to recognize the
+ * kill switch (it cannot import a main-process module), pinned to these by a
+ * parity test.
+ */
+export const TAKE_CONTROL_ERROR =
+  'the user took control of the browser; wait, then re-observe the page before continuing';
+export const WINDOW_CLOSED_ERROR =
+  'the user closed the agent browser window; wait, then re-observe the page before continuing';
+
+/**
+ * The agent window's title doubles as its URL strip: the page renders in a
+ * child WebContentsView, so nothing a page does can overwrite what setTitle
+ * put here — which is what makes it trustworthy enough to state the origin
+ * and, when the run borrows the user's logged-in sessions, say so.
+ */
+export function windowTitle(url: string, loggedIn: boolean): string {
+  const suffix = loggedIn
+    ? 'Eternyl agent browser — your logged-in sessions'
+    : 'Eternyl agent browser';
+  return url && url !== 'about:blank' ? `${url} — ${suffix}` : suffix;
+}

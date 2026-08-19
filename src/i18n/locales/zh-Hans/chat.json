@@ -116,5 +116,14 @@
   "approval-respond-failed": "无法提交你的决定,请重试。",
   "approval-already-resolved": "此审批已在其他位置处理。",
   "local-browser-cloud": "云端浏览器",
-  "local-browser-local": "使用我的浏览器"
+  "local-browser-local": "使用我的浏览器",
+  "local-browser-live": "在您的桌面上实时运行",
+  "local-browser-logged-in-badge": "正在使用您的已登录会话",
+  "local-browser-take-control": "接管控制",
+  "local-browser-give-back": "交还给智能体",
+  "local-browser-taken-notice": "您已接管控制 — 在您交还浏览器之前，智能体将暂停。",
+  "local-browser-closed-notice": "智能体的浏览器窗口已被关闭 — 本次运行剩余的浏览器操作将失败。",
+  "local-browser-session-fresh": "全新会话",
+  "local-browser-session-logged-in": "我的已登录会话",
+  "local-browser-session-warning": "智能体可以在您已登录的网站上执行操作。"
 }

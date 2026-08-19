@@ -116,5 +116,14 @@
   "approval-respond-failed": "Не удалось отправить решение. Попробуйте ещё раз.",
   "approval-already-resolved": "Это одобрение уже обработано в другом месте.",
   "local-browser-cloud": "Облачный браузер",
-  "local-browser-local": "Использовать мой браузер"
+  "local-browser-local": "Использовать мой браузер",
+  "local-browser-live": "В реальном времени на вашем рабочем столе",
+  "local-browser-logged-in-badge": "Используются ваши авторизованные сеансы",
+  "local-browser-take-control": "Взять управление",
+  "local-browser-give-back": "Вернуть агенту",
+  "local-browser-taken-notice": "Управление у вас — агент на паузе, пока вы не вернёте браузер.",
+  "local-browser-closed-notice": "Окно браузера агента было закрыто — его оставшиеся действия в браузере в этом запуске завершатся ошибкой.",
+  "local-browser-session-fresh": "Новый сеанс",
+  "local-browser-session-logged-in": "Мои авторизованные сеансы",
+  "local-browser-session-warning": "Агент может действовать на сайтах, где вы вошли в систему."
 }
