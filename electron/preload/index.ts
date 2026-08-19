@@ -79,6 +79,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('webview-destroy', webviewId),
   capturePreviewGuest: (webContentsId: number) =>
     ipcRenderer.invoke('capture-preview-guest', webContentsId),
+  // delegated browser execution (Local Browser Mode)
+  agentBrowserExecute: (request: unknown) =>
+    ipcRenderer.invoke('agent-browser:execute', request),
+  agentBrowserStatus: () => ipcRenderer.invoke('agent-browser:status'),
+  agentBrowserTakeControl: (taken: boolean) =>
+    ipcRenderer.invoke('agent-browser:take-control', taken),
   exportLog: () => ipcRenderer.invoke('export-log'),
   getDiagnosticsInfo: () => ipcRenderer.invoke('get-diagnostics-info'),
   exportDiagnosticsZip: (payload: { description: string; steps?: string }) =>

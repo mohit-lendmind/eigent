@@ -63,13 +63,21 @@ interface BottomBoxProps {
   inputProps: Omit<InputboxProps, 'className'> & { className?: string };
   usageLimitBanner?: UsageLimitBannerProps | null;
 
-  // BoxFooter (project-setup controls: mode + model); omit sessionMode to hide the row.
+  // BoxFooter (project-setup controls: mode + model). Omitting sessionMode
+  // hides only the mode control — the model and browser-execution controls
+  // belong to every composer, including a follow-up on a still-loading Project.
   sessionMode?: SessionModeType;
   onSessionModeChange?: (mode: SessionModeType) => void;
   /** Interactive during project setup (workspace); once the project starts the row is read-only. */
   sessionModeSelectInteractive?: boolean;
   /** Project whose pinned model the footer model selector reads and writes. */
   modelSelectProjectId?: string | null;
+  /**
+   * Space scope for the footer's browser-execution toggle when the Project
+   * does not exist yet (the workspace direct-chat composer mints it at first
+   * send); ignored when modelSelectProjectId is set.
+   */
+  localBrowserSpaceId?: string | null;
 
   // Loading states
   loading?: boolean;
@@ -95,6 +103,7 @@ export default function BottomBox({
   onSessionModeChange,
   sessionModeSelectInteractive = false,
   modelSelectProjectId,
+  localBrowserSpaceId,
   loading = false,
   noModelOverlay = false,
   onSelectModel,
@@ -242,15 +251,14 @@ export default function BottomBox({
         )}
 
         {/* Box footer — project-setup controls (mode + model); read-only once started */}
-        {sessionMode !== undefined && (
-          <BoxFooter
-            sessionMode={sessionMode}
-            onSessionModeChange={onSessionModeChange}
-            projectId={modelSelectProjectId}
-            interactive={sessionModeSelectInteractive}
-            disabled={inputProps.disabled}
-          />
-        )}
+        <BoxFooter
+          sessionMode={sessionMode}
+          onSessionModeChange={onSessionModeChange}
+          projectId={modelSelectProjectId}
+          spaceId={localBrowserSpaceId}
+          interactive={sessionModeSelectInteractive}
+          disabled={inputProps.disabled}
+        />
 
         {noModelOverlay && onSelectModel ? (
           <div

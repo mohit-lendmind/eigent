@@ -114,5 +114,16 @@
   "approval-resolved-allow": "تمت الموافقة — تستمر المهمة.",
   "approval-resolved-deny": "تم الرفض — تستمر المهمة بدونها.",
   "approval-respond-failed": "تعذر إرسال قرارك. حاول مرة أخرى.",
-  "approval-already-resolved": "تمت معالجة هذه الموافقة بالفعل في مكان آخر."
+  "approval-already-resolved": "تمت معالجة هذه الموافقة بالفعل في مكان آخر.",
+  "local-browser-cloud": "متصفح سحابي",
+  "local-browser-local": "استخدام متصفحي",
+  "local-browser-live": "مباشر على سطح مكتبك",
+  "local-browser-logged-in-badge": "يستخدم جلساتك المسجّلة الدخول",
+  "local-browser-take-control": "تولّي التحكم",
+  "local-browser-give-back": "إعادة التحكم للوكيل",
+  "local-browser-taken-notice": "التحكم بيدك — الوكيل متوقف مؤقتًا حتى تعيد المتصفح.",
+  "local-browser-closed-notice": "أُغلقت نافذة متصفح الوكيل — ستفشل إجراءات المتصفح المتبقية في هذا التشغيل.",
+  "local-browser-session-fresh": "جلسة جديدة",
+  "local-browser-session-logged-in": "جلساتي المسجّلة الدخول",
+  "local-browser-session-warning": "يمكن للوكيل التصرّف في المواقع التي سجّلت الدخول إليها."
 }

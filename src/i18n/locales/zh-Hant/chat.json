@@ -114,5 +114,16 @@
   "approval-resolved-allow": "已核准 — 任務繼續。",
   "approval-resolved-deny": "已拒絕 — 任務將繼續。",
   "approval-respond-failed": "無法送出你的決定,請重試。",
-  "approval-already-resolved": "此核准已在其他位置處理。"
+  "approval-already-resolved": "此核准已在其他位置處理。",
+  "local-browser-cloud": "雲端瀏覽器",
+  "local-browser-local": "使用我的瀏覽器",
+  "local-browser-live": "在您的桌面上即時執行",
+  "local-browser-logged-in-badge": "正在使用您的已登入工作階段",
+  "local-browser-take-control": "接管控制",
+  "local-browser-give-back": "交還給智慧代理",
+  "local-browser-taken-notice": "您已接管控制 — 在您交還瀏覽器之前，智慧代理將暫停。",
+  "local-browser-closed-notice": "智慧代理的瀏覽器視窗已被關閉 — 本次執行剩餘的瀏覽器操作將失敗。",
+  "local-browser-session-fresh": "全新工作階段",
+  "local-browser-session-logged-in": "我的已登入工作階段",
+  "local-browser-session-warning": "智慧代理可以在您已登入的網站上執行操作。"
 }

@@ -114,5 +114,16 @@
   "approval-resolved-allow": "Aprobado: la tarea continúa.",
   "approval-resolved-deny": "Denegado: la tarea continúa sin ello.",
   "approval-respond-failed": "No se pudo enviar tu decisión. Inténtalo de nuevo.",
-  "approval-already-resolved": "Esta aprobación ya se resolvió en otro lugar."
+  "approval-already-resolved": "Esta aprobación ya se resolvió en otro lugar.",
+  "local-browser-cloud": "Navegador en la nube",
+  "local-browser-local": "Usar mi navegador",
+  "local-browser-live": "En vivo en tu escritorio",
+  "local-browser-logged-in-badge": "Usando tus sesiones iniciadas",
+  "local-browser-take-control": "Tomar el control",
+  "local-browser-give-back": "Devolver al agente",
+  "local-browser-taken-notice": "Tienes el control — el agente está en pausa hasta que devuelvas el navegador.",
+  "local-browser-closed-notice": "La ventana del navegador del agente se cerró — sus acciones de navegador restantes en esta ejecución fallarán.",
+  "local-browser-session-fresh": "Sesión nueva",
+  "local-browser-session-logged-in": "Mis sesiones iniciadas",
+  "local-browser-session-warning": "El agente puede actuar en sitios donde has iniciado sesión."
 }

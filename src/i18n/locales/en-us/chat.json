@@ -114,5 +114,16 @@
   "approval-resolved-allow": "Approved — the task continues.",
   "approval-resolved-deny": "Denied — the task continues without it.",
   "approval-respond-failed": "Could not deliver your decision. Try again.",
-  "approval-already-resolved": "This approval was already resolved elsewhere."
+  "approval-already-resolved": "This approval was already resolved elsewhere.",
+  "local-browser-cloud": "Cloud browser",
+  "local-browser-local": "Use my browser",
+  "local-browser-live": "Live on your desktop",
+  "local-browser-logged-in-badge": "Using your logged-in sessions",
+  "local-browser-take-control": "Take control",
+  "local-browser-give-back": "Give back to agent",
+  "local-browser-taken-notice": "You have control — the agent is paused until you give the browser back.",
+  "local-browser-closed-notice": "The agent's browser window was closed — its remaining browser actions this run will fail.",
+  "local-browser-session-fresh": "Fresh session",
+  "local-browser-session-logged-in": "My logged-in sessions",
+  "local-browser-session-warning": "The agent can act on sites where you're signed in."
 }

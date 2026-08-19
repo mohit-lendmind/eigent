@@ -85,6 +85,14 @@ declare global {
      */
     remote?: boolean;
     /**
+     * The run's browser actions were delegated to this machine: the live
+     * picture is the agent's own visible window, and Take Control rides the
+     * agent-browser host bridge rather than a managed webview id.
+     */
+    local?: boolean;
+    /** Meaningful with `local`: isolated | logged_in (open set, verbatim). */
+    sessionMode?: string;
+    /**
      * Recent viewfinder frames, oldest first, as resolved download URLs. Only
      * the tail is carried: each URL is a time-boxed grant minted per frame.
      */

@@ -15,6 +15,7 @@
 import { Button } from '@/components/ui/button';
 import { MenuToggleGroup, MenuToggleItem } from '@/components/ui/menu-button';
 import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
+import type { SelectedProjectTurn } from '@/hooks/useSelectedProjectTurn';
 import { useHost } from '@/host';
 import { useWorkerList } from '@/store/authStore';
 import { useWorkflowViewportStore } from '@/store/workflowViewportStore';
@@ -33,11 +34,20 @@ import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 export interface WorkforceMenuProps {
+  /**
+   * The turn the strip acts on. It must be the one the canvas beside it
+   * renders: picking an agent writes that task's `activeWorkspace`, and the
+   * canvas opens whatever the SELECTED turn names. Keyed off the active task
+   * instead, a project past its first turn highlights the chip and opens
+   * nothing — the write lands on a task nothing is rendering.
+   */
+  selectedTurn: SelectedProjectTurn;
   onToggleChatBox?: () => void;
   isChatBoxVisible?: boolean;
 }
 
 export default function WorkforceMenu({
+  selectedTurn,
   onToggleChatBox: _onToggleChatBox,
   isChatBoxVisible: _isChatBoxVisible = true,
 }: WorkforceMenuProps) {
@@ -94,27 +104,32 @@ export default function WorkforceMenu({
     [t]
   );
 
-  const activeTaskId = chatStore?.activeTaskId as string;
-  const taskAssigning = chatStore?.tasks[activeTaskId]?.taskAssigning;
-  const webViewUrls = chatStore?.tasks[activeTaskId]?.webViewUrls;
+  // Same resolution BrowserAgentWorkspace uses, so the strip and the canvas
+  // it drives always read and write one task.
+  const selectedChatState = selectedTurn.chatStore?.getState();
+  const targetChatStore = selectedChatState ?? chatStore;
+  const activeTaskId =
+    selectedTurn.taskId ?? (targetChatStore?.activeTaskId as string);
+  const taskAssigning = targetChatStore?.tasks[activeTaskId]?.taskAssigning;
+  const webViewUrls = targetChatStore?.tasks[activeTaskId]?.webViewUrls;
 
   // Helper to safely access task properties
   const getCurrentTask = () =>
-    activeTaskId ? chatStore?.tasks?.[activeTaskId] : undefined;
+    activeTaskId ? targetChatStore?.tasks?.[activeTaskId] : undefined;
 
   const agentList = useMemo(() => {
-    if (!chatStore) return [];
+    if (!targetChatStore) return [];
     const base = [...baseWorker, ...workerList].filter(
       (worker) => !taskAssigning?.find((agent) => agent.type === worker.type)
     );
     return [...base, ...(taskAssigning || [])];
-  }, [chatStore, baseWorker, workerList, taskAssigning]);
+  }, [targetChatStore, baseWorker, workerList, taskAssigning]);
 
   useEffect(() => {
-    if (!chatStore || !host?.electronAPI?.onWebviewNavigated) return;
+    if (!targetChatStore || !host?.electronAPI?.onWebviewNavigated) return;
     const cleanup = host.electronAPI.onWebviewNavigated(
       (id: string, url: string) => {
-        if (!chatStore.activeTaskId) return;
+        if (!activeTaskId) return;
         const currentTask = getCurrentTask();
         if (!currentTask) return;
 
@@ -144,10 +159,7 @@ export default function WorkforceMenu({
                   img: '',
                   processTaskId: hasUrl?.processTaskId || '',
                 });
-                chatStore.setTaskAssigning(
-                  chatStore.activeTaskId as string,
-                  taskAssigning
-                );
+                targetChatStore.setTaskAssigning(activeTaskId, taskAssigning);
               }
             } else {
               taskAssigning[activeAgentIndex].activeWebviewIds?.push({
@@ -156,18 +168,13 @@ export default function WorkforceMenu({
                 img: '',
                 processTaskId: hasUrl?.processTaskId || '',
               });
-              chatStore.setTaskAssigning(
-                chatStore.activeTaskId as string,
-                taskAssigning
-              );
+              targetChatStore.setTaskAssigning(activeTaskId, taskAssigning);
             }
             const urlIndex = webViewUrls.findIndex((item) => item.url === url);
             if (urlIndex !== -1) {
               webViewUrls.splice(urlIndex, 1);
             }
-            chatStore.setWebViewUrls(chatStore.activeTaskId as string, [
-              ...webViewUrls,
-            ]);
+            targetChatStore.setWebViewUrls(activeTaskId, [...webViewUrls]);
           } else {
             // If no URL match found, also try to add to browser_agent
             const browserAgentIndex = taskAssigning.findIndex(
@@ -180,10 +187,7 @@ export default function WorkforceMenu({
                 img: '',
                 processTaskId: webViewUrls[0]?.processTaskId || '',
               });
-              chatStore.setTaskAssigning(
-                chatStore.activeTaskId as string,
-                taskAssigning
-              );
+              targetChatStore.setTaskAssigning(activeTaskId, taskAssigning);
             }
           }
         }
@@ -226,10 +230,7 @@ export default function WorkforceMenu({
                     webview.index
                   ].img = base64;
 
-                  chatStore.setTaskAssigning(
-                    chatStore.activeTaskId as string,
-                    taskAssigning
-                  );
+                  targetChatStore.setTaskAssigning(activeTaskId, taskAssigning);
                 }
               })
               .catch((error: unknown) => {
@@ -244,9 +245,9 @@ export default function WorkforceMenu({
     );
 
     return cleanup;
-  }, [chatStore, activeTaskId, webViewUrls, taskAssigning, host]);
+  }, [targetChatStore, activeTaskId, webViewUrls, taskAssigning, host]);
 
-  if (!chatStore) {
+  if (!targetChatStore) {
     return <div>Loading...</div>;
   }
 
@@ -343,15 +344,15 @@ export default function WorkforceMenu({
     agent.tasks.length > 0 || (agent.activeWebviewIds?.length ?? 0) > 0;
 
   const onValueChange = (val: string) => {
-    if (!chatStore.activeTaskId) return;
+    if (!activeTaskId) return;
     if (val === '') {
-      chatStore.setActiveWorkspace(chatStore.activeTaskId, 'workflow');
+      targetChatStore.setActiveWorkspace(activeTaskId, 'workflow');
       return;
     }
     if (val === 'documentWorkSpace') {
-      chatStore.setNuwFileNum(chatStore.activeTaskId, 0);
+      targetChatStore.setNuwFileNum(activeTaskId, 0);
     }
-    chatStore.setActiveWorkspace(chatStore.activeTaskId, val);
+    targetChatStore.setActiveWorkspace(activeTaskId, val);
 
     host?.electronAPI?.hideAllWebview?.();
   };

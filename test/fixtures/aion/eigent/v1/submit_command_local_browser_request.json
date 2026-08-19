@@ -1,0 +1,6 @@
+{
+  "command_id": "cmd_01JY0000000000000000000002",
+  "text": "Compare the top three laptops on the fixture store and summarize.",
+  "browser_execution": "local",
+  "browser_session_mode": "isolated"
+}

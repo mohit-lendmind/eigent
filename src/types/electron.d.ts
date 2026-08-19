@@ -78,6 +78,33 @@ interface ElectronAPI {
     fileName?: string;
     error?: string;
   }>;
+  agentBrowserExecute: (request: {
+    delegationId: string;
+    runId: string;
+    toolName: string;
+    argumentsJson: string;
+    sessionMode: string;
+  }) => Promise<{
+    success: boolean;
+    result?: {
+      resultJson: string;
+      frameBase64?: string;
+      frameName?: string;
+      screenshotBase64?: string;
+      screenshotName?: string;
+    };
+    error?: string;
+  }>;
+  agentBrowserStatus: () => Promise<{
+    success: boolean;
+    status?: { windowOpen: boolean; takenOver: boolean; runId: string | null };
+    error?: string;
+  }>;
+  agentBrowserTakeControl: (taken: boolean) => Promise<{
+    success: boolean;
+    status?: { windowOpen: boolean; takenOver: boolean; runId: string | null };
+    error?: string;
+  }>;
   exportLog: () => Promise<{
     success: boolean;
     savedPath?: string;

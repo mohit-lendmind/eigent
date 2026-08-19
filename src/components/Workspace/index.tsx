@@ -33,6 +33,7 @@ import { resolveProjectNavLeadPresentation } from '@/lib/sessionNavLead';
 import { isLegacySpace, isLocalWorkspaceSpace } from '@/lib/spaceLabel';
 import { createSyncedProjectInSpace } from '@/lib/spaceProject';
 import { cn } from '@/lib/utils';
+import { useAionLocalBrowserStore } from '@/store/aionLocalBrowserStore';
 import { useAuthStore, useWorkerList } from '@/store/authStore';
 import { usePageTabStore } from '@/store/pageTabStore';
 import { useProjectRuntimeStore } from '@/store/projectRuntimeStore';
@@ -307,6 +308,12 @@ export default function Workspace({
       });
       useSpaceStore.getState().setActiveSpace(syncedProject.spaceId);
       const targetProjectId = syncedProject.projectId;
+      // The browser-execution choice was parked on the Space while this
+      // Project did not exist; it must land on the Project before startTask
+      // reads it at submit.
+      useAionLocalBrowserStore
+        .getState()
+        .adoptSpaceChoice(syncedProject.spaceId, targetProjectId);
       const targetChatStore =
         useProjectRuntimeStore
           .getState()
@@ -511,6 +518,7 @@ export default function Workspace({
           sessionMode={effectiveSessionMode}
           onSessionModeChange={setActiveProjectMode}
           sessionModeSelectInteractive
+          localBrowserSpaceId={activeSpaceId}
         />
       </div>
       <AddWorker

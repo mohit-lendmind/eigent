@@ -35,6 +35,9 @@ export type AttachmentUpload = Schemas['AttachmentUpload'];
 export type ArtifactComment = Schemas['ArtifactComment'];
 export type ArtifactCommentList = Schemas['ArtifactCommentList'];
 export type ArtifactCommentCreate = Schemas['ArtifactCommentCreate'];
+export type BrowserDelegation = Schemas['BrowserDelegation'];
+export type BrowserDelegationList = Schemas['BrowserDelegationList'];
+export type BrowserDelegationResult = Schemas['BrowserDelegationResult'];
 export type UsageSummary = Schemas['UsageSummary'];
 export type UsageTotals = Schemas['UsageTotals'];
 export type RunSpend = Schemas['RunSpend'];
@@ -222,6 +225,38 @@ export class EdgeTransport {
       'POST',
       `/projects/${encodeURIComponent(projectId)}/approvals/${encodeURIComponent(approvalId)}/response`,
       { body: request, headers: { 'Idempotency-Key': newIdempotencyKey() } }
+    );
+  }
+
+  /**
+   * Answer one parked browser action with the browser-control JSON the local
+   * executor produced. First write wins server-side; a result landing after
+   * the delegation settled (timeout, cancel, or a rival write) converges as
+   * 409 delegation_not_pending, which the caller treats as already-resolved,
+   * never as a retry cue — hence a fresh key per attempt.
+   */
+  respondToBrowserDelegation(
+    projectId: string,
+    delegationId: string,
+    result: BrowserDelegationResult
+  ): Promise<void> {
+    return this.json(
+      'POST',
+      `/projects/${encodeURIComponent(projectId)}/browser-delegations/${encodeURIComponent(delegationId)}/result`,
+      { body: result, headers: { 'Idempotency-Key': newIdempotencyKey() } }
+    );
+  }
+
+  /**
+   * The delegations a run is parked on right now. The rehydrate surface: a
+   * snapshot rebuild carries no pending state, so an executor coming back
+   * from a reload reads this once and enqueues what the stream already
+   * announced while it was away.
+   */
+  listPendingBrowserDelegations(projectId: string): Promise<BrowserDelegationList> {
+    return this.json(
+      'GET',
+      `/projects/${encodeURIComponent(projectId)}/browser-delegations?status=pending`
     );
   }
 

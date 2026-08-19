@@ -299,3 +299,15 @@ const ARTIFACT_COMMENTS_MINIMUM_EDGE = [1, 21];
 export function supportsArtifactComments(status: IntegrationStatus): boolean {
   return meetsEdgeFloor(status, ARTIFACT_COMMENTS_MINIMUM_EDGE);
 }
+
+// Local browser execution (1.22): browser_execution on submitCommand, the
+// browser_delegation_requested event, and the delegation result/list routes.
+// An older edge rejects the field as a 422 AFTER the user has already framed
+// the task around watching their own browser, so the floor gates the composer
+// toggle itself — the one honest rendering of "this cell cannot park a run on
+// your machine" is the affordance not being offered.
+const LOCAL_BROWSER_MINIMUM_EDGE = [1, 22];
+
+export function supportsLocalBrowser(status: IntegrationStatus): boolean {
+  return meetsEdgeFloor(status, LOCAL_BROWSER_MINIMUM_EDGE);
+}

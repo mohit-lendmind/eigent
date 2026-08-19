@@ -1,0 +1,12 @@
+{
+  "event_id": "evt_01JY0000000000000000000031",
+  "schema_version": "1.0",
+  "project_id": "prj_01JY0000000000000000000001",
+  "run_id": "run_01JY0000000000000000000001",
+  "sequence": "31",
+  "kind": "browser_delegation_requested",
+  "visibility": "user",
+  "occurred_at": "2026-08-19T09:00:31Z",
+  "correlation": {"tool_call_id": "toolu_01JY0000000000000000031"},
+  "data": {"delegation_id": "bd-01JY0000000000000000000001", "tool_call_id": "toolu_01JY0000000000000000031", "tool_name": "browser_click", "arguments_json": "{\"ref\":\"e12\"}", "session_mode": "isolated", "deadline_at": "2026-08-19T09:02:31Z"}
+}

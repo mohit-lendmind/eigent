@@ -1,0 +1,9 @@
+{
+  "type": "https://api.eternly.example/problems/browser-execution-denied",
+  "title": "Browser execution mode is not allowed",
+  "status": 422,
+  "detail": "browser_execution must be empty, 'pod', or 'local'.",
+  "code": "browser_execution_denied",
+  "trace_id": "trc_01JY0000000000000000000032",
+  "retryable": false
+}

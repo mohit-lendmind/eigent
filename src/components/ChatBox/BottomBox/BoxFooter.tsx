@@ -15,6 +15,7 @@
 import { ProjectModeToggle } from '@/components/Workspace/ProjectModeToggle';
 import { useIsCompactWidth } from '@/hooks/useIsCompactWidth';
 import type { SessionModeType } from '@/types/constants';
+import { LocalBrowserToggle } from './LocalBrowserToggle';
 import { ModelSelect } from './ModelSelect';
 
 /**
@@ -24,11 +25,21 @@ import { ModelSelect } from './ModelSelect';
 const COMPACT_WIDTH_THRESHOLD = 460;
 
 export interface BoxFooterProps {
-  /** Left side: single-agent / multi-agent mode control. */
-  sessionMode: SessionModeType;
+  /**
+   * Left side: single-agent / multi-agent mode control. Undefined while the
+   * Project's mode is still unknown, which hides that one control rather than
+   * claiming a mode the Project may not have.
+   */
+  sessionMode?: SessionModeType;
   onSessionModeChange?: (mode: SessionModeType) => void;
   /** Project whose pinned model the model selector reads and writes. */
   projectId?: string | null;
+  /**
+   * Space scope for the browser-execution toggle on a composer whose Project
+   * does not exist yet (it is minted at first send); ignored when projectId
+   * is set.
+   */
+  spaceId?: string | null;
   /**
    * Project-setup controls: interactive on the workspace composer only.
    * Once the project has started both controls render read-only.
@@ -47,6 +58,7 @@ export function BoxFooter({
   sessionMode,
   onSessionModeChange,
   projectId,
+  spaceId,
   interactive = false,
   disabled = false,
 }: BoxFooterProps) {
@@ -60,15 +72,23 @@ export function BoxFooter({
       className="flex w-full items-center justify-between gap-2 px-3 py-1"
     >
       <div className="flex min-w-0 shrink items-center gap-1">
-        <ProjectModeToggle
-          value={sessionMode}
-          onValueChange={onSessionModeChange ?? (() => {})}
-          readOnly={!interactive}
-          compact={compact}
-          className="shrink-0"
-        />
+        {sessionMode !== undefined && (
+          <ProjectModeToggle
+            value={sessionMode}
+            onValueChange={onSessionModeChange ?? (() => {})}
+            readOnly={!interactive}
+            compact={compact}
+            className="shrink-0"
+          />
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        <LocalBrowserToggle
+          disabled={disabled}
+          projectId={projectId}
+          spaceId={spaceId}
+          compact={compact}
+        />
         <ModelSelect
           disabled={disabled}
           projectId={projectId}

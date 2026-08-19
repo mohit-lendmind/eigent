@@ -24,6 +24,7 @@ import {
   IncompatibleBackendError,
   negotiateCompatibility,
   supportsAttachments,
+  supportsLocalBrowser,
 } from '@/api/aion/v1/compat';
 import { ProjectSession, newCommandId } from '@/api/aion/v1/session';
 import { EdgeTransport, type ModelAliasCatalog } from '@/api/aion/v1/transport';
@@ -32,6 +33,11 @@ import { useAionModelStore } from './aionModelStore';
 import { noteAionArtifactsChanged } from './aionArtifactsStore';
 import { noteAionCommentsChanged } from './aionCommentsStore';
 import { fileProjectUnderBoundSpace } from './aionSpaceBinding';
+import { browserDelegationExecutor } from './browserDelegationExecutor';
+import {
+  browserSubmitFields,
+  useAionLocalBrowserStore,
+} from './aionLocalBrowserStore';
 import {
   AgentMessageStatus,
   AgentStatusValue,
@@ -217,6 +223,10 @@ export function resetAionBackendState(): void {
   statePromise = null;
   configPromise = null;
   catalogPromise = null;
+  // The local-browser answer is about a build/backend PAIRING, so a new
+  // credential can change it. Leaving it behind is how a user who onboarded
+  // mid-lifetime kept a pre-key "unsupported" until the next launch.
+  localBrowserProbe = null;
 }
 
 /**
@@ -338,6 +348,11 @@ async function createBinding(
         if (turn.settled) continue;
         projectTurn(binding, turn, state);
       }
+      browserDelegationExecutor.notePending(
+        binding.aionProjectId,
+        binding.transport,
+        state.pendingBrowserDelegations
+      );
     },
     onStatus: (status) => {
       if (status === 'failed') {
@@ -369,6 +384,55 @@ export async function boundAionProjectId(
   } catch {
     return null;
   }
+}
+
+// Promise-cached: the answer is a fact about this build + backend pairing, so
+// the toggle's mount and every submit share one /status read.
+let localBrowserProbe: Promise<boolean> | null = null;
+
+/**
+ * Whether this desktop can execute a run's browser actions locally: the build
+ * must carry the agent-browser executor AND the edge must serve the delegation
+ * contract (1.22 floor). False hides the composer toggle and strips the
+ * submit fields — the honest rendering of "this cell cannot park a run on
+ * your machine" is the affordance not being offered.
+ *
+ * Only an answer from the contract is cached. Reaching no transport at all —
+ * the preload not yet attached, or no usable remote config — resolves to null
+ * and drops the cache like a failed handshake does, because caching that as
+ * "unsupported" would pin the toggle off for the life of the process over a
+ * millisecond of startup. The credential can also change mid-lifetime, which
+ * is why resetAionBackendState drops this cache too.
+ */
+export function probeLocalBrowserSupport(): Promise<boolean> {
+  if (!localBrowserProbe) {
+    localBrowserProbe = (async (): Promise<boolean | null> => {
+      if (typeof hostAPI()?.agentBrowserExecute !== 'function') return null;
+      const config = await getAionRemoteConfig();
+      if (!config || 'error' in config) return null;
+      const transport = new EdgeTransport({
+        baseUrl: config.edgeBaseUrl,
+        apiKey: config.apiKey,
+      });
+      return supportsLocalBrowser(await transport.getIntegrationStatus());
+    })().then(
+      (supported) => {
+        if (supported === null) {
+          localBrowserProbe = null;
+          return false;
+        }
+        useAionLocalBrowserStore.getState().noteSupport(supported);
+        return supported;
+      },
+      () => {
+        // A failed handshake is retryable — drop the cache so the next ask
+        // renegotiates instead of pinning "unsupported" forever.
+        localBrowserProbe = null;
+        return false;
+      }
+    );
+  }
+  return localBrowserProbe;
 }
 
 async function pickModelAlias(
@@ -466,11 +530,20 @@ export async function startAionTask(args: StartAionTaskArgs): Promise<void> {
       ? await uploadAttaches(binding.transport, binding.aionProjectId, attaches)
       : [];
   const commentIds = args.commentIds ?? [];
+  // The choice binds to THIS run at admission (immutable after submit);
+  // flipping the toggle mid-run affects only the next command.
+  const localBrowserState = useAionLocalBrowserStore.getState();
+  const browserFields = browserSubmitFields(
+    localBrowserState.projectLocalBrowser[args.eigentProjectId],
+    localBrowserState.projectSessionMode[args.eigentProjectId],
+    await probeLocalBrowserSupport()
+  );
   const receipt = await binding.session.submitCommand({
     command_id: newCommandId(),
     text: question,
     ...(attachmentIds.length > 0 ? { attachment_ids: attachmentIds } : {}),
     ...(commentIds.length > 0 ? { comment_ids: commentIds } : {}),
+    ...browserFields,
   });
   const turn: TurnBinding = {
     taskId: args.taskId,
@@ -953,10 +1026,13 @@ function projectTurn(
   ];
 
   // --- browser mirror: aion browser_* tools drive a headless browser inside
-  // the sandbox pod, so there is no local WebContentsView to attach. The
-  // product surface is the run's own evidence — the current page URL from the
-  // tool stream and the latest screenshot artifact as the view image —
-  // projected as the browser_agent card the workspace already renders.
+  // the sandbox pod — or, on a delegated run, a visible window on this
+  // desktop. Either way the card's evidence is the run's own: the current
+  // page URL from the tool stream and the published frames as the view
+  // image, projected as the browser_agent card the workspace already
+  // renders. Whether the run is delegated is read off the tool rows'
+  // delegation markers — the only wire-grounded signal, and one that holds
+  // across rehydrate on a device that never submitted the command.
   const browserEntries = toolEntries.filter((tool) =>
     tool.toolName.startsWith('browser_')
   );
@@ -969,12 +1045,15 @@ function projectTurn(
           : null;
       pageUrl = fromResult ?? browserArgUrl(tool.argumentsJson) ?? pageUrl;
     }
+    const delegated = browserEntries.filter((tool) => tool.delegation);
     const view = projectBrowserView(
       turn.runId,
       pageUrl,
       entries,
       state.browserFrames.filter((f) => f.runId === turn.runId),
-      (artifactId) => resolveArtifactUrl(binding, turn, artifactId)
+      (artifactId) => resolveArtifactUrl(binding, turn, artifactId),
+      delegated.length > 0,
+      delegated[delegated.length - 1]?.delegation?.sessionMode ?? ''
     );
     const browsing = browserEntries.some((tool) => !tool.result);
     agents.push({
@@ -1067,7 +1146,9 @@ export function projectBrowserView(
   pageUrl: string,
   entries: TimelineEntry[],
   frames: BrowserFrame[],
-  resolveUrl: (artifactId: string) => string | undefined
+  resolveUrl: (artifactId: string) => string | undefined,
+  local = false,
+  sessionMode = ''
 ): ActiveWebView {
   const resolved = frames
     .slice(-FRAME_WINDOW)
@@ -1096,9 +1177,12 @@ export function projectBrowserView(
     url: pageUrl,
     processTaskId: runId,
     img,
-    // The browser is inside a sandbox pod. There is nothing to hand over, on
-    // either path — a screenshot is no more attachable than a frame.
-    remote: true,
+    // A pod run has nothing to hand over — a screenshot is no more
+    // attachable than a frame. A delegated run does: the agent's own window
+    // on this desktop, reached via the agent-browser bridge, so the card
+    // gets the local marker instead.
+    remote: !local,
+    ...(local ? { local: true, sessionMode } : {}),
     frames: resolved,
     frameCount: frames.length,
   };
