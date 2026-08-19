@@ -59,3 +59,10 @@ nul
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Demo recordings and their drivers. A local-browser demo drives real logged-in
+# sites, so its videos and traces hold whatever was on screen — inbox content
+# included. Ignored rather than merely avoided, so an ordinary `git add` cannot
+# publish someone's mail.
+.lb-demo/
+lb-demo-gmail/

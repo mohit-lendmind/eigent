@@ -50,10 +50,19 @@ const fakes = vi.hoisted(() => {
     }
   }
   const clearStorageData = vi.fn(async () => undefined);
-  return { FakeWindow, clearStorageData };
+  const setUserAgent = vi.fn();
+  return { FakeWindow, clearStorageData, setUserAgent };
 });
 
 vi.mock('electron', () => ({
+  // A run boundary presents the scrubbed user agent on its partition before
+  // anything is dispatched, so the shell has to answer both.
+  app: {
+    getName: () => 'Eternyl',
+    userAgentFallback:
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+      '(KHTML, like Gecko) Eternyl/1.0.2 Chrome/140.0.0.0 Electron/38.1.0 Safari/537.36',
+  },
   BrowserWindow: fakes.FakeWindow,
   WebContentsView: class {
     constructor() {
@@ -61,7 +70,10 @@ vi.mock('electron', () => ({
     }
   },
   session: {
-    fromPartition: () => ({ clearStorageData: fakes.clearStorageData }),
+    fromPartition: () => ({
+      clearStorageData: fakes.clearStorageData,
+      setUserAgent: fakes.setUserAgent,
+    }),
   },
 }));
 vi.mock('electron-log', () => ({

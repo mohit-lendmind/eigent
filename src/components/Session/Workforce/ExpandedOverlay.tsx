@@ -252,6 +252,7 @@ export default function ExpandedOverlay({
             <div className="relative z-50 shrink-0">
               <div className="pointer-events-auto">
                 <WorkforceMenu
+                  selectedTurn={selectedTurn}
                   onToggleChatBox={onToggleSidePanel}
                   isChatBoxVisible={!isSidePanelVisible}
                 />

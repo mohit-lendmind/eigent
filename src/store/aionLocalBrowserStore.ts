@@ -120,12 +120,14 @@ export const useAionLocalBrowserStore = create<AionLocalBrowserState>()(
     {
       name: 'aion-local-browser-store',
       // Support is a fact about the current backend and build, never a
-      // preference — re-probed each launch, so it must not persist.
+      // preference — re-probed each launch, so it must not persist. The
+      // space-scoped maps are unsent intent, so they must not either: a
+      // logged-in opt-in that outlives the launch it was made in would seed
+      // whichever Project that Space mints next, which is the escalation
+      // adoptSpaceChoice's consume-once exists to prevent.
       partialize: (state) => ({
         projectLocalBrowser: state.projectLocalBrowser,
         projectSessionMode: state.projectSessionMode,
-        spaceLocalBrowser: state.spaceLocalBrowser,
-        spaceSessionMode: state.spaceSessionMode,
       }),
     }
   )

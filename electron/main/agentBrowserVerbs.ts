@@ -337,3 +337,24 @@ export function windowTitle(url: string, loggedIn: boolean): string {
     : 'Eternyl agent browser';
   return url && url !== 'about:blank' ? `${url} — ${suffix}` : suffix;
 }
+
+/**
+ * Strips the app and Electron tokens out of a default Electron user agent,
+ * leaving the Chrome one. Google's sign-in rejects "embedded framework"
+ * browsers on that signal alone (accounts.google.com/v3/signin/rejected —
+ * "this browser or app may not be secure"), and the view IS a real Chromium,
+ * so presenting only the Chrome part is accurate rather than a disguise.
+ *
+ * Pure and separate from the caller that reads Electron's `app` because it is
+ * the whole difference between reaching a sign-in page and being turned away,
+ * and an app name is arbitrary text that lands inside a regex.
+ */
+export function scrubAgentUserAgent(
+  userAgent: string,
+  appName: string
+): string {
+  const escaped = appName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return userAgent
+    .replace(new RegExp(`\\s${escaped}/\\S+`, 'i'), '')
+    .replace(/\sElectron\/\S+/i, '');
+}

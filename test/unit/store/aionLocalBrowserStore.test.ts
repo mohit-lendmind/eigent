@@ -98,4 +98,24 @@ describe('space-scoped pending choice', () => {
       )
     ).toEqual({});
   });
+
+  it('does not persist an unsent space choice across a restart', () => {
+    // Consume-once is only true within a launch unless the pending maps stay
+    // out of the persisted slice: an opt-in made in a Space and never sent
+    // would otherwise seed whichever Project that Space mints next week.
+    const store = useAionLocalBrowserStore.getState();
+    store.setSpaceLocalBrowser('space-4', true);
+    store.setSpaceSessionMode('space-4', 'logged_in');
+    store.setLocalBrowser('proj-4', true);
+    store.setSessionMode('proj-4', 'logged_in');
+
+    const persisted = useAionLocalBrowserStore.persist.getOptions().partialize?.(
+      useAionLocalBrowserStore.getState()
+    );
+
+    expect(persisted).toEqual({
+      projectLocalBrowser: { 'proj-4': true },
+      projectSessionMode: { 'proj-4': 'logged_in' },
+    });
+  });
 });

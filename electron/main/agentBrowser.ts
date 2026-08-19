@@ -57,6 +57,7 @@ import {
   marshalOut,
   firstLine,
   windowTitle,
+  scrubAgentUserAgent,
   TAKE_CONTROL_ERROR,
   WINDOW_CLOSED_ERROR,
 } from './agentBrowserVerbs';
@@ -93,17 +94,8 @@ const VIEW_HEIGHT = 800;
 const ISOLATED_PARTITION = 'persist:agent-browse';
 const LOGGED_IN_PARTITION = 'persist:user_login';
 
-/**
- * The default user agent carries the app and Electron tokens, and Google's
- * sign-in rejects "embedded framework" browsers on that signal alone
- * (accounts.google.com/v3/signin/rejected — "this browser or app may not be
- * secure"). The agent view is a real Chromium; present only the Chrome part.
- */
 function agentUserAgent(): string {
-  const name = app.getName().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return app.userAgentFallback
-    .replace(new RegExp(`\\s${name}/\\S+`, 'i'), '')
-    .replace(/\sElectron\/\S+/i, '');
+  return scrubAgentUserAgent(app.userAgentFallback, app.getName());
 }
 
 // Everything the executor may say over CDP. A verb needing a method outside

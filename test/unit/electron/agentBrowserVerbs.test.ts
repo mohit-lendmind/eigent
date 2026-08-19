@@ -30,6 +30,7 @@ import {
   SCROLL_ANCHOR,
   screenshotName,
   scrollPlan,
+  scrubAgentUserAgent,
   TOOL_ACTIONS,
   typeFields,
   visitPlan,
@@ -354,5 +355,38 @@ describe('constants and naming', () => {
   it('firstLine trims at the first newline', () => {
     expect(firstLine('a\nb')).toBe('a');
     expect(firstLine('a')).toBe('a');
+  });
+});
+
+describe('scrubAgentUserAgent', () => {
+  const FALLBACK =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+    '(KHTML, like Gecko) Eternyl/1.0.2 Chrome/140.0.0.0 Electron/38.1.0 Safari/537.36';
+
+  it('drops both embedded-framework tokens and keeps the Chrome one', () => {
+    const ua = scrubAgentUserAgent(FALLBACK, 'Eternyl');
+    expect(ua).not.toMatch(/Electron/i);
+    expect(ua).not.toMatch(/Eternyl/i);
+    expect(ua).toContain('Chrome/140.0.0.0');
+    expect(ua).toBe(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+        '(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+    );
+  });
+
+  it('treats a regex-special app name as literal text', () => {
+    // The app name is arbitrary and lands inside a constructed pattern. An
+    // unescaped one silently matches the wrong span, which would leave the
+    // token in place and get the sign-in rejected for a reason no log names.
+    const ua = scrubAgentUserAgent(
+      'AppleWebKit/537.36 Eternyl.Labs/2.0 Chrome/140.0.0.0',
+      'Eternyl.Labs'
+    );
+    expect(ua).toBe('AppleWebKit/537.36 Chrome/140.0.0.0');
+  });
+
+  it('leaves a user agent that carries neither token alone', () => {
+    const plain = 'Mozilla/5.0 AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36';
+    expect(scrubAgentUserAgent(plain, 'Eternyl')).toBe(plain);
   });
 });

@@ -223,6 +223,10 @@ export function resetAionBackendState(): void {
   statePromise = null;
   configPromise = null;
   catalogPromise = null;
+  // The local-browser answer is about a build/backend PAIRING, so a new
+  // credential can change it. Leaving it behind is how a user who onboarded
+  // mid-lifetime kept a pre-key "unsupported" until the next launch.
+  localBrowserProbe = null;
 }
 
 /**
@@ -392,13 +396,20 @@ let localBrowserProbe: Promise<boolean> | null = null;
  * contract (1.22 floor). False hides the composer toggle and strips the
  * submit fields — the honest rendering of "this cell cannot park a run on
  * your machine" is the affordance not being offered.
+ *
+ * Only an answer from the contract is cached. Reaching no transport at all —
+ * the preload not yet attached, or no usable remote config — resolves to null
+ * and drops the cache like a failed handshake does, because caching that as
+ * "unsupported" would pin the toggle off for the life of the process over a
+ * millisecond of startup. The credential can also change mid-lifetime, which
+ * is why resetAionBackendState drops this cache too.
  */
 export function probeLocalBrowserSupport(): Promise<boolean> {
   if (!localBrowserProbe) {
-    localBrowserProbe = (async () => {
-      if (typeof hostAPI()?.agentBrowserExecute !== 'function') return false;
+    localBrowserProbe = (async (): Promise<boolean | null> => {
+      if (typeof hostAPI()?.agentBrowserExecute !== 'function') return null;
       const config = await getAionRemoteConfig();
-      if (!config || 'error' in config) return false;
+      if (!config || 'error' in config) return null;
       const transport = new EdgeTransport({
         baseUrl: config.edgeBaseUrl,
         apiKey: config.apiKey,
@@ -406,6 +417,10 @@ export function probeLocalBrowserSupport(): Promise<boolean> {
       return supportsLocalBrowser(await transport.getIntegrationStatus());
     })().then(
       (supported) => {
+        if (supported === null) {
+          localBrowserProbe = null;
+          return false;
+        }
         useAionLocalBrowserStore.getState().noteSupport(supported);
         return supported;
       },

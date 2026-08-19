@@ -118,6 +118,26 @@ describe('BrowserDelegationExecutor', () => {
     expect(respond).toHaveBeenCalledTimes(1);
   });
 
+  it('executes a delegation id reused by the next run of the same session', async () => {
+    const { executor, transport, execute, respond } = harness();
+    executor.notePending('p1', transport, asMap(pendingRow('d1')));
+    await settle();
+    // A delegation id is `bd-<sessionId>:<toolCallId>`, so a second run whose
+    // provider mints the same tool_call_id re-announces a byte-identical id
+    // naming a DIFFERENT action. Skipping it as already-answered leaves the
+    // run parked until its deadline expires — one dead action per turn.
+    executor.notePending(
+      'p1',
+      transport,
+      asMap(pendingRow('d1', { runId: 'run-2' }))
+    );
+    await settle();
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute.mock.calls.map((c) => c[0].runId)).toEqual(['run-1', 'run-2']);
+    // The wire id stays the bare delegation id — the run scoping is ours.
+    expect(respond.mock.calls.map((c) => c[1])).toEqual(['d1', 'd1']);
+  });
+
   it('re-POSTs the recorded result on replay without re-executing', async () => {
     const respond = vi
       .fn()
