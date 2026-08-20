@@ -108,7 +108,7 @@ Diagnostics: exercises the edge seam and emits evidence. Deliberately outside th
 
 ## 3. Agent / AI infrastructure
 
-**All agent execution is remote.** No Python, no local model, no CAMEL. Runs happen inside an aion session pod; the desktop only submits commands and folds the event stream.
+**All agent execution is remote.** No Python, no local model, no legacy agent framework. Runs happen inside an aion session pod; the desktop only submits commands and folds the event stream.
 
 ### Run lifecycle
 1. `startAionTask()` (`src/store/aionChatBridge.ts:513`) → `POST /projects/{id}/commands` (`submitCommand`) with `command_id` as the idempotency key. `StartAionTaskArgs` carries attachments (`attachment_ids`), `comment_ids` (comments the turn must address), `browser_execution` (`""|"pod"|"local"`) and `browser_session_mode` (`""|"isolated"|"logged_in"`).

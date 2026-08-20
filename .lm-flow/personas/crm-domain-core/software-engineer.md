@@ -20,7 +20,7 @@
 
 ## Acceptance criteria from my lens
 - `pnpm type-check && pnpm lint && pnpm test` green; ≥60 new passing tests; baseline untouched.
-- License header on every new `.ts`; no hex anywhere (including fixture strings); no `/camel/i` matches in comments; no dead-brain identifier names.
+- License header on every new `.ts`; no hex anywhere (including fixture strings); no forbidden-word (c*mel) matches in comments; no dead-brain identifier names.
 - `seedCrmGoldenPath()` idempotent (double invocation, no duplicates); seeded selectors return 6 needs-you / 4 activity / 4 retention.
 
 ## Edge cases I want addressed

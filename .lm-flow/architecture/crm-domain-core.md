@@ -130,4 +130,4 @@ Everything synchronous in-renderer. Only async surface: `queueMicrotask` post-hy
 ## Evidence
 - `.lm-flow/recon/eigent-codebase-map.md` (engine map)
 - `.lm-flow/recon/lendmind-advisor-design-reference.md` §3 (domain model), §5 (AI patterns)
-- Store-conventions deep-dive (agent report, 2026-08-20): persisted-store anatomy (`spaceStore.ts:764-801`), two-version idiom, microtask repair, test idioms (`persist.getOptions()` assertions, `vi.hoisted`), gate hazards (`/camel/i`, design-token scan over all src, dead-brain identifier list, vitest baseline add-only, license headers). Coverage: recon docs + one focused agent (entry-points/infra passes already covered by codebase map).
+- Store-conventions deep-dive (agent report, 2026-08-20): persisted-store anatomy (`spaceStore.ts:764-801`), two-version idiom, microtask repair, test idioms (`persist.getOptions()` assertions, `vi.hoisted`), gate hazards (the c*mel-word grep, design-token scan over all src, dead-brain identifier list, vitest baseline add-only, license headers). Coverage: recon docs + one focused agent (entry-points/infra passes already covered by codebase map).

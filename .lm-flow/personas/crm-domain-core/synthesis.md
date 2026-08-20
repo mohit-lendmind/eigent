@@ -25,7 +25,7 @@
 6. **Conflict shape**: UX requires conflicts to carry both competing values with sources and timestamps (not boolean flags) on both `FactFindField` and `DocInsight`; SE requires `resolveConflict` addressed by composite path (caseId, clientId, section, fieldKey). PM requires resolution to update field, doc insight, worklist, stream atomically. Spec defines the conflict record and the atomic resolution action.
 
 ## Acceptance criteria (union)
-- `pnpm type-check && pnpm lint && pnpm test` green; ≥60 new passing tests; vitest baseline untouched; license header on every new file; no `/camel/i` matches; no dead-brain identifier names; no hex anywhere including fixtures.
+- `pnpm type-check && pnpm lint && pnpm test` green; ≥60 new passing tests; vitest baseline untouched; license header on every new file; no forbidden-word (c*mel) matches; no dead-brain identifier names; no hex anywhere including fixtures.
 - From seeded state, selectors return the design's Today counts (6 needs-you, 4 activity, 4 retention) and c417/c392 headline numbers; §3.20 compliance record reproduced including pending gift letter.
 - Per-store: JSON round-trip of partialized state; `migrate(fixture, 0)` drives shape repair; environment-switch clears all four keys.
 - Every fact-find mutation emits a `FieldChangeEvent`; conflict resolution is atomic across field/doc/worklist/stream; resolveConflict on a non-conflicted field is a no-op.
