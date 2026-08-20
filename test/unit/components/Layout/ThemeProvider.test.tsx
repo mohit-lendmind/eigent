@@ -56,8 +56,8 @@ describe('ThemeProvider', () => {
     useAuthStore.setState({
       appearance: 'light',
       appearanceMode: 'system',
-      lightColorThemeId: 'eigent',
-      darkColorThemeId: 'eigent',
+      lightColorThemeId: 'lendmind',
+      darkColorThemeId: 'lendmind',
       customThemeCatalog: { light: {}, dark: {} },
       themeContrast: 43,
     });

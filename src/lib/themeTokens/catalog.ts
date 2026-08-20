@@ -28,7 +28,7 @@ import {
 } from './types';
 
 export const DEFAULT_CONTRAST = 43;
-export const DEFAULT_THEME_ID = 'eigent';
+export const DEFAULT_THEME_ID = 'lendmind';
 export const DEFAULT_COLOR_THEME_ID = DEFAULT_THEME_ID;
 
 type BaseColorTokenShape = {

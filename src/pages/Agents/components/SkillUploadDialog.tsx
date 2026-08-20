@@ -593,7 +593,7 @@ export default function SkillUploadDialog({
               ) : null}
               {mode === 'upload' ? (
                 <div
-                  className={`ease-[cubic-bezier(0.23,1,0.32,1)] relative cursor-pointer rounded-xl border-2 border-dashed p-8 transition-colors duration-200 ${
+                  className={`ease-[cubic-bezier(0.23,1,0.32,1)] relative cursor-pointer rounded-xl border-2 border-dashed p-5 transition-colors duration-200 ${
                     uploadError
                       ? 'border-ds-border-status-error-default-default bg-ds-bg-status-error-subtle-default'
                       : isDragging
@@ -614,7 +614,7 @@ export default function SkillUploadDialog({
                   />
 
                   {selectedFile ? (
-                    <div className="flex flex-col items-center gap-6">
+                    <div className="flex flex-col items-center gap-4">
                       <div className="flex items-center gap-2">
                         <div
                           className={`flex flex-shrink-0 items-center justify-center rounded-lg p-1 ${

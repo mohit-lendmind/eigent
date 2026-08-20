@@ -41,7 +41,7 @@ function percentOf(used: number, cap: number): number {
 function Banner({ message, testId }: { message: string; testId: string }) {
   return (
     <div
-      className="flex items-center gap-4 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-6"
+      className="flex items-center gap-3 rounded-2xl bg-ds-bg-neutral-default-default px-4 py-3.5"
       role="alert"
       data-testid={testId}
     >
@@ -55,7 +55,7 @@ function Banner({ message, testId }: { message: string; testId: string }) {
 
 function Placeholder({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-12 flex flex-col gap-6">
+    <div className="mb-12 flex flex-col gap-4">
       <div className="flex w-full flex-col items-center justify-between rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
         <div className="flex h-16 w-16 items-center justify-center">
           <Brain className="h-8 w-8 text-ds-icon-neutral-muted-default" />
@@ -95,9 +95,7 @@ function Usage({ usage }: { usage: AionMemoryUsage }) {
               })}
         </span>
         {docsCapped ? (
-          <Progress
-            value={percentOf(usage.docCount, usage.capDocsPerScope)}
-          />
+          <Progress value={percentOf(usage.docCount, usage.capDocsPerScope)} />
         ) : null}
       </div>
       <div className="flex flex-col gap-1">
@@ -115,9 +113,7 @@ function Usage({ usage }: { usage: AionMemoryUsage }) {
               })}
         </span>
         {bytesCapped ? (
-          <Progress
-            value={percentOf(usage.totalBytes, usage.capScopeBytes)}
-          />
+          <Progress value={percentOf(usage.totalBytes, usage.capScopeBytes)} />
         ) : null}
       </div>
       <span className="text-body-xs text-ds-text-neutral-muted-default">
@@ -378,11 +374,15 @@ export default function Memory() {
               happened; below it stays blank until a read answers. */}
           {list.length === 0 && !error ? (
             <div
-              className="flex flex-col items-center justify-center p-8 text-center"
-              data-testid={hits ? 'aion-memory-no-matches' : 'aion-memory-empty'}
+              className="flex flex-col items-center justify-center p-5 text-center"
+              data-testid={
+                hits ? 'aion-memory-no-matches' : 'aion-memory-empty'
+              }
             >
               <div className="text-body-sm text-ds-text-neutral-muted-default">
-                {hits ? t('agents.memory-no-matches') : t('agents.memory-empty')}
+                {hits
+                  ? t('agents.memory-no-matches')
+                  : t('agents.memory-empty')}
               </div>
             </div>
           ) : hits ? (
@@ -568,9 +568,7 @@ export default function Memory() {
                 <Button
                   variant="primary"
                   size="sm"
-                  disabled={
-                    busy || !edited.trim() || edited === opened.content
-                  }
+                  disabled={busy || !edited.trim() || edited === opened.content}
                   data-testid="aion-memory-save"
                   onClick={() => void write(opened.key, edited)}
                 >

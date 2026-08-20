@@ -35,7 +35,7 @@ export function WorkspaceAllSessions({
     <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
       <div className="m-0 mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-0.5 overflow-y-auto p-2">
         {projects.length === 0 ? (
-          <p className="m-0 px-3 py-6 text-center text-body-sm text-ds-text-neutral-muted-default">
+          <p className="m-0 px-3 py-4 text-center text-body-sm text-ds-text-neutral-muted-default">
             {t('layout.sessions-create-task-hint')}
           </p>
         ) : (

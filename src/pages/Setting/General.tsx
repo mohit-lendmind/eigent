@@ -178,7 +178,7 @@ export default function SettingGeneral() {
         </div>
       </div>
       {/* Content Section */}
-      <div className="mb-xl flex flex-col gap-6">
+      <div className="mb-xl flex flex-col gap-4">
         {/* Language Section */}
         <div className="item-center flex flex-row justify-between rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
           <div className="flex flex-1 items-center">
@@ -206,7 +206,7 @@ export default function SettingGeneral() {
         </div>
 
         {/* Network Proxy Section */}
-        <div className="flex flex-col gap-4 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
+        <div className="flex flex-col gap-3 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
           <div className="flex flex-col gap-1">
             <div className="text-body-base font-bold text-ds-text-neutral-default-default">
               {t('setting.network-proxy')}

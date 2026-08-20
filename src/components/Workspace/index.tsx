@@ -481,13 +481,15 @@ export default function Workspace({
 
   const composerTop = (
     <>
-      <div className="mb-8 flex w-full justify-center">{projectPicker}</div>
-      <span className="mb-8 w-full text-center text-heading-lg font-bold text-ds-text-neutral-default-default">
+      <div className="mb-5 flex w-full justify-center">{projectPicker}</div>
+      {/* The one display moment on this screen. Playfair at heading-sm, not
+          Inter bold at heading-lg: the landing is a threshold, not a hero. */}
+      <span className="mb-5 w-full text-center font-display text-heading-sm text-ds-text-neutral-default-default">
         {effectiveSessionMode === SessionMode.SINGLE_AGENT
           ? t('layout.workspace-cowork-single-agent')
           : t('layout.workspace-cowork-workforce')}
       </span>
-      <div className="mb-8 flex w-full justify-center px-5">
+      <div className="mb-4 flex w-full justify-center px-5">
         {effectiveSessionMode === SessionMode.SINGLE_AGENT ? (
           <SingleAgentList />
         ) : (

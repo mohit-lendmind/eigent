@@ -2,7 +2,7 @@
   "contracts": {
     "base": {
       "version": 2,
-      "themeId": "eigent",
+      "themeId": "lendmind",
       "contrast": 43,
       "overrides": {
         "tone": {},

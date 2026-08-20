@@ -118,7 +118,7 @@ const FIXED_SHADE_SCALES = (baseColorTokens as BaseColorTokensShape)
 describe('themeTokens v2 engine', () => {
   it('is deterministic for a fixed contract and catalog', () => {
     const contract = createDefaultThemeContractV2('light', {
-      themeId: 'eigent',
+      themeId: 'lendmind',
       contrast: 52,
     });
     const first = buildThemeV2(contract, DEFAULT_THEME_CATALOG);
@@ -129,7 +129,7 @@ describe('themeTokens v2 engine', () => {
 
   it('enforces override precedence with cell override as final authority', () => {
     const baseContract = createDefaultThemeContractV2('light', {
-      themeId: 'starfish',
+      themeId: 'aion',
       contrast: 50,
     });
     const base = buildThemeV2(baseContract, DEFAULT_THEME_CATALOG);
@@ -153,7 +153,7 @@ describe('themeTokens v2 engine', () => {
 
   it('produces a full tone × emphasis × state × element matrix', () => {
     const theme = buildThemeV2(
-      createDefaultThemeContractV2('dark', { themeId: 'violet', contrast: 63 }),
+      createDefaultThemeContractV2('dark', { themeId: 'tenet', contrast: 63 }),
       DEFAULT_THEME_CATALOG
     );
     const expected =
@@ -167,7 +167,7 @@ describe('themeTokens v2 engine', () => {
   it('ensures all generated tokens are valid CSS colors', () => {
     const theme = buildThemeV2(
       createDefaultThemeContractV2('light', {
-        themeId: 'claw',
+        themeId: 'eternyl',
         contrast: 40,
       }),
       DEFAULT_THEME_CATALOG
@@ -180,7 +180,10 @@ describe('themeTokens v2 engine', () => {
 
   it('enforces required WCAG pairs and emits APCA diagnostics', () => {
     const theme = buildThemeV2(
-      createDefaultThemeContractV2('dark', { themeId: 'eigent', contrast: 80 }),
+      createDefaultThemeContractV2('dark', {
+        themeId: 'lendmind',
+        contrast: 80,
+      }),
       DEFAULT_THEME_CATALOG
     );
     expect(theme.diagnostics.contrast.length).toBeGreaterThan(0);
@@ -201,7 +204,7 @@ describe('themeTokens v2 engine', () => {
     const root = document.createElement('div');
     const light = applyThemeContractV2(
       createDefaultThemeContractV2('light', {
-        themeId: 'eigent',
+        themeId: 'lendmind',
         contrast: 40,
       }),
       root
@@ -212,7 +215,10 @@ describe('themeTokens v2 engine', () => {
     expect(firstBg).toBe(light.cssVariables['--ds-bg-neutral-subtle-default']);
 
     const dark = applyThemeContractV2(
-      createDefaultThemeContractV2('dark', { themeId: 'eigent', contrast: 70 }),
+      createDefaultThemeContractV2('dark', {
+        themeId: 'lendmind',
+        contrast: 70,
+      }),
       root
     );
     const secondBg = root.style.getPropertyValue(
@@ -225,13 +231,16 @@ describe('themeTokens v2 engine', () => {
   it('keeps neutral surface polarity aligned with mode', () => {
     const light = buildThemeV2(
       createDefaultThemeContractV2('light', {
-        themeId: 'eigent',
+        themeId: 'lendmind',
         contrast: 50,
       }),
       DEFAULT_THEME_CATALOG
     );
     const dark = buildThemeV2(
-      createDefaultThemeContractV2('dark', { themeId: 'eigent', contrast: 50 }),
+      createDefaultThemeContractV2('dark', {
+        themeId: 'lendmind',
+        contrast: 50,
+      }),
       DEFAULT_THEME_CATALOG
     );
 
@@ -250,23 +259,29 @@ describe('themeTokens v2 engine', () => {
 
   it('uses legacy-style monotonic contrast response for neutral tokens', () => {
     const lightLow = buildThemeV2(
-      createDefaultThemeContractV2('light', { themeId: 'eigent', contrast: 0 }),
+      createDefaultThemeContractV2('light', {
+        themeId: 'lendmind',
+        contrast: 0,
+      }),
       DEFAULT_THEME_CATALOG
     );
     const lightHigh = buildThemeV2(
       createDefaultThemeContractV2('light', {
-        themeId: 'eigent',
+        themeId: 'lendmind',
         contrast: 100,
       }),
       DEFAULT_THEME_CATALOG
     );
     const darkLow = buildThemeV2(
-      createDefaultThemeContractV2('dark', { themeId: 'eigent', contrast: 0 }),
+      createDefaultThemeContractV2('dark', {
+        themeId: 'lendmind',
+        contrast: 0,
+      }),
       DEFAULT_THEME_CATALOG
     );
     const darkHigh = buildThemeV2(
       createDefaultThemeContractV2('dark', {
-        themeId: 'eigent',
+        themeId: 'lendmind',
         contrast: 100,
       }),
       DEFAULT_THEME_CATALOG
@@ -303,22 +318,25 @@ describe('themeTokens v2 engine', () => {
     );
   });
 
-  it('keeps brand inverse text white for black brand fills', () => {
+  it('keeps brand inverse text white on a near-black brand fill', () => {
+    // graphite is the monochrome theme: its accent is the house ink, so the
+    // brand fill lands near-black and inverse text has to stay white.
     const theme = buildThemeV2(
       createDefaultThemeContractV2('light', {
-        themeId: 'eigent',
+        themeId: 'graphite',
         contrast: 50,
       }),
       DEFAULT_THEME_CATALOG
     );
-    expect(theme.tokens['bg.brand.default.default']).toBe('#000000');
+    const fill = theme.tokens['bg.brand.default.default'] as `#${string}`;
+    expect(relativeLuminance(fill)).toBeLessThan(0.1);
     expect(theme.tokens['text.brand.inverse.default']).toBe('#ffffff');
   });
 
   it('keeps success inverse text as light as brand inverse on filled success (light)', () => {
     const theme = buildThemeV2(
       createDefaultThemeContractV2('light', {
-        themeId: 'eigent',
+        themeId: 'lendmind',
         contrast: 50,
       }),
       DEFAULT_THEME_CATALOG
@@ -334,14 +352,14 @@ describe('themeTokens v2 engine', () => {
   it('maps system status background emphases to fixed shade steps (light vs dark)', () => {
     const lightTheme = buildThemeV2(
       createDefaultThemeContractV2('light', {
-        themeId: 'eigent',
+        themeId: 'lendmind',
         contrast: 50,
       }),
       DEFAULT_THEME_CATALOG
     );
     const darkTheme = buildThemeV2(
       createDefaultThemeContractV2('dark', {
-        themeId: 'eigent',
+        themeId: 'lendmind',
         contrast: 50,
       }),
       DEFAULT_THEME_CATALOG
@@ -380,7 +398,7 @@ describe('themeTokens v2 engine', () => {
   it('uses 600-shade transparent status fills with the new alpha schedule', () => {
     const theme = buildThemeV2(
       createDefaultThemeContractV2('light', {
-        themeId: 'eigent',
+        themeId: 'lendmind',
         contrast: 50,
       }),
       DEFAULT_THEME_CATALOG

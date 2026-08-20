@@ -40,6 +40,21 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     optimizeDeps: {
       exclude: ['@stackframe/react'],
+      // @stackframe/react is left unbundled, so its CJS-only transitive deps
+      // reach the browser raw and their named exports fail to resolve.
+      // Prebundle them explicitly.
+      include: [
+        'yup',
+        'tiny-case',
+        'property-expr',
+        'toposort',
+        'react-avatar-editor',
+        'browser-image-compression',
+        'js-cookie',
+        'cookie',
+        'color',
+        'qrcode',
+      ],
       force: true,
     },
     build: {

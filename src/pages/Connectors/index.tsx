@@ -22,9 +22,13 @@
 // fourth fact again — this tenant has no integrations registered — and reads
 // differently from a backend that cannot answer.
 
+import SearchInput from '@/components/Dashboard/SearchInput';
 import { Button } from '@/components/ui/button';
 import { useHost } from '@/host';
-import { connectorState, type AionConnector } from '@/store/aionConnectorsStore';
+import {
+  connectorState,
+  type AionConnector,
+} from '@/store/aionConnectorsStore';
 import {
   AlertCircle,
   BadgeCheck,
@@ -35,13 +39,12 @@ import {
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import SearchInput from '@/components/Dashboard/SearchInput';
 import { useAionConnectors } from './useAionConnectors';
 
 function Banner({ message, testId }: { message: string; testId: string }) {
   return (
     <div
-      className="flex items-center gap-4 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-6"
+      className="flex items-center gap-3 rounded-2xl bg-ds-bg-neutral-default-default px-4 py-3.5"
       role="alert"
       data-testid={testId}
     >
@@ -59,7 +62,7 @@ function StateBadge({ connector }: { connector: AionConnector }) {
   if (state.kind === 'connected') {
     return (
       <span
-        className="flex items-center gap-1.5 text-body-xs text-ds-text-status-success-strong-default"
+        className="text-ds-text-status-success-strong-default flex items-center gap-1.5 text-body-xs"
         data-testid="aion-connector-state-connected"
       >
         <BadgeCheck className="h-4 w-4" />
@@ -80,7 +83,7 @@ function StateBadge({ connector }: { connector: AionConnector }) {
   if (state.kind === 'unavailable') {
     return (
       <span
-        className="text-body-xs text-ds-text-status-warning-strong-default"
+        className="text-ds-text-status-warning-strong-default text-body-xs"
         data-testid="aion-connector-state-unavailable"
       >
         {t('connectors.aion-state-unavailable')}
@@ -153,7 +156,7 @@ export default function AionConnectors() {
   }
   if (mode.kind === 'unsupported') {
     return (
-      <div className="w-full py-6">
+      <div className="w-full py-4">
         <Banner
           testId="aion-connectors-banner"
           message={t('connectors.aion-backend-too-old', {
@@ -165,7 +168,7 @@ export default function AionConnectors() {
   }
   if (mode.kind === 'error') {
     return (
-      <div className="w-full py-6">
+      <div className="w-full py-4">
         <Banner
           testId="aion-connectors-banner"
           message={t('connectors.aion-remote-error', { message: mode.message })}
@@ -176,7 +179,7 @@ export default function AionConnectors() {
 
   return (
     <div
-      className="flex w-full min-w-0 flex-col gap-4 py-6"
+      className="flex w-full min-w-0 flex-col gap-4 py-4"
       data-testid="aion-connectors"
     >
       <div className="flex items-center justify-between gap-3">
@@ -196,9 +199,7 @@ export default function AionConnectors() {
         </Button>
       </div>
 
-      {error ? (
-        <Banner testId="aion-connectors-error" message={error} />
-      ) : null}
+      {error ? <Banner testId="aion-connectors-error" message={error} /> : null}
       {awaitTimedOut ? (
         <div
           className="rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4 text-body-sm text-ds-text-neutral-default-default"
@@ -211,7 +212,7 @@ export default function AionConnectors() {
 
       {connectors.length === 0 ? (
         <div
-          className="flex flex-col items-center justify-center p-8 text-center"
+          className="flex flex-col items-center justify-center p-5 text-center"
           data-testid="aion-connectors-empty"
         >
           <Plug className="mb-4 h-12 w-12 text-ds-icon-neutral-muted-default" />
@@ -220,7 +221,7 @@ export default function AionConnectors() {
           </div>
         </div>
       ) : visible.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-8 text-center">
+        <div className="flex flex-col items-center justify-center p-5 text-center">
           <div className="text-sm text-ds-text-neutral-muted-default">
             {t('connectors.no-matching')}
           </div>

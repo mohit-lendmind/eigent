@@ -232,10 +232,10 @@ export default function Skills() {
       </div>
 
       {/* Content Section */}
-      <div className="mb-12 flex flex-col gap-6">
+      <div className="mb-12 flex flex-col gap-4">
         {remoteUnavailable ? (
           <div
-            className="mx-6 flex items-center gap-4 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-6"
+            className="mx-6 flex items-center gap-3 rounded-2xl bg-ds-bg-neutral-default-default px-4 py-3.5"
             role="alert"
             data-testid="skills-remote-banner"
           >
@@ -253,70 +253,70 @@ export default function Skills() {
             </span>
           </div>
         ) : (
-        <div className="flex w-full flex-col items-center justify-between gap-4 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
-          <Tabs defaultValue="your-skills" className="w-full">
-            <div className="z-10 flex w-full items-center justify-between gap-4 border-x-0 border-b-[0.5px] border-t-0 border-solid border-ds-border-neutral-default-default bg-ds-bg-neutral-default-default">
-              <TabsList
-                appearance="border"
-                className="h-auto flex-1 justify-start"
-              >
-                <TabsTrigger value="your-skills">
-                  {t('agents.your-skills')}
-                </TabsTrigger>
-                <TabsTrigger value="example-skills">
-                  {t('agents.example-skills')}
-                </TabsTrigger>
-              </TabsList>
-              <div className="mb-2 flex items-center gap-2">
-                <SearchInput
-                  variant="icon"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t('agents.search-skills')}
-                />
-                <Button
-                  variant="primary"
-                  size="sm"
-                  data-testid="skills-add"
-                  onClick={() => {
-                    setSkillDialogMode('upload');
-                    setUploadDialogOpen(true);
-                  }}
+          <div className="flex w-full flex-col items-center justify-between gap-3 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
+            <Tabs defaultValue="your-skills" className="w-full">
+              <div className="z-10 flex w-full items-center justify-between gap-4 border-x-0 border-b-[0.5px] border-t-0 border-solid border-ds-border-neutral-default-default bg-ds-bg-neutral-default-default">
+                <TabsList
+                  appearance="border"
+                  className="h-auto flex-1 justify-start"
                 >
-                  <Plus className="h-4 w-4" />
-                  {t('agents.add-skill')}
-                </Button>
-              </div>
-            </div>
-            <TabsContent value="your-skills" className="mt-4">
-              {renderYourSkills(
-                hasCompletedInitialSync && searchQuery.length === 0
-              )}
-            </TabsContent>
-            <TabsContent value="example-skills" className="mt-4">
-              {exampleSkills.length === 0 ? (
-                <SkillListItem
-                  variant="placeholder"
-                  message={
-                    searchQuery
-                      ? t('agents.no-skills-found')
-                      : t('agents.no-example-skills')
-                  }
-                />
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {exampleSkills.map((skill) => (
-                    <SkillListItem
-                      key={skill.id}
-                      skill={skill}
-                      onDelete={undefined}
-                    />
-                  ))}
+                  <TabsTrigger value="your-skills">
+                    {t('agents.your-skills')}
+                  </TabsTrigger>
+                  <TabsTrigger value="example-skills">
+                    {t('agents.example-skills')}
+                  </TabsTrigger>
+                </TabsList>
+                <div className="mb-2 flex items-center gap-2">
+                  <SearchInput
+                    variant="icon"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={t('agents.search-skills')}
+                  />
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    data-testid="skills-add"
+                    onClick={() => {
+                      setSkillDialogMode('upload');
+                      setUploadDialogOpen(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    {t('agents.add-skill')}
+                  </Button>
                 </div>
-              )}
-            </TabsContent>
-          </Tabs>
-        </div>
+              </div>
+              <TabsContent value="your-skills" className="mt-4">
+                {renderYourSkills(
+                  hasCompletedInitialSync && searchQuery.length === 0
+                )}
+              </TabsContent>
+              <TabsContent value="example-skills" className="mt-4">
+                {exampleSkills.length === 0 ? (
+                  <SkillListItem
+                    variant="placeholder"
+                    message={
+                      searchQuery
+                        ? t('agents.no-skills-found')
+                        : t('agents.no-example-skills')
+                    }
+                  />
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {exampleSkills.map((skill) => (
+                      <SkillListItem
+                        key={skill.id}
+                        skill={skill}
+                        onDelete={undefined}
+                      />
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
         )}
       </div>
 

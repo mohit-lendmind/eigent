@@ -13,11 +13,19 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import { isWeb } from '@/client/platform';
+// House type: Inter for everything you read, JetBrains Mono for the things you
+// scan (labels, ids, counts, elapsed time), Playfair for the few display
+// moments. All three ship in the bundle — the packaged app never reaches a CDN.
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
 import '@fontsource/inter/700.css';
-import '@fontsource/inter/800.css';
+import '@fontsource/jetbrains-mono/400.css';
+import '@fontsource/jetbrains-mono/500.css';
+import '@fontsource/jetbrains-mono/600.css';
+import '@fontsource/playfair-display/500-italic.css';
+import '@fontsource/playfair-display/500.css';
+import '@fontsource/playfair-display/600.css';
 import { Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, HashRouter } from 'react-router-dom';
@@ -39,11 +47,11 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <Suspense fallback={<div></div>}>
     <Router>
       <HostProvider host={host}>
-          <ThemeProvider>
-            <TooltipProvider>
-              <App />
-            </TooltipProvider>
-          </ThemeProvider>
+        <ThemeProvider>
+          <TooltipProvider>
+            <App />
+          </TooltipProvider>
+        </ThemeProvider>
       </HostProvider>
     </Router>
   </Suspense>

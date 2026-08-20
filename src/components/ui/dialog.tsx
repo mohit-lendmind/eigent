@@ -38,7 +38,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'inset-0 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed z-50 bg-transparent',
+      'fixed inset-0 z-50 bg-transparent backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
       className
     )}
     {...props}
@@ -131,7 +131,7 @@ const DialogContent = React.forwardRef<
               size="xs"
               buttonContent="icon-only"
               className={cn(
-                'right-4 top-4 absolute focus:ring-0 focus:ring-offset-0 focus:outline-none',
+                'absolute right-4 top-4 focus:outline-none focus:ring-0 focus:ring-offset-0',
                 closeButtonClassName
               )}
               onClick={onClose}
@@ -175,12 +175,12 @@ const DialogHeader = React.forwardRef<HTMLDivElement, DialogHeaderProps>(
     <div
       ref={ref}
       className={cn(
-        'gap-2 rounded-t-xl bg-ds-bg-neutral-strong-default p-4 relative flex w-full shrink-0 items-center justify-between overflow-hidden',
+        'relative flex w-full shrink-0 items-center justify-between gap-2 overflow-hidden rounded-t-xl bg-ds-bg-neutral-strong-default px-3 py-2.5',
         className
       )}
       {...props}
     >
-      <div className="gap-2 flex items-center">
+      <div className="flex items-center gap-2">
         {showBackButton && (
           <Button
             variant="ghost"
@@ -192,11 +192,11 @@ const DialogHeader = React.forwardRef<HTMLDivElement, DialogHeaderProps>(
             <ChevronLeft className="h-4 w-4 text-ds-icon-neutral-default-default" />
           </Button>
         )}
-        <div className="sm:text-left flex flex-col text-center">
+        <div className="flex flex-col text-center sm:text-left">
           {title && (
-            <div className="gap-1 flex items-center">
+            <div className="flex items-center gap-1">
               <DialogPrimitive.Title asChild>
-                <span className="text-body-md font-bold text-ds-text-neutral-default-default my-[1px]">
+                <span className="my-[1px] text-body-md font-bold text-ds-text-neutral-default-default">
                   {title}
                 </span>
               </DialogPrimitive.Title>
@@ -227,7 +227,7 @@ const DialogContentSection = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn('min-h-0 p-4 flex-1', className)} {...props} />
+  <div ref={ref} className={cn('min-h-0 flex-1 p-4', className)} {...props} />
 ));
 DialogContentSection.displayName = 'DialogContentSection';
 
@@ -339,9 +339,9 @@ const DialogFooter = React.forwardRef<HTMLDivElement, DialogFooterProps>(
       <div
         ref={footerRef}
         className={cn(
-          'gap-2 px-4 pb-4 pt-2 relative flex w-full shrink-0 items-center justify-end',
+          'relative flex w-full shrink-0 items-center justify-end gap-2 px-3 pb-3 pt-2',
           hasScrollbar &&
-            'border-ds-border-neutral-default-default border-x-0 border-t-[0.5px] border-b-0 border-solid',
+            'border-x-0 border-b-0 border-t-[0.5px] border-solid border-ds-border-neutral-default-default',
           className
         )}
         {...props}

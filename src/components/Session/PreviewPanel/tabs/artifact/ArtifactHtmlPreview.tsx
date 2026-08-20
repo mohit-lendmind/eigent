@@ -53,7 +53,7 @@ export function ArtifactHtmlPreview({ html }: ArtifactHtmlPreviewProps) {
 
   if (dangerous) {
     return (
-      <div className="flex h-full min-h-0 w-full flex-col items-center justify-center gap-2 p-6 text-center">
+      <div className="flex h-full min-h-0 w-full flex-col items-center justify-center gap-2 p-4 text-center">
         <ShieldAlert
           className="h-6 w-6 text-ds-icon-error-default-default"
           aria-hidden

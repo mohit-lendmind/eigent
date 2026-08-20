@@ -59,23 +59,23 @@ const LANGUAGE_OPTIONS = [
 
 const THEME_PRESETS = [
   {
-    id: 'eigent',
+    id: 'lendmind',
+    label: 'Lendmind',
+    lightAccent: '#3b82f6',
+    darkAccent: '#60a5fa',
+  },
+  {
+    id: 'eternyl',
     label: 'Eternyl',
-    lightAccent: '#1d1d1d',
-    darkAccent: '#ede1db',
+    lightAccent: '#3de1c4',
+    darkAccent: '#5eead4',
   },
+  { id: 'aion', label: 'Aion', lightAccent: '#6366f1', darkAccent: '#818cf8' },
   {
-    id: 'violet',
-    label: 'Violet',
-    lightAccent: '#4c19e8',
-    darkAccent: '#b5afff',
-  },
-  { id: 'claw', label: 'Claw', lightAccent: '#cc7d5e', darkAccent: '#cc7d5e' },
-  {
-    id: 'starfish',
-    label: 'Starfish',
-    lightAccent: '#0169cc',
-    darkAccent: '#0169cc',
+    id: 'tenet',
+    label: 'Tenet',
+    lightAccent: '#7c3aed',
+    darkAccent: '#a78bfa',
   },
 ] as const;
 

@@ -39,13 +39,13 @@ describe('themeTokens v2 engine verifier', () => {
   it('applies contrast clamping at bounds', () => {
     const low = buildThemeV2(
       createDefaultThemeContractV2('light', {
-        themeId: 'eigent',
+        themeId: 'lendmind',
         contrast: -50,
       })
     );
     const high = buildThemeV2(
       createDefaultThemeContractV2('light', {
-        themeId: 'eigent',
+        themeId: 'lendmind',
         contrast: 500,
       })
     );

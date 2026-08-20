@@ -65,7 +65,7 @@ export default function Channels() {
           </div>
 
           {/* Content Section */}
-          <div className="mb-12 flex flex-col gap-6">
+          <div className="mb-12 flex flex-col gap-4">
             <div className="flex w-full flex-col items-center justify-between rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
               <div className="flex h-16 w-16 items-center justify-center">
                 <MessageSquare className="h-8 w-8 text-ds-icon-neutral-muted-default" />

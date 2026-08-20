@@ -12,6 +12,7 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
+import { ArrowUpRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -56,7 +57,10 @@ export interface WorkspaceExamplePromptsProps {
 }
 
 /**
- * Full-width (max 900px) grid of starter prompt cards for the workspace landing.
+ * Starter prompts for the workspace landing, as a hairline-ruled list rather
+ * than a stack of cards: a mono index, the title, and an arrow that only shows
+ * on hover. Three half-faded full-width buttons read as disabled controls and
+ * ate the vertical band the composer wants.
  */
 export function WorkspaceExamplePrompts({
   onSelectPrompt,
@@ -65,9 +69,12 @@ export function WorkspaceExamplePrompts({
   const { t } = useTranslation();
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-[600px] flex-col pb-4">
-      <div className="flex w-full flex-col gap-4">
-        {WORKSPACE_EXAMPLE_PROMPTS.map((item) => (
+    <div className="mx-auto flex w-full max-w-[600px] flex-col pb-4">
+      <div className="font-kicker mb-1.5 px-1">
+        {t('layout.example-prompts-kicker', { defaultValue: 'Try' })}
+      </div>
+      <div className="flex w-full flex-col border-t border-solid border-ds-border-neutral-subtle-default">
+        {WORKSPACE_EXAMPLE_PROMPTS.map((item, index) => (
           <button
             key={item.id}
             type="button"
@@ -77,11 +84,18 @@ export function WorkspaceExamplePrompts({
               )
             }
             disabled={disabled}
-            className="hover:bg-ds-bg-neutral-strong-default/40 rounded-xl border border-solid border-ds-border-neutral-subtle-default bg-ds-bg-neutral-strong-default p-3 text-center opacity-50 transition-opacity duration-200 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-ring-neutral-default-focus disabled:pointer-events-none disabled:opacity-30"
+            className="group flex w-full items-center gap-2.5 border-b border-solid border-ds-border-neutral-subtle-default px-1 py-2 text-left transition-colors hover:bg-ds-bg-neutral-strong-default focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ds-ring-brand-default-focus disabled:pointer-events-none disabled:opacity-40"
           >
-            <span className="block text-body-sm font-semibold leading-snug text-ds-text-neutral-default-default">
+            <span className="w-5 shrink-0 font-mono text-xs tabular-nums text-ds-text-neutral-subtle-default">
+              {String(index + 1).padStart(2, '0')}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-body-sm text-ds-text-neutral-muted-default transition-colors group-hover:text-ds-text-neutral-default-default">
               {t(item.titleKey, { defaultValue: item.titleDefault })}
             </span>
+            <ArrowUpRight
+              aria-hidden
+              className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+            />
           </button>
         ))}
       </div>

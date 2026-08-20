@@ -69,7 +69,7 @@ export default function ConfirmModal({
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             className="alert-dialog-wrapper fixed left-1/2 top-1/2 z-[100] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl"
           >
-            <div className="rounded-xl border border-ds-border-neutral-default-default bg-ds-bg-neutral-strong-default p-6 shadow-perfect">
+            <div className="rounded-xl border border-ds-border-neutral-default-default bg-ds-bg-neutral-strong-default p-4 shadow-perfect">
               <span className="mb-2 text-body-lg font-bold text-ds-text-neutral-default-default">
                 {title}
               </span>

@@ -13,6 +13,7 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import { Button } from '@/components/ui/button';
+import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import { useHost } from '@/host';
 import { cn } from '@/lib/utils';
 import {
@@ -37,7 +38,6 @@ import {
   type AionComment,
   type AionCommentsMode,
 } from '@/store/aionCommentsStore';
-import useChatStoreAdapter from '@/hooks/useChatStoreAdapter';
 import { usePageTabStore, type SessionArtifactTab } from '@/store/pageTabStore';
 import {
   Columns2,
@@ -48,6 +48,12 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  formatArtifactSize,
+  groupArtifacts,
+  laneForArtifact,
+  type ArtifactNameGroup,
+} from './artifactLanes';
 import { ArtifactViewer, type ViewerSelection } from './ArtifactViewer';
 import {
   buildRevisionText,
@@ -58,12 +64,6 @@ import {
   type CommentRelocation,
 } from './commentAnchors';
 import { CommentRail } from './CommentRail';
-import {
-  formatArtifactSize,
-  groupArtifacts,
-  laneForArtifact,
-  type ArtifactNameGroup,
-} from './artifactLanes';
 
 export interface ArtifactTabProps {
   tab: SessionArtifactTab;
@@ -100,9 +100,7 @@ export function ArtifactTab({ tab }: ArtifactTabProps) {
   const host = useHost();
   const electronAPI = host?.electronAPI;
   const eigentProjectId = usePageTabStore((s) => s.sessionPreviewProjectId);
-  const selectPreviewArtifact = usePageTabStore(
-    (s) => s.selectPreviewArtifact
-  );
+  const selectPreviewArtifact = usePageTabStore((s) => s.selectPreviewArtifact);
 
   const [projectId, setProjectId] = useState<string | null>(null);
   const [mode, setMode] = useState<AionArtifactsMode | null>(null);
@@ -407,7 +405,11 @@ export function ArtifactTab({ tab }: ArtifactTabProps) {
       const anchor: CommentAnchor =
         (pendingSelection && source !== undefined
           ? pendingSelection.start >= 0
-            ? captureAnchor(source, pendingSelection.start, pendingSelection.end)
+            ? captureAnchor(
+                source,
+                pendingSelection.start,
+                pendingSelection.end
+              )
             : captureSelectionAnchor(source, pendingSelection.text)
           : null) ?? DOCUMENT_ANCHOR;
       setCommentBusy(true);
@@ -650,80 +652,80 @@ export function ArtifactTab({ tab }: ArtifactTabProps) {
         </div>
 
         <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div
-          className="min-h-0 min-w-0 flex-1 overflow-hidden"
-          data-artifact-lane={lane ?? 'none'}
-          data-artifact-name={content?.artifact.name ?? ''}
-          data-artifact-version={content?.artifact.version ?? ''}
-          data-artifact-ready={content && !contentLoading ? '1' : '0'}
-        >
-          {contentError ? (
-            <EmptyState
-              title={t('artifact.read-failed', {
-                defaultValue: 'Could not read this artifact',
-              })}
-              detail={contentError}
-              action={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={reload}
-                >
-                  {t('artifact.retry', { defaultValue: 'Try again' })}
-                </Button>
+          <div
+            className="min-h-0 min-w-0 flex-1 overflow-hidden"
+            data-artifact-lane={lane ?? 'none'}
+            data-artifact-name={content?.artifact.name ?? ''}
+            data-artifact-version={content?.artifact.version ?? ''}
+            data-artifact-ready={content && !contentLoading ? '1' : '0'}
+          >
+            {contentError ? (
+              <EmptyState
+                title={t('artifact.read-failed', {
+                  defaultValue: 'Could not read this artifact',
+                })}
+                detail={contentError}
+                action={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={reload}
+                  >
+                    {t('artifact.retry', { defaultValue: 'Try again' })}
+                  </Button>
+                }
+              />
+            ) : content ? (
+              <ArtifactViewer
+                content={content}
+                showSource={showSource}
+                compareWith={compare}
+                onDownload={() => void download()}
+                downloading={downloading}
+                onSelect={commentsOpen ? handleSelect : undefined}
+              />
+            ) : contentLoading || listLoading ? (
+              <EmptyState
+                title={t('artifact.loading', { defaultValue: 'Loading…' })}
+              />
+            ) : (
+              <EmptyState
+                title={
+                  selectedGroup
+                    ? t('artifact.nothing-selected', {
+                        defaultValue: 'Select an artifact',
+                      })
+                    : t('artifact.empty-list', {
+                        defaultValue: 'Nothing published yet.',
+                      })
+                }
+                detail={t('artifact.empty-desc', {
+                  defaultValue:
+                    'A file becomes an artifact when a task publishes it.',
+                })}
+              />
+            )}
+          </div>
+          {commentsOpen && commentsMode?.kind === 'remote' ? (
+            <CommentRail
+              comments={comments}
+              relocations={relocations}
+              versionLabels={versionLabels}
+              selectedArtifactId={selectedId ?? null}
+              pendingSelection={pendingSelection}
+              loading={commentsLoading}
+              error={commentsError}
+              busy={commentBusy}
+              onCreate={(body) => void createComment(body)}
+              onSetStatus={(comment, status) =>
+                void setCommentStatus(comment, status)
               }
+              onRequestRevision={() => void requestRevision()}
+              revisionBusy={revisionBusy}
+              canRequestRevision={Boolean(activeTaskId && selectedName)}
             />
-          ) : content ? (
-            <ArtifactViewer
-              content={content}
-              showSource={showSource}
-              compareWith={compare}
-              onDownload={() => void download()}
-              downloading={downloading}
-              onSelect={commentsOpen ? handleSelect : undefined}
-            />
-          ) : contentLoading || listLoading ? (
-            <EmptyState
-              title={t('artifact.loading', { defaultValue: 'Loading…' })}
-            />
-          ) : (
-            <EmptyState
-              title={
-                selectedGroup
-                  ? t('artifact.nothing-selected', {
-                      defaultValue: 'Select an artifact',
-                    })
-                  : t('artifact.empty-list', {
-                      defaultValue: 'Nothing published yet.',
-                    })
-              }
-              detail={t('artifact.empty-desc', {
-                defaultValue:
-                  'A file becomes an artifact when a task publishes it.',
-              })}
-            />
-          )}
-        </div>
-        {commentsOpen && commentsMode?.kind === 'remote' ? (
-          <CommentRail
-            comments={comments}
-            relocations={relocations}
-            versionLabels={versionLabels}
-            selectedArtifactId={selectedId ?? null}
-            pendingSelection={pendingSelection}
-            loading={commentsLoading}
-            error={commentsError}
-            busy={commentBusy}
-            onCreate={(body) => void createComment(body)}
-            onSetStatus={(comment, status) =>
-              void setCommentStatus(comment, status)
-            }
-            onRequestRevision={() => void requestRevision()}
-            revisionBusy={revisionBusy}
-            canRequestRevision={Boolean(activeTaskId && selectedName)}
-          />
-        ) : null}
+          ) : null}
         </div>
       </div>
     </div>
@@ -794,7 +796,7 @@ function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex h-full min-h-0 w-full flex-col items-center justify-center gap-2 p-6 text-center">
+    <div className="flex h-full min-h-0 w-full flex-col items-center justify-center gap-2 p-4 text-center">
       <p className="text-sm font-medium text-ds-text-neutral-default-default">
         {title}
       </p>

@@ -21,40 +21,33 @@ export type FormFieldSize = 'default' | 'sm';
 
 /** Same union as `Input` `state` (field wrapper, not `UiTone`). */
 export type FormFieldInputState =
-  | 'default'
-  | 'hover'
-  | 'input'
-  | 'error'
-  | 'success'
-  | 'disabled';
+  'default' | 'hover' | 'input' | 'error' | 'success' | 'disabled';
 
+// Fields sit on the same 28/24 rhythm as buttons so a row of mixed controls
+// lines up. h-10 (40px) was a web form height and towered over every button
+// next to it.
 export const formFieldSizeClasses: Record<FormFieldSize, string> = {
-  default: 'h-10 text-body-sm md:text-sm',
-  sm: 'h-8 text-body-sm',
+  default: 'h-7 text-body-sm',
+  sm: 'h-6 text-body-sm',
 };
 
 /** Select trigger: same vertical rhythm, no `md:` breakpoint on body text. */
 export const formFieldSelectSizeClasses: Record<FormFieldSize, string> = {
-  default: 'h-10 text-body-sm',
-  sm: 'h-8 text-body-sm',
+  default: 'h-7 text-body-sm',
+  sm: 'h-6 text-body-sm',
 };
 
 export const formFieldInputSelectSizeClasses: Record<FormFieldSize, string> = {
-  default: 'h-10 text-body-sm',
-  sm: 'h-8 text-body-sm',
+  default: 'h-7 text-body-sm',
+  sm: 'h-6 text-body-sm',
 };
 
 export type TextareaFormFieldState =
-  | 'default'
-  | 'hover'
-  | 'input'
-  | 'error'
-  | 'success'
-  | 'disabled';
+  'default' | 'hover' | 'input' | 'error' | 'success' | 'disabled';
 
 export const formFieldTextareaSizeClasses: Record<FormFieldSize, string> = {
-  default: 'min-h-[60px] text-body-sm md:text-sm',
-  sm: 'min-h-[40px] text-body-sm',
+  default: 'min-h-[52px] text-body-sm',
+  sm: 'min-h-[34px] text-body-sm',
 };
 
 export function formFieldInputStateClasses(

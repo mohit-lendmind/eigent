@@ -118,10 +118,8 @@ export default function SettingAccount() {
     }
 
     return (
-      <div className="flex flex-col gap-6" data-testid="aion-account">
-        {error ? (
-          <Banner testId="aion-account-error" message={error} />
-        ) : null}
+      <div className="flex flex-col gap-4" data-testid="aion-account">
+        {error ? <Banner testId="aion-account-error" message={error} /> : null}
 
         <div className="flex flex-col gap-3 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
           <div className="text-body-base font-bold text-ds-text-neutral-default-default">
@@ -164,7 +162,7 @@ export default function SettingAccount() {
             {t('setting.account-env-pinned')}
           </div>
         ) : (
-          <div className="flex items-center justify-between gap-4 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
+          <div className="flex items-center justify-between gap-3 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
             <span className="text-body-sm text-ds-text-neutral-default-default">
               {t('setting.account-sign-out-description')}
             </span>
@@ -188,7 +186,7 @@ export default function SettingAccount() {
             {t('setting.account-no-key-management')}
           </div>
         ) : (
-          <div className="flex flex-col gap-4 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
+          <div className="flex flex-col gap-3 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-4">
             <div className="text-body-base font-bold text-ds-text-neutral-default-default">
               {t('setting.account-keys')}
             </div>
@@ -262,9 +260,7 @@ export default function SettingAccount() {
                 size="sm"
                 disabled={busy}
                 data-testid="aion-account-create-key"
-                onClick={() =>
-                  void createKey(label).then(() => setLabel(''))
-                }
+                onClick={() => void createKey(label).then(() => setLabel(''))}
               >
                 {busy ? (
                   <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
@@ -320,7 +316,7 @@ export default function SettingAccount() {
                       </span>
                     ) : confirmRevoke === key.keyId ? (
                       <div className="flex items-center gap-2">
-                        <span className="text-body-xs text-ds-text-status-warning-strong-default">
+                        <span className="text-ds-text-status-warning-strong-default text-body-xs">
                           {key.current
                             ? t('setting.account-revoke-current-warning')
                             : t('setting.account-revoke-warning')}

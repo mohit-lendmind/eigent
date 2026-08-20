@@ -47,21 +47,21 @@ export default function WelcomeHeadline({ name }: { name: string }) {
   const welcomeName = formatWelcomeName(name);
 
   return (
-    <div className="flex w-full flex-row bg-gradient-to-b from-ds-bg-neutral-default-default to-ds-bg-neutral-default-default px-[74px] py-8">
+    <div className="flex w-full flex-row bg-ds-bg-neutral-default-default px-6 py-5">
       <p
         className="m-0 inline-flex flex-wrap items-baseline gap-2"
         data-testid="welcome-headline"
       >
         <WordCarousel
           words={[t(timeGreetingKey(new Date().getHours()))]}
-          className="history-welcome-headline text-heading-xl font-bold not-italic tracking-tight"
+          className="history-welcome-headline text-heading-base not-italic"
           rotateIntervalMs={100}
           sweepDurationMs={2000}
           sweepOnce
           gradient="linear-gradient(90deg, var(--ds-text-brand-subtle-default) 0%, var(--ds-text-brand-muted-default) 100%)"
         />
         {welcomeName ? (
-          <span className="history-welcome-headline text-heading-xl font-bold italic tracking-tight text-ds-text-brand-default-default">
+          <span className="history-welcome-headline text-heading-base italic text-ds-text-brand-default-default">
             {`, ${welcomeName} !`}
           </span>
         ) : null}

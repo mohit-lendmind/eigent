@@ -14,8 +14,8 @@
 
 import { MarkDown } from '@/components/ChatBox/MessageItem/MarkDown';
 import { Button } from '@/components/ui/button';
-import { useAuthStore } from '@/store/authStore';
 import type { AionArtifactContent } from '@/store/aionArtifactsStore';
+import { useAuthStore } from '@/store/authStore';
 import { Download } from 'lucide-react';
 import type { editor as monacoEditor } from 'monaco-editor';
 import { Suspense, lazy, useState } from 'react';
@@ -23,8 +23,8 @@ import { useTranslation } from 'react-i18next';
 import { ArtifactHtmlPreview } from './ArtifactHtmlPreview';
 import {
   formatArtifactSize,
-  languageForArtifact,
   laneForArtifact,
+  languageForArtifact,
 } from './artifactLanes';
 
 // Same lazy split the code cards use, so opening a markdown artifact never
@@ -282,7 +282,7 @@ function UndisplayableArtifact({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="flex h-full min-h-0 w-full items-center justify-center p-6">
+    <div className="flex h-full min-h-0 w-full items-center justify-center p-4">
       <div className="flex w-full max-w-[380px] flex-col gap-3 rounded-xl border border-solid border-ds-border-neutral-subtle-disabled bg-ds-bg-neutral-default-default p-4">
         <p className="break-all text-sm font-medium text-ds-text-neutral-default-default">
           {name}

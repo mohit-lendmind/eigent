@@ -2,114 +2,124 @@
   "$description": "Base color seeds and fixed role anchors for Design Tokens V2.",
   "themes": {
     "light": {
-      "eigent": {
-        "accent": "#000000",
-        "background": "#faf7f6",
-        "ink": "#1d1d1d"
+      "lendmind": {
+        "accent": "#3b82f6",
+        "background": "#f8fafc",
+        "ink": "#0f172a"
       },
-      "claw": {
-        "accent": "#cc7d5e",
-        "background": "#f9f9f7",
-        "ink": "#2d2d2b"
+      "eternyl": {
+        "accent": "#3de1c4",
+        "background": "#f8fafc",
+        "ink": "#0f172a"
       },
-      "starfish": {
-        "accent": "#0169cc",
-        "background": "#ffffff",
-        "ink": "#0d0d0d"
+      "aion": {
+        "accent": "#6366f1",
+        "background": "#f8fafc",
+        "ink": "#0f172a"
       },
-      "violet": {
-        "accent": "#4c19e8",
-        "background": "#ffffff",
-        "ink": "#1d1d1d"
+      "tenet": {
+        "accent": "#7c3aed",
+        "background": "#f8fafc",
+        "ink": "#0f172a"
       },
-      "whale": {
-        "accent": "#4460f6",
-        "background": "#ffffff",
-        "ink": "#000000"
+      "veris": {
+        "accent": "#10b981",
+        "background": "#f8fafc",
+        "ink": "#0f172a"
+      },
+      "graphite": {
+        "accent": "#0f172a",
+        "background": "#f8fafc",
+        "ink": "#0f172a"
       },
       "custom": {
-        "accent": "#429f2d",
-        "background": "#ffffff",
-        "ink": "#0d0d0d"
+        "accent": "#3b82f6",
+        "background": "#f8fafc",
+        "ink": "#0f172a"
       }
     },
     "dark": {
-      "eigent": {
-        "accent": "#ede1db",
-        "background": "#1f1f1f",
-        "ink": "#ffffff"
+      "lendmind": {
+        "accent": "#60a5fa",
+        "background": "#0b1120",
+        "ink": "#f8fafc"
       },
-      "claw": {
-        "accent": "#cc7d5e",
-        "background": "#2d2d2b",
-        "ink": "#f9f9f7"
+      "eternyl": {
+        "accent": "#5eead4",
+        "background": "#0b1120",
+        "ink": "#f8fafc"
       },
-      "starfish": {
-        "accent": "#0169cc",
-        "background": "#111111",
-        "ink": "#fcfcfc"
+      "aion": {
+        "accent": "#818cf8",
+        "background": "#0b1120",
+        "ink": "#f8fafc"
       },
-      "violet": {
-        "accent": "#b5afff",
-        "background": "#1f1f1f",
-        "ink": "#fafafa"
+      "tenet": {
+        "accent": "#a78bfa",
+        "background": "#0b1120",
+        "ink": "#f8fafc"
       },
-      "whale": {
-        "accent": "#4460f6",
-        "background": "#ffffff",
-        "ink": "#000000"
+      "veris": {
+        "accent": "#6ee7b7",
+        "background": "#0b1120",
+        "ink": "#f8fafc"
+      },
+      "graphite": {
+        "accent": "#e2e8f0",
+        "background": "#0b1120",
+        "ink": "#f8fafc"
       },
       "custom": {
-        "accent": "#429f2d",
-        "background": "#111111",
-        "ink": "#fcfcfc"
+        "accent": "#60a5fa",
+        "background": "#0b1120",
+        "ink": "#f8fafc"
       }
     }
   },
   "fixedAnchors": {
     "light": {
-      "single-agent": "#7e22ce",
-      "workforce": "#007a55",
-      "browser": "#0084d1",
-      "terminal": "#009966",
-      "document": "#e17100",
-      "success": "#16a34a",
-      "caution": "#e7000b",
-      "error": "#dc2626",
-      "warning": "#d97706",
-      "information": "#2563eb",
-      "status-running": "#2563eb",
-      "status-splitting": "#0284c7",
-      "status-pending": "#4a69af",
-      "status-error": "#dc2626",
-      "status-reassigning": "#ea580c",
-      "status-completed": "#16a34a",
-      "status-blocked": "#ea580c",
-      "status-paused": "#475569",
-      "status-skipped": "#4b5563",
-      "status-cancelled": "#475569"
+      "single-agent": "#7c3aed",
+      "workforce": "#10b981",
+      "browser": "#0ea5e9",
+      "terminal": "#14b8a6",
+      "document": "#f59e0b",
+      "success": "#10b981",
+      "caution": "#f59e0b",
+      "error": "#ef4444",
+      "warning": "#f59e0b",
+      "information": "#3b82f6",
+      "status-running": "#3b82f6",
+      "status-splitting": "#0ea5e9",
+      "status-pending": "#64748b",
+      "status-error": "#ef4444",
+      "status-reassigning": "#f59e0b",
+      "status-completed": "#10b981",
+      "status-blocked": "#f97316",
+      "status-paused": "#64748b",
+      "status-skipped": "#94a3b8",
+      "status-cancelled": "#64748b"
     },
     "dark": {
-      "single-agent": "#e9d5ff",
+      "single-agent": "#a78bfa",
       "workforce": "#6ee7b7",
       "browser": "#7dd3fc",
-      "terminal": "#6ee7b7",
-      "document": "#ffd479",
-      "success": "#16a34a",
-      "caution": "#f87171",
-      "error": "#dc2626",
-      "warning": "#d97706",
-      "information": "#2563eb",
-      "status-running": "#2563eb",
-      "status-splitting": "#0284c7",
-      "status-pending": "#4a69af",
-      "status-error": "#dc2626",
-      "status-reassigning": "#ea580c",
-      "status-completed": "#16a34a",
-      "status-blocked": "#ea580c",
-      "status-paused": "#475569",
-      "status-skipped": "#4b5563",
-      "status-cancelled": "#475569"
+      "terminal": "#5eead4",
+      "document": "#fcd34d",
+      "success": "#34d399",
+      "caution": "#fbbf24",
+      "error": "#f87171",
+      "warning": "#fbbf24",
+      "information": "#60a5fa",
+      "status-running": "#60a5fa",
+      "status-splitting": "#38bdf8",
+      "status-pending": "#94a3b8",
+      "status-error": "#f87171",
+      "status-reassigning": "#fbbf24",
+      "status-completed": "#34d399",
+      "status-blocked": "#fb923c",
+      "status-paused": "#94a3b8",
+      "status-skipped": "#64748b",
+      "status-cancelled": "#94a3b8"
     }
   },
   "fixedShadeScales": {

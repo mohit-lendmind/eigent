@@ -757,24 +757,34 @@ module.exports = {
         'multi-value': 'var(--spacing-multi-value, 8 64)',
       },
       borderRadius: {
-        sm: 'var(--borderRadius-sm, 4px)',
-        lg: 'var(--borderRadius-lg, 8px)',
-        xl: 'var(--borderRadius-xl, 16px)',
-        'multi-value': 'var(--borderRadius-multi-value, 4 8)',
+        sm: 'var(--borderRadius-sm, 3px)',
+        md: 'var(--borderRadius-lg, 6px)',
+        lg: 'var(--borderRadius-lg, 6px)',
+        xl: 'var(--borderRadius-xl, 10px)',
+        // Tailwind's own 2xl/3xl are 1rem/1.5rem. Panels, dialogs and the
+        // composer reach for them ~60 times, and at those radii the app reads
+        // as a phone app rather than desktop chrome. Capped here so the whole
+        // surface tightens from one place.
+        '2xl': 'var(--borderRadius-2xl, 12px)',
+        '3xl': 'var(--borderRadius-3xl, 14px)',
+        'multi-value': 'var(--borderRadius-multi-value, 3 6)',
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
-        mono: ['SFMono-Regular', 'Menlo', 'monospace'],
-        inter: ['Inter'],
-        menlo: ['Menlo'],
-        serif: ['Palatino'],
-        display: [
-          'Palatino LT',
-          'Palatino Linotype',
-          'Book Antiqua',
-          'Palatino',
-          'serif',
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        // Mono is not just for code here: it carries kickers, ids, counts and
+        // elapsed time, so it has to be the house face rather than whatever
+        // the OS supplies.
+        mono: [
+          'JetBrains Mono',
+          'ui-monospace',
+          'SFMono-Regular',
+          'Menlo',
+          'monospace',
         ],
+        inter: ['Inter', 'system-ui', 'sans-serif'],
+        menlo: ['JetBrains Mono', 'ui-monospace', 'Menlo', 'monospace'],
+        serif: ['Playfair Display', 'Georgia', 'serif'],
+        display: ['Playfair Display', 'Georgia', 'Palatino', 'serif'],
       },
       fontSize: {
         xs: 'var(--fontSize-xs, 10px)',

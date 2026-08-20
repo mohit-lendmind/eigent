@@ -77,7 +77,7 @@ function statusLabel(
 function Banner({ message }: { message: string }) {
   return (
     <div
-      className="mx-6 flex items-center gap-4 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-6"
+      className="mx-6 flex items-center gap-3 rounded-2xl bg-ds-bg-neutral-default-default px-4 py-3.5"
       role="alert"
       data-testid="aion-spaces-banner"
     >
@@ -159,7 +159,9 @@ export default function AionSpaces({ mode }: { mode: AionSpacesMode }) {
   // a failure that arrives with rows drawn reports below them.
   if (error && spaces.length === 0) {
     return (
-      <Banner message={t('layout.aion-space-remote-error', { message: error })} />
+      <Banner
+        message={t('layout.aion-space-remote-error', { message: error })}
+      />
     );
   }
 
@@ -230,7 +232,7 @@ export default function AionSpaces({ mode }: { mode: AionSpacesMode }) {
         ) : null}
 
         {spaces.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 text-center">
+          <div className="flex flex-col items-center justify-center p-5 text-center">
             <FolderKanban className="mb-4 h-12 w-12 text-ds-icon-neutral-muted-default" />
             <div
               className="text-sm text-ds-text-neutral-muted-default"
@@ -240,7 +242,7 @@ export default function AionSpaces({ mode }: { mode: AionSpacesMode }) {
             </div>
           </div>
         ) : visible.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 text-center">
+          <div className="flex flex-col items-center justify-center p-5 text-center">
             <div className="text-sm text-ds-text-neutral-muted-default">
               {t('layout.search-no-results')}
             </div>
@@ -282,9 +284,7 @@ export default function AionSpaces({ mode }: { mode: AionSpacesMode }) {
                     data-project-count={space.projectCount}
                     className="rounded-xl border border-solid border-transparent bg-ds-bg-neutral-default-default"
                   >
-                    <div
-                      className={cn('grid items-center py-2.5', GRID_CLASS)}
-                    >
+                    <div className={cn('grid items-center py-2.5', GRID_CLASS)}>
                       <button
                         type="button"
                         data-testid="aion-space-toggle"
@@ -487,8 +487,7 @@ export default function AionSpaces({ mode }: { mode: AionSpacesMode }) {
                 projects: confirmDelete.projectCount,
               })
             : t('layout.aion-space-delete-confirmation', {
-                name:
-                  confirmDelete?.name.trim() || t('layout.spaces-untitled'),
+                name: confirmDelete?.name.trim() || t('layout.spaces-untitled'),
               })
         }
         confirmText={t('layout.delete')}

@@ -27,11 +27,11 @@
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { verifyAndStoreAionApiKey } from '@/store/aionAccountStore';
 import {
   getAionBackendState,
   type AionBackendState,
 } from '@/store/aionChatBridge';
-import { verifyAndStoreAionApiKey } from '@/store/aionAccountStore';
 import { AlertCircle, KeyRound, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -116,7 +116,7 @@ export default function Onboarding() {
       className="flex h-screen w-full items-center justify-center px-6"
       data-testid="aion-onboarding"
     >
-      <div className="flex w-full max-w-[480px] flex-col gap-6">
+      <div className="flex w-full max-w-[480px] flex-col gap-4">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
             <KeyRound className="h-5 w-5 text-ds-icon-neutral-default-default" />

@@ -50,11 +50,7 @@ type ButtonStyleVariant = UiVariant | 'inverse';
  * - inverse → variant="primary" emphasis="inverse"
  */
 export type ButtonLegacyVariant =
-  | 'inverse'
-  | 'success'
-  | 'warning'
-  | 'caution'
-  | 'information';
+  'inverse' | 'success' | 'warning' | 'caution' | 'information';
 
 const LEGACY_VARIANT_TO_TONE: Record<
   Exclude<ButtonLegacyVariant, 'inverse'>,
@@ -418,65 +414,69 @@ const buttonVariants = cva(
       { variant: 'inverse', tone: 'error', class: INVERSE },
       { variant: 'inverse', tone: 'information', class: INVERSE },
       { variant: 'inverse', tone: 'warning', class: INVERSE },
+      // Control heights step 20/22/24/28/32. The old ladder topped out at 36px
+      // with 24px glyphs inside, which is touch sizing — on a desktop it makes
+      // a toolbar look like a tablet. Weight caps at semibold; bold at 12px
+      // just smears.
       {
         size: 'xxs',
         layout: 'text',
         class:
-          'box-border min-h-5 px-1 py-0 font-bold [&_svg:not([class*="size-"])]:size-[14px]',
+          'box-border min-h-5 px-1 py-0 font-semibold [&_svg:not([class*="size-"])]:size-[12px]',
       },
       {
         size: 'xs',
         layout: 'text',
         class:
-          'box-border min-h-6 px-1.5 py-0 font-bold [&_svg:not([class*="size-"])]:size-[14px]',
+          'box-border min-h-[22px] px-1.5 py-0 font-semibold [&_svg:not([class*="size-"])]:size-[13px]',
       },
       {
         size: 'sm',
         layout: 'text',
         class:
-          'box-border min-h-[28px] px-2 py-0 font-medium [&_svg:not([class*="size-"])]:size-[16px]',
+          'box-border min-h-6 gap-1.5 px-2 py-0 font-medium [&_svg:not([class*="size-"])]:size-[14px]',
       },
       {
         size: 'md',
         layout: 'text',
         class:
-          'box-border min-h-[32px] gap-2 px-4 py-0 font-medium [&_svg:not([class*="size-"])]:size-[24px]',
+          'box-border min-h-[28px] gap-1.5 px-2.5 py-0 font-medium [&_svg:not([class*="size-"])]:size-[15px]',
       },
       {
         size: 'lg',
         layout: 'text',
         class:
-          'box-border min-h-[36px] gap-sm px-4 py-0 font-bold [&_svg:not([class*="size-"])]:size-[24px]',
+          'box-border min-h-8 gap-2 px-3 py-0 font-semibold [&_svg:not([class*="size-"])]:size-[16px]',
       },
       {
         size: 'xxs',
         layout: 'icon-only',
         class:
-          'box-border h-5 w-5 min-h-5 min-w-5 shrink-0 p-1 font-bold [&_svg:not([class*="size-"])]:size-[12px]',
+          'box-border h-5 w-5 min-h-5 min-w-5 shrink-0 p-1 font-semibold [&_svg:not([class*="size-"])]:size-[12px]',
       },
       {
         size: 'xs',
         layout: 'icon-only',
         class:
-          'box-border h-6 w-6 min-h-6 min-w-6 shrink-0 p-[5px] font-bold [&_svg:not([class*="size-"])]:size-[14px]',
+          'box-border h-[22px] w-[22px] min-h-[22px] min-w-[22px] shrink-0 p-1 font-semibold [&_svg:not([class*="size-"])]:size-[13px]',
       },
       {
         size: 'sm',
         layout: 'icon-only',
         class:
-          'box-border h-[28px] w-[28px] min-h-[28px] min-w-[28px] shrink-0 p-1.5 font-bold [&_svg:not([class*="size-"])]:size-[16px]',
+          'box-border h-6 w-6 min-h-6 min-w-6 shrink-0 p-1 font-semibold [&_svg:not([class*="size-"])]:size-[14px]',
       },
       {
         size: 'md',
         layout: 'icon-only',
         class:
-          'box-border h-[32px] w-[32px] min-h-[32px] min-w-[32px] shrink-0 p-1.5 font-bold [&_svg:not([class*="size-"])]:size-[20px]',
+          'box-border h-[28px] w-[28px] min-h-[28px] min-w-[28px] shrink-0 p-1.5 font-semibold [&_svg:not([class*="size-"])]:size-[15px]',
       },
       {
         size: 'lg',
         layout: 'icon-only',
         class:
-          'box-border h-[36px] w-[36px] min-h-[36px] min-w-[36px] shrink-0 p-1.5 font-bold [&_svg:not([class*="size-"])]:size-[24px]',
+          'box-border h-8 w-8 min-h-8 min-w-8 shrink-0 p-1.5 font-semibold [&_svg:not([class*="size-"])]:size-[16px]',
       },
     ],
     defaultVariants: {

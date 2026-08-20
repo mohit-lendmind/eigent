@@ -67,7 +67,7 @@ function moment(value: string | null): string {
 function Banner({ message, testId }: { message: string; testId: string }) {
   return (
     <div
-      className="flex items-center gap-4 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-6"
+      className="flex items-center gap-3 rounded-2xl bg-ds-bg-neutral-default-default px-4 py-3.5"
       role="alert"
       data-testid={testId}
     >
@@ -142,7 +142,7 @@ function HealthBadge({
     case 'failing':
       return (
         <span
-          className="flex items-center gap-1.5 text-body-xs text-ds-text-status-warning-strong-default"
+          className="text-ds-text-status-warning-strong-default flex items-center gap-1.5 text-body-xs"
           data-testid="aion-trigger-health"
           data-health="failing"
           title={health.error}
@@ -154,7 +154,7 @@ function HealthBadge({
     case 'skipping':
       return (
         <span
-          className="flex items-center gap-1.5 text-body-xs text-ds-text-status-warning-strong-default"
+          className="text-ds-text-status-warning-strong-default flex items-center gap-1.5 text-body-xs"
           data-testid="aion-trigger-health"
           data-health={`skipping_${health.reason}`}
           title={t('triggers.aion-skipping-detail', {
@@ -182,7 +182,7 @@ function HealthBadge({
     case 'unknown':
       return (
         <span
-          className="flex items-center gap-1.5 text-body-xs text-ds-text-status-warning-strong-default"
+          className="text-ds-text-status-warning-strong-default flex items-center gap-1.5 text-body-xs"
           data-testid="aion-trigger-health"
           data-health="unknown"
         >
@@ -193,7 +193,7 @@ function HealthBadge({
     default:
       return (
         <span
-          className="flex items-center gap-1.5 text-body-xs text-ds-text-status-success-strong-default"
+          className="text-ds-text-status-success-strong-default flex items-center gap-1.5 text-body-xs"
           data-testid="aion-trigger-health"
           data-health="firing"
         >
@@ -223,7 +223,10 @@ function Ledger({ events }: { events: AionScheduleEvent[] | undefined }) {
   // Newest first here: the ledger arrives oldest-of-the-window first, and the
   // entry a reader wants is the one that explains the badge above it.
   return (
-    <ul className="flex flex-col gap-1 px-4 py-3" data-testid="aion-trigger-ledger">
+    <ul
+      className="flex flex-col gap-1 px-4 py-3"
+      data-testid="aion-trigger-ledger"
+    >
       {[...events].reverse().map((event) => (
         <li
           key={event.eventId}
@@ -316,7 +319,7 @@ function CreateForm({
           {t('triggers.aion-project')}
         </span>
         <select
-          className="rounded-lg border border-solid border-ds-border-neutral-default-default bg-ds-bg-surface-primary px-3 py-2 text-body-sm text-ds-text-neutral-default-default"
+          className="bg-ds-bg-surface-primary rounded-lg border border-solid border-ds-border-neutral-default-default px-3 py-2 text-body-sm text-ds-text-neutral-default-default"
           value={projectId}
           data-testid="aion-trigger-project"
           onChange={(event) => setProjectId(event.target.value)}
@@ -593,14 +596,17 @@ export default function AionTriggers({
   // empty list that reads as "you have no triggers".
   if (mode.kind === 'local') {
     return (
-      <div className="w-full py-6">
-        <Banner testId="aion-triggers-banner" message={t('triggers.aion-local')} />
+      <div className="w-full py-4">
+        <Banner
+          testId="aion-triggers-banner"
+          message={t('triggers.aion-local')}
+        />
       </div>
     );
   }
   if (mode.kind === 'unsupported') {
     return (
-      <div className="w-full py-6">
+      <div className="w-full py-4">
         <Banner
           testId="aion-triggers-banner"
           message={t('triggers.aion-backend-too-old', {
@@ -616,7 +622,7 @@ export default function AionTriggers({
     // testid as the toolbar refresh — it is the same action, and the invariant
     // "a refresh control exists whenever negotiation has completed" holds.
     return (
-      <div className="flex w-full flex-col items-start gap-3 py-6">
+      <div className="flex w-full flex-col items-start gap-3 py-4">
         <Banner
           testId="aion-triggers-banner"
           message={t('triggers.aion-remote-error', { message: mode.message })}
@@ -636,7 +642,7 @@ export default function AionTriggers({
 
   return (
     <div
-      className={cn('flex w-full min-w-0 flex-col gap-4 py-6', className)}
+      className={cn('flex w-full min-w-0 flex-col gap-4 py-4', className)}
       data-testid="aion-triggers"
     >
       <div className="flex items-center justify-end gap-2">
@@ -684,7 +690,7 @@ export default function AionTriggers({
           </div>
         ) : (
           <div
-            className="flex flex-col items-center justify-center p-8 text-center"
+            className="flex flex-col items-center justify-center p-5 text-center"
             data-testid="aion-triggers-empty"
           >
             <Zap className="mb-4 h-12 w-12 text-ds-icon-neutral-muted-default" />
@@ -694,7 +700,7 @@ export default function AionTriggers({
           </div>
         )
       ) : visible.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-8 text-center">
+        <div className="flex flex-col items-center justify-center p-5 text-center">
           <div className="text-sm text-ds-text-neutral-muted-default">
             {t('layout.search-no-results')}
           </div>

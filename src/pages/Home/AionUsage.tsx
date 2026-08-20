@@ -45,7 +45,7 @@ const GRID_CLASS =
 function Banner({ message }: { message: string }) {
   return (
     <div
-      className="mx-6 flex items-center gap-4 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-6"
+      className="mx-6 flex items-center gap-3 rounded-2xl bg-ds-bg-neutral-default-default px-4 py-3.5"
       role="alert"
       data-testid="aion-usage-banner"
     >
@@ -145,7 +145,7 @@ function CostCell({ run }: { run: AionRunSpend }) {
         })}
       >
         <span
-          className="truncate text-right text-body-xs text-ds-text-status-warning-strong-default"
+          className="text-ds-text-status-warning-strong-default truncate text-right text-body-xs"
           data-testid="aion-usage-cost-unpriced"
         >
           {t('layout.usage-cost-unpriced')}
@@ -221,7 +221,9 @@ export default function AionUsage() {
   // A page that failed with nothing loaded is the whole surface failing; a page
   // that failed while extending the list keeps the rows and reports below them.
   if (error && !totals) {
-    return <Banner message={t('layout.usage-remote-error', { message: error })} />;
+    return (
+      <Banner message={t('layout.usage-remote-error', { message: error })} />
+    );
   }
 
   return (
@@ -229,14 +231,14 @@ export default function AionUsage() {
       <div className="mb-12 w-full min-w-0">
         {totals ? <Totals totals={totals} /> : null}
         {runs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 text-center">
+          <div className="flex flex-col items-center justify-center p-5 text-center">
             <Receipt className="mb-4 h-12 w-12 text-ds-icon-neutral-muted-default" />
             <div className="text-sm text-ds-text-neutral-muted-default">
               {t('layout.usage-empty')}
             </div>
           </div>
         ) : visible.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 text-center">
+          <div className="flex flex-col items-center justify-center p-5 text-center">
             <div className="text-sm text-ds-text-neutral-muted-default">
               {t('layout.search-no-results')}
             </div>
@@ -289,7 +291,9 @@ export default function AionUsage() {
                       : '—'}
                   </span>
                   <span className="truncate text-right text-body-xs tabular-nums text-ds-text-neutral-muted-default">
-                    {run.endedAt > 0 ? formatHubRelativeAgo(run.endedAt, t) : '—'}
+                    {run.endedAt > 0
+                      ? formatHubRelativeAgo(run.endedAt, t)
+                      : '—'}
                   </span>
                 </div>
               ))}

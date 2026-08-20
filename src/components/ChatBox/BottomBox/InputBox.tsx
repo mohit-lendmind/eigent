@@ -322,7 +322,7 @@ export const Inputbox = ({
   return (
     <div
       className={cn(
-        'relative flex w-full flex-col items-start rounded-3xl border border-solid border-ds-border-neutral-default-default bg-ds-bg-neutral-subtle-default p-3 transition-colors',
+        'relative flex w-full flex-col items-start rounded-xl border border-solid border-ds-border-neutral-default-default bg-ds-bg-neutral-subtle-default p-2 transition-colors',
         (isFocused || hasContent) &&
           'border-ds-border-information-default-default',
         isDragging &&
@@ -489,7 +489,7 @@ export const Inputbox = ({
           placeholders={placeholders}
           className={cn(
             'border-none shadow-none focus-visible:ring-0',
-            'max-h-[200px] min-h-[40px]'
+            'max-h-[200px] min-h-[32px]'
           )}
           textClassName="text-ds-text-neutral-default-default"
           style={{

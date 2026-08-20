@@ -28,11 +28,7 @@ import {
 } from './UsageLimitBanner';
 
 export type BottomBoxState =
-  | 'input'
-  | 'confirm'
-  | 'save'
-  | 'running'
-  | 'finished';
+  'input' | 'confirm' | 'save' | 'running' | 'finished';
 
 /** Main-slot content, orthogonal to `state`. Future variants (e.g. 'multiSelect') plug in here. */
 export type BottomBoxVariant = 'input';
@@ -184,7 +180,7 @@ export default function BottomBox({
   const hasOverlay = showQueuedBox || !!usageLimitBanner || !!openPanel;
 
   return (
-    <div className="relative z-50 flex w-full flex-col rounded-3xl bg-ds-bg-neutral-default-default">
+    <div className="relative z-50 flex w-full flex-col rounded-xl bg-ds-bg-neutral-default-default">
       {/* Floating overlays: never affect BoxMain layout */}
       {hasOverlay && (
         <div className="pointer-events-auto absolute inset-x-0 bottom-full z-[60] mb-1 flex flex-col gap-1">
@@ -218,7 +214,7 @@ export default function BottomBox({
       )}
       {/* BoxMain */}
       <div
-        className={`relative flex w-full flex-col rounded-3xl ${backgroundClass}`}
+        className={`relative flex w-full flex-col rounded-xl ${backgroundClass}`}
       >
         {/* BoxHeader variants — project confirmation */}
         {state === 'confirm' && (
@@ -262,7 +258,7 @@ export default function BottomBox({
 
         {noModelOverlay && onSelectModel ? (
           <div
-            className="absolute inset-0 z-[15] flex flex-row items-center justify-center gap-3 rounded-3xl bg-ds-bg-warning-subtle-default px-4 py-5 backdrop-blur-lg"
+            className="absolute inset-0 z-[15] flex flex-row items-center justify-center gap-2 rounded-xl bg-ds-bg-warning-subtle-default px-3 py-3"
             role="alert"
           >
             <TriangleAlert

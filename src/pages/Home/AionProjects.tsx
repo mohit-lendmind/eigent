@@ -21,7 +21,12 @@ import { Button } from '@/components/ui/button';
 import { useHost } from '@/host';
 import { cn } from '@/lib/utils';
 import type { AionProject, AionProjectsMode } from '@/store/aionProjectsStore';
-import { AlertCircle, ChevronDown, ChevronRight, FolderOpen } from 'lucide-react';
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronRight,
+  FolderOpen,
+} from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import AionProjectArtifacts from './components/AionProjectArtifacts';
@@ -81,7 +86,7 @@ function statusLabel(
 function Banner({ message }: { message: string }) {
   return (
     <div
-      className="mx-6 flex items-center gap-4 rounded-2xl bg-ds-bg-neutral-default-default px-6 py-6"
+      className="mx-6 flex items-center gap-3 rounded-2xl bg-ds-bg-neutral-default-default px-4 py-3.5"
       role="alert"
       data-testid="aion-projects-banner"
     >
@@ -171,14 +176,14 @@ export default function AionProjects({ mode }: { mode: AionProjectsMode }) {
     <div className="flex w-full min-w-0 flex-col" data-testid="aion-projects">
       <div className="mb-12 w-full min-w-0">
         {projects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 text-center">
+          <div className="flex flex-col items-center justify-center p-5 text-center">
             <FolderOpen className="mb-4 h-12 w-12 text-ds-icon-neutral-muted-default" />
             <div className="text-sm text-ds-text-neutral-muted-default">
               {t('dashboard.no-projects-found')}
             </div>
           </div>
         ) : visible.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 text-center">
+          <div className="flex flex-col items-center justify-center p-5 text-center">
             <div className="text-sm text-ds-text-neutral-muted-default">
               {t('layout.search-no-results')}
             </div>
