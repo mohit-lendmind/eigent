@@ -15,7 +15,11 @@
 import { getAuthEnvironmentKey } from '@/lib/authEnvironment';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { getDocumentsBus, getWorkstreamBus } from './_bus';
+import {
+  getDocumentsBus,
+  getWorkstreamBus,
+  registerCasesReadBus,
+} from './_bus';
 import { getCrmClientsStore } from './clientsStore';
 import {
   requiredKeysForSection,
@@ -701,6 +705,16 @@ export const useCrmCasesStore = create<CrmCasesState>()(
 export function getCrmCasesStore(): typeof useCrmCasesStore {
   return useCrmCasesStore;
 }
+
+registerCasesReadBus({
+  caseIdsReferencingClient: (clientId) => {
+    const hits: string[] = [];
+    for (const c of Object.values(useCrmCasesStore.getState().casesById)) {
+      if (c.applicants.some((a) => a.clientId === clientId)) hits.push(c.id);
+    }
+    return hits;
+  },
+});
 
 if (typeof queueMicrotask === 'function') {
   queueMicrotask(() => {

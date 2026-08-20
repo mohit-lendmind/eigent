@@ -80,3 +80,18 @@ export function getWorkstreamBus(): WorkstreamSideBus | null {
 export function getDocumentsBus(): DocumentsSideBus | null {
   return documentsBus;
 }
+
+// Cases-side reads exposed to clientsStore (removeClient guard, FR-016 note).
+export interface CasesReadBus {
+  caseIdsReferencingClient: (clientId: string) => string[];
+}
+
+let casesReadBus: CasesReadBus | null = null;
+
+export function registerCasesReadBus(bus: CasesReadBus): void {
+  casesReadBus = bus;
+}
+
+export function getCasesReadBus(): CasesReadBus | null {
+  return casesReadBus;
+}

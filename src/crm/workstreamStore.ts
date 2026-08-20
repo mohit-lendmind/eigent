@@ -111,6 +111,9 @@ function isEvictableStreamEntry(
       ? worklist[entry.linkedWorklistId]
       : undefined;
     if (!linked || linked.status === 'open') return false;
+    // Once the linked worklist item is resolved, the entry becomes
+    // eligible for eviction (see tasks.md T077 for the exact rule).
+    return true;
   }
   if (
     entry.kind === 'done' ||

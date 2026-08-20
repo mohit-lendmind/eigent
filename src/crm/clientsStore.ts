@@ -15,6 +15,7 @@
 import { getAuthEnvironmentKey } from '@/lib/authEnvironment';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getCasesReadBus, getWorkstreamBus } from './_bus';
 import { newCrmId } from './domain/ids';
 import type { CaseId, Client, ClientId, Placeholder } from './domain/types';
 import { CRM_SCHEMA_VERSION } from './domain/types';
@@ -51,36 +52,13 @@ const environmentMatches = (
   state: Partial<CrmClientsState> | undefined
 ): boolean => state?.storageEnvironmentKey === getAuthEnvironmentKey();
 
-// Cross-store readers are lazily-loaded via dynamic import at call time so
-// the module graph stays one-directional. The refusal guard reads casesStore
-// state (allowed under FR-014 as a read, not a subscription).
-type CasesGetState = () => { casesById: Record<string, unknown> };
-type CasesModule = { getCrmCasesStore: () => { getState: CasesGetState } };
-let cachedCasesModule: CasesModule | null = null;
-
-async function loadCasesModule(): Promise<CasesModule> {
-  if (!cachedCasesModule) {
-    cachedCasesModule =
-      (await import('./casesStore')) as unknown as CasesModule;
-  }
-  return cachedCasesModule;
-}
-
+// removeClient consults casesStore via the read-side bus registered by
+// casesStore at module init. FR-014 permits this cross-store read
+// (spec Trade-off #4); the bus keeps the static import graph one-directional.
 function findCaseIdsReferencing(clientId: ClientId): CaseId[] {
-  if (!cachedCasesModule) return [];
-  const state = cachedCasesModule.getCrmCasesStore().getState() as unknown as {
-    casesById: Record<
-      string,
-      { id: CaseId; applicants: Array<{ clientId: ClientId }> }
-    >;
-  };
-  const hits: CaseId[] = [];
-  for (const c of Object.values(state.casesById)) {
-    if (c.applicants.some((a) => a.clientId === clientId)) {
-      hits.push(c.id);
-    }
-  }
-  return hits;
+  const bus = getCasesReadBus();
+  if (!bus) return [];
+  return bus.caseIdsReferencingClient(clientId);
 }
 
 function makePlaceholder(id: ClientId): Placeholder {
@@ -120,12 +98,23 @@ export const useCrmClientsStore = create<CrmClientsState>()(
         }),
 
       removeClient: (id) => {
-        // Preload cases module lazily (safe — this store never subscribes).
-        if (!cachedCasesModule) {
-          void loadCasesModule();
-        }
         const refs = findCaseIdsReferencing(id);
         if (refs.length > 0) {
+          const bus = getWorkstreamBus();
+          if (bus) {
+            for (const caseId of refs) {
+              bus.noteActivity(caseId, {
+                id: newCrmId('activity'),
+                caseId,
+                kind: 'refusal',
+                title: `removeClient refused for ${id}`,
+                detail: `Client still referenced by ${refs.length} case(s)`,
+                when: Date.now(),
+                actor: 'system',
+                schemaVersion: CRM_SCHEMA_VERSION,
+              });
+            }
+          }
           return { ok: false, reason: 'referenced_by_case', caseIds: refs };
         }
         set((state) => {
@@ -188,11 +177,8 @@ export function getCrmClientsStore(): typeof useCrmClientsStore {
   return useCrmClientsStore;
 }
 
-// Pre-load the cases module so removeClient can consult it synchronously
-// after the first tick. This is a one-directional read (spec FR-014).
 if (typeof queueMicrotask === 'function') {
   queueMicrotask(() => {
-    void loadCasesModule();
     const state = useCrmClientsStore.getState();
     if (!environmentMatches(state)) {
       useCrmClientsStore.setState(emptyState());

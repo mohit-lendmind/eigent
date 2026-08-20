@@ -202,16 +202,16 @@ Single-project TypeScript app (Electron + React). New tree: `src/crm/`. Test sub
 
 ### Integrity repair — full implementations of the six passes
 
-- [ ] T066 [P] Add `Placeholder clients` pass to `src/crm/integrity.ts` (pass #1 per spec FR-036) — for every case whose `Applicant.clientId` references a missing client, insert `{id, firstName:'Unknown', lastName:'(repaired)', tint:'placeholder', repaired:true, insertedAt}` into clientsStore; add ids to `RepairReport.placeholderClientsCreated[]`; case is preserved. Depends on T015, T020.
-- [ ] T067 [P] Add `Placeholder document owners` pass — for every document whose `owner` clientId is missing, retarget to a placeholder client (as pass #1); add ids to `RepairReport.retargetedDocuments[]`.
-- [ ] T068 [P] Add `Prune orphan worklist items` pass — remove worklist items whose `caseId` no longer exists; add ids to `RepairReport.prunedWorklist[]`.
-- [ ] T069 [P] Add `Prune orphan stream entries` pass — remove stream entries whose `caseId` no longer exists; add ids to `RepairReport.prunedStream[]`. Also prune orphan `ActivityEvent`s → `RepairReport.prunedActivity[]`.
-- [ ] T070 [P] Add `Recompute case completeness` pass — after prior passes, recompute `Case.completeness` and each `Applicant.completeness` for every case that was touched by any earlier pass; add ids to `RepairReport.recomputedCases[]`.
-- [ ] T071 Wire `RepairReport` surfacing: workstream store caches the last report via `setLastRepairReport(report)`; each state-mutating pass appends an `ActivityEvent` describing the repair; every replaced/pruned record is described with its id via `console.warn` so it appears in dev logs (spec FR-037). Depends on T066–T070.
+- [x] T066 [P] Add `Placeholder clients` pass to `src/crm/integrity.ts` (pass #1 per spec FR-036) — for every case whose `Applicant.clientId` references a missing client, insert `{id, firstName:'Unknown', lastName:'(repaired)', tint:'placeholder', repaired:true, insertedAt}` into clientsStore; add ids to `RepairReport.placeholderClientsCreated[]`; case is preserved. Depends on T015, T020.
+- [x] T067 [P] Add `Placeholder document owners` pass — for every document whose `owner` clientId is missing, retarget to a placeholder client (as pass #1); add ids to `RepairReport.retargetedDocuments[]`.
+- [x] T068 [P] Add `Prune orphan worklist items` pass — remove worklist items whose `caseId` no longer exists; add ids to `RepairReport.prunedWorklist[]`.
+- [x] T069 [P] Add `Prune orphan stream entries` pass — remove stream entries whose `caseId` no longer exists; add ids to `RepairReport.prunedStream[]`. Also prune orphan `ActivityEvent`s → `RepairReport.prunedActivity[]`.
+- [x] T070 [P] Add `Recompute case completeness` pass — after prior passes, recompute `Case.completeness` and each `Applicant.completeness` for every case that was touched by any earlier pass; add ids to `RepairReport.recomputedCases[]`.
+- [x] T071 Wire `RepairReport` surfacing: workstream store caches the last report via `setLastRepairReport(report)`; each state-mutating pass appends an `ActivityEvent` describing the repair; every replaced/pruned record is described with its id via `console.warn` so it appears in dev logs (spec FR-037). Depends on T066–T070.
 
 ### Stream cap enforcement
 
-- [ ] T072 Implement `STREAM_ENTRIES_PER_CASE_CAP = 200` enforcement in `src/crm/workstreamStore.ts` `pushStreamEntry` (spec FR-030):
+- [x] T072 Implement `STREAM_ENTRIES_PER_CASE_CAP = 200` enforcement in `src/crm/workstreamStore.ts` `pushStreamEntry` (spec FR-030):
   - On append, if adding would push the case above the cap, enumerate eviction-eligible entries: kinds `done`/`external`/`activity` whose linked worklist item (if any) has `status:'resolved'`.
   - Evict the oldest eligible entry.
   - Insert a synthetic marker `{kind:'done', id:'stream_trunc_<n>', title:'Older activity truncated', body:'<count> older entries evicted at cap.', truncatedBefore:<ts>, truncatedCount:<n>}` at the eviction point.
@@ -220,32 +220,32 @@ Single-project TypeScript app (Electron + React). New tree: `src/crm/`. Test sub
 
 ### Client-erasure refusal + activity log
 
-- [ ] T073 Add `removeClient(id): {ok:true} | {ok:false, reason:'referenced_by_case', caseIds:string[]}` to `src/crm/clientsStore.ts` — reads `casesStore.getState()` (legal one-directional read per spec FR-014), refuses if any case's applicants reference the client, returns typed refusal (never throws); on refusal, appends an `ActivityEvent` to workstream store recording the refusal (spec FR-016). Depends on T020, T023.
+- [x] T073 Add `removeClient(id): {ok:true} | {ok:false, reason:'referenced_by_case', caseIds:string[]}` to `src/crm/clientsStore.ts` — reads `casesStore.getState()` (legal one-directional read per spec FR-014), refuses if any case's applicants reference the client, returns typed refusal (never throws); on refusal, appends an `ActivityEvent` to workstream store recording the refusal (spec FR-016). Depends on T020, T023.
 
 ### Cross-cutting tests
 
-- [ ] T074 [P] Test `test/unit/crm/persist.roundtrip.test.ts` — for each of the four stores: `JSON.stringify(getCrm*Store().getState())` succeeds after seed (no `bigint`, no `Date` object, no function, no `Symbol`, no `undefined` in persisted values); `persist.getOptions().migrate?.(fixtureEnvelope, 0)` shape-repairs correctly; `partialize` output is exactly the allowlisted keys; envelope shape matches `{state, version, storageEnvironmentKey}` (spec FR-012, edge case "JSON serialization must succeed"). Depends on T011–T014, T039.
-- [ ] T075 [P] Test `test/unit/crm/envMismatch.test.ts` — write a fake envelope under a different `storageEnvironmentKey` to `localStorage`; force store rehydration; assert state is empty (no cross-tenant bleed); assert the subsequent `crmIntegrityRepair()` `RepairReport` notes `envMismatch: true` (spec edge case, FR-012). Depends on T011–T015, T071.
-- [ ] T076 [P] Test `test/unit/crm/integrity.test.ts` — six pass conditions of `crmIntegrityRepair()` (spec SC-007):
+- [x] T074 [P] Test `test/unit/crm/persist.roundtrip.test.ts` — for each of the four stores: `JSON.stringify(getCrm*Store().getState())` succeeds after seed (no `bigint`, no `Date` object, no function, no `Symbol`, no `undefined` in persisted values); `persist.getOptions().migrate?.(fixtureEnvelope, 0)` shape-repairs correctly; `partialize` output is exactly the allowlisted keys; envelope shape matches `{state, version, storageEnvironmentKey}` (spec FR-012, edge case "JSON serialization must succeed"). Depends on T011–T014, T039.
+- [x] T075 [P] Test `test/unit/crm/envMismatch.test.ts` — write a fake envelope under a different `storageEnvironmentKey` to `localStorage`; force store rehydration; assert state is empty (no cross-tenant bleed); assert the subsequent `crmIntegrityRepair()` `RepairReport` notes `envMismatch: true` (spec edge case, FR-012). Depends on T011–T015, T071.
+- [x] T076 [P] Test `test/unit/crm/integrity.test.ts` — six pass conditions of `crmIntegrityRepair()` (spec SC-007):
   - Pass #1: seed with a manually-broken applicant referencing missing `clientId`; assert placeholder client created with `repaired:true`; assert `RepairReport.placeholderClientsCreated` contains its id; assert `ActivityEvent` recorded.
   - Pass #2: document owner missing; assert retargeted.
   - Passes #3/#4: orphan worklist / stream / activity items pruned; report reflects.
   - Pass #5: touched cases recomputed.
   - Also assert `getLastRepairReport()` returns the same report; assert `console.warn` invoked for each pruned/replaced record (spy). Depends on T066–T071.
-- [ ] T077 [P] Test `src/crm/workstreamStore.streamCap.test.ts` — cap eviction rules (spec FR-030):
+- [x] T077 [P] Test `src/crm/workstreamStore.streamCap.test.ts` — cap eviction rules (spec FR-030):
   - Populate a case's stream to exactly `STREAM_ENTRIES_PER_CASE_CAP` entries with mixed kinds.
   - Append one more `done`-kind entry; assert oldest eligible entry evicted, truncation marker inserted at the eviction point with correct `truncatedCount` and `truncatedBefore`.
   - Populate a case's stream with only `conflict` and `approval` kinds all linked to `open` worklist items; append one more; assert NO eviction occurred and the append proceeded (soft ceiling).
   - Populate with a mix where a `conflict` entry is linked to a `status:'resolved'` worklist item; assert it IS eligible for eviction (linked worklist item resolved).
   Depends on T072.
-- [ ] T078 [P] Test `test/unit/crm/crossStoreImports.test.ts` — parse each of the four store files (`clientsStore.ts`, `casesStore.ts`, `documentsStore.ts`, `workstreamStore.ts`) and assert that the direction-forbidden imports per spec FR-014 are absent (regex over the source text: `clientsStore` must not import any of the other three CRM stores; `casesStore` must not import `documentsStore` or `workstreamStore`; `documentsStore` must not import `workstreamStore`). Backs the eslint `no-restricted-imports` rule with an in-suite assertion. Depends on T003, T011–T014.
-- [ ] T079 [P] Test `src/crm/clientsStore.removeClient.test.ts` — refusal path: seed a case referencing a client; call `removeClient(id)`; assert `{ok:false, reason:'referenced_by_case', caseIds}`; assert client still present; assert an `ActivityEvent` describing the refusal appended to workstream store. Success path: unreferenced client removed cleanly (spec FR-016). Depends on T073.
+- [x] T078 [P] Test `test/unit/crm/crossStoreImports.test.ts` — parse each of the four store files (`clientsStore.ts`, `casesStore.ts`, `documentsStore.ts`, `workstreamStore.ts`) and assert that the direction-forbidden imports per spec FR-014 are absent (regex over the source text: `clientsStore` must not import any of the other three CRM stores; `casesStore` must not import `documentsStore` or `workstreamStore`; `documentsStore` must not import `workstreamStore`). Backs the eslint `no-restricted-imports` rule with an in-suite assertion. Depends on T003, T011–T014.
+- [x] T079 [P] Test `src/crm/clientsStore.removeClient.test.ts` — refusal path: seed a case referencing a client; call `removeClient(id)`; assert `{ok:false, reason:'referenced_by_case', caseIds}`; assert client still present; assert an `ActivityEvent` describing the refusal appended to workstream store. Success path: unreferenced client removed cleanly (spec FR-016). Depends on T073.
 
 ### Documentation & coverage floor
 
-- [ ] T080 [P] Verify the coverage floor: run `pnpm test -- --run test/unit/crm src/crm` and confirm ≥60 new passing tests (spec SC-005). If under, add supplementary tests for the least-covered actions (typically: `noteActivity` shape, `upsertRetention` key semantics both branches, `setChecklistStatus` all four transitions).
-- [ ] T081 Run `pnpm build && pnpm type-check && pnpm lint && pnpm test` end-to-end; assert every gate green (design-token scan over all of `src/` including fixtures, no-legacy-backend gate for the two-word case-convention token, no-dead-brain-identifier gate, i18n parity, vitest baseline additive-only) — SC-004.
-- [ ] T082 Confirm `package.json` diff is exactly zero (no new dependencies added — spec constraint).
+- [x] T080 [P] Verify the coverage floor: run `pnpm test -- --run test/unit/crm src/crm` and confirm ≥60 new passing tests (spec SC-005). If under, add supplementary tests for the least-covered actions (typically: `noteActivity` shape, `upsertRetention` key semantics both branches, `setChecklistStatus` all four transitions).
+- [x] T081 Run `pnpm build && pnpm type-check && pnpm lint && pnpm test` end-to-end; assert every gate green (design-token scan over all of `src/` including fixtures, no-legacy-backend gate for the two-word case-convention token, no-dead-brain-identifier gate, i18n parity, vitest baseline additive-only) — SC-004.
+- [x] T082 Confirm `package.json` diff is exactly zero (no new dependencies added — spec constraint).
 
 ---
 
