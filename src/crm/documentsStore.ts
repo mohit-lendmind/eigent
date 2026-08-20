@@ -15,6 +15,7 @@
 import { getAuthEnvironmentKey } from '@/lib/authEnvironment';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { registerDocumentsBus } from './_bus';
 import type {
   ChecklistStatus,
   ClientId,
@@ -231,6 +232,13 @@ export const useCrmDocumentsStore = create<CrmDocumentsState>()(
 export function getCrmDocumentsStore(): typeof useCrmDocumentsStore {
   return useCrmDocumentsStore;
 }
+
+registerDocumentsBus({
+  flipInsightConflict: (docId, section, fieldKey, conflict) =>
+    useCrmDocumentsStore
+      .getState()
+      .flipInsightConflict(docId, section, fieldKey, conflict),
+});
 
 if (typeof queueMicrotask === 'function') {
   queueMicrotask(() => {

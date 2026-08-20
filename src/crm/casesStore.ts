@@ -15,6 +15,7 @@
 import { getAuthEnvironmentKey } from '@/lib/authEnvironment';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getDocumentsBus, getWorkstreamBus } from './_bus';
 import { getCrmClientsStore } from './clientsStore';
 import {
   requiredKeysForSection,
@@ -262,32 +263,14 @@ function upsertApplicantInCase(
   };
 }
 
-// Lazy import — one-directional per FR-014.
-type WorkstreamModule = typeof import('./workstreamStore');
-let cachedWorkstream: WorkstreamModule | null = null;
-async function loadWorkstream(): Promise<WorkstreamModule> {
-  if (!cachedWorkstream) {
-    cachedWorkstream = (await import('./workstreamStore')) as WorkstreamModule;
-  }
-  return cachedWorkstream;
-}
-type DocumentsModule = typeof import('./documentsStore');
-let cachedDocuments: DocumentsModule | null = null;
-async function loadDocuments(): Promise<DocumentsModule> {
-  if (!cachedDocuments) {
-    cachedDocuments = (await import('./documentsStore')) as DocumentsModule;
-  }
-  return cachedDocuments;
-}
-
+// Dispatch to downstream stores via the synchronous side-bus (registered by
+// workstream/documents at import time). One-directional per FR-014.
 function emitFieldChangeEvent(
   event: Omit<FieldChangeEvent, 'id' | 'schemaVersion'>
 ): void {
-  if (!cachedWorkstream) return;
-  cachedWorkstream
-    .getCrmWorkstreamStore()
-    .getState()
-    .appendFieldChangeEvent(event);
+  const bus = getWorkstreamBus();
+  if (!bus) return;
+  bus.appendFieldChangeEvent(event);
 }
 
 function noteCaseActivity(
@@ -297,20 +280,18 @@ function noteCaseActivity(
   detail?: string,
   actor?: string
 ): void {
-  if (!cachedWorkstream) return;
-  cachedWorkstream
-    .getCrmWorkstreamStore()
-    .getState()
-    .noteActivity(caseId, {
-      id: newCrmId('activity'),
-      caseId,
-      kind,
-      title,
-      detail,
-      when: Date.now(),
-      actor,
-      schemaVersion: CRM_SCHEMA_VERSION,
-    });
+  const bus = getWorkstreamBus();
+  if (!bus) return;
+  bus.noteActivity(caseId, {
+    id: newCrmId('activity'),
+    caseId,
+    kind,
+    title,
+    detail,
+    when: Date.now(),
+    actor,
+    schemaVersion: CRM_SCHEMA_VERSION,
+  });
 }
 
 export const useCrmCasesStore = create<CrmCasesState>()(
@@ -453,21 +434,19 @@ export const useCrmCasesStore = create<CrmCasesState>()(
             casesById: { ...state.casesById, [caseId]: updated },
           };
         });
-        void loadWorkstream().then(() =>
-          emitFieldChangeEvent({
-            caseId,
-            clientId,
-            section,
-            fieldKey,
-            priorValue,
-            newValue,
-            priorSrc,
-            newSrc: src,
-            changedAt: nowTs,
-            changedBy: opts.changedBy,
-            reason,
-          })
-        );
+        emitFieldChangeEvent({
+          caseId,
+          clientId,
+          section,
+          fieldKey,
+          priorValue,
+          newValue,
+          priorSrc,
+          newSrc: src,
+          changedAt: nowTs,
+          changedBy: opts.changedBy,
+          reason,
+        });
       },
 
       confirmSynthesizedField: (caseId, clientId, section, fieldKey, opts) => {
@@ -494,21 +473,19 @@ export const useCrmCasesStore = create<CrmCasesState>()(
           };
         });
         if (newValue) {
-          void loadWorkstream().then(() =>
-            emitFieldChangeEvent({
-              caseId,
-              clientId,
-              section,
-              fieldKey,
-              priorValue,
-              newValue: newValue as FieldValue,
-              priorSrc: 'syn',
-              newSrc: 'det',
-              changedAt: nowTs,
-              changedBy: opts.confirmedBy,
-              reason: 'confirm-synthesized',
-            })
-          );
+          emitFieldChangeEvent({
+            caseId,
+            clientId,
+            section,
+            fieldKey,
+            priorValue,
+            newValue: newValue as FieldValue,
+            priorSrc: 'syn',
+            newSrc: 'det',
+            changedAt: nowTs,
+            changedBy: opts.confirmedBy,
+            reason: 'confirm-synthesized',
+          });
         }
       },
 
@@ -533,14 +510,12 @@ export const useCrmCasesStore = create<CrmCasesState>()(
           };
         });
         if (priorStage) {
-          void loadWorkstream().then(() =>
-            noteCaseActivity(
-              caseId,
-              'stage-change',
-              `Stage: ${priorStage} → ${nextStageKey}`,
-              undefined,
-              'system'
-            )
+          noteCaseActivity(
+            caseId,
+            'stage-change',
+            `Stage: ${priorStage} → ${nextStageKey}`,
+            undefined,
+            'system'
           );
         }
       },
@@ -611,48 +586,40 @@ export const useCrmCasesStore = create<CrmCasesState>()(
         });
 
         // Emit the audit event (single event per resolution).
-        void loadWorkstream().then(() =>
-          emitFieldChangeEvent({
-            caseId: record.caseId,
-            clientId: record.clientId,
-            section: record.section,
-            fieldKey: record.fieldKey,
-            priorValue,
-            newValue: chosenValue,
-            priorSrc,
-            newSrc: 'det',
-            changedAt: nowTs,
-            changedBy: opts.resolvedBy,
-            reason: 'conflict-resolution',
-            conflictId: record.id,
-          })
-        );
+        emitFieldChangeEvent({
+          caseId: record.caseId,
+          clientId: record.clientId,
+          section: record.section,
+          fieldKey: record.fieldKey,
+          priorValue,
+          newValue: chosenValue,
+          priorSrc,
+          newSrc: 'det',
+          changedAt: nowTs,
+          changedBy: opts.resolvedBy,
+          reason: 'conflict-resolution',
+          conflictId: record.id,
+        });
 
         // Documents store: flip the linked insight from conflict:true → false.
-        void loadDocuments().then((docs) => {
-          const insightDocId = findConflictSourceDocId(record.values);
-          if (insightDocId) {
-            docs
-              .getCrmDocumentsStore()
-              .getState()
-              .flipInsightConflict(
-                insightDocId,
-                record.section,
-                record.fieldKey,
-                false
-              );
-          }
-        });
+        const documentsBus = getDocumentsBus();
+        const insightDocId = findConflictSourceDocId(record.values);
+        if (documentsBus && insightDocId) {
+          documentsBus.flipInsightConflict(
+            insightDocId,
+            record.section,
+            record.fieldKey,
+            false
+          );
+        }
 
         // Workstream: resolve the linked worklist item + push a done-kind
         // stream entry with the full reasoning trace.
-        void loadWorkstream().then((ws) => {
-          const wsState = ws.getCrmWorkstreamStore().getState();
-          const linked = Object.values(wsState.worklistItems).find(
-            (w) => w.linkedConflictId === record.id && w.status === 'open'
-          );
-          if (linked) {
-            wsState.resolveWorklistItem(linked.id, {
+        const wsBus = getWorkstreamBus();
+        if (wsBus) {
+          const linked = wsBus.findWorklistItemByConflict(record.id);
+          if (linked && linked.status === 'open') {
+            wsBus.resolveWorklistItem(linked.id, {
               resolution: {
                 method: opts.method,
                 reasoning: opts.reasoning,
@@ -664,7 +631,7 @@ export const useCrmCasesStore = create<CrmCasesState>()(
           const notChosen = record.values.filter(
             (v) => !fieldValuesEqual(v.value, chosenValue)
           );
-          wsState.pushStreamEntry(record.caseId, {
+          wsBus.pushStreamEntry(record.caseId, {
             caseId: record.caseId,
             kind: 'done',
             iconTone: 'status-success',
@@ -695,7 +662,7 @@ export const useCrmCasesStore = create<CrmCasesState>()(
               calibration: opts.reasoning,
             },
           });
-        });
+        }
       },
 
       resetForTests: () => set(emptyState()),

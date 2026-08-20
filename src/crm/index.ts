@@ -93,3 +93,12 @@ export {
 } from './selectors';
 
 export { seedCrmGoldenPath, type SeedOptions } from './seed';
+
+export {
+  clearAllCrmState,
+  exportCaseFile,
+  importCaseFile,
+  type ExportFailure,
+  type ImportFailure,
+  type ImportSuccess,
+} from './caseFile';

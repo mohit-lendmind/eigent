@@ -15,6 +15,7 @@
 import { getAuthEnvironmentKey } from '@/lib/authEnvironment';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { registerWorkstreamBus } from './_bus';
 import { newCrmId } from './domain/ids';
 import type {
   ActivityEvent,
@@ -383,6 +384,34 @@ export const useCrmWorkstreamStore = create<CrmWorkstreamState>()(
 export function getCrmWorkstreamStore(): typeof useCrmWorkstreamStore {
   return useCrmWorkstreamStore;
 }
+
+// Register a synchronous side-bus so cases/documents can dispatch here without
+// static imports that would violate FR-014's one-directional rule.
+registerWorkstreamBus({
+  appendFieldChangeEvent: (event) =>
+    useCrmWorkstreamStore.getState().appendFieldChangeEvent(event),
+  noteActivity: (caseId, activity) =>
+    useCrmWorkstreamStore.getState().noteActivity(caseId, activity),
+  pushStreamEntry: (caseId, entry) =>
+    useCrmWorkstreamStore.getState().pushStreamEntry(caseId, entry),
+  resolveWorklistItem: (id, opts) => {
+    const prev = useCrmWorkstreamStore.getState().worklistItems[id];
+    if (!prev) return 'unknown';
+    if (prev.status === 'resolved') return 'already-resolved';
+    useCrmWorkstreamStore.getState().resolveWorklistItem(id, opts);
+    return 'resolved';
+  },
+  findWorklistItemByConflict: (conflictId) => {
+    for (const w of Object.values(
+      useCrmWorkstreamStore.getState().worklistItems
+    )) {
+      if (w.linkedConflictId === conflictId) {
+        return { id: w.id, status: w.status };
+      }
+    }
+    return null;
+  },
+});
 
 if (typeof queueMicrotask === 'function') {
   queueMicrotask(() => {
