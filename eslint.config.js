@@ -183,6 +183,54 @@ export default [
       'no-restricted-properties': 'off',
     },
   },
+  // CRM domain: one-directional cross-store imports (spec FR-014).
+  // clientsStore is the root; casesStore may read clientsStore; documentsStore
+  // may read clientsStore + casesStore; workstreamStore may read all three.
+  {
+    files: ['src/crm/clientsStore.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            './casesStore',
+            './documentsStore',
+            './workstreamStore',
+            '@/crm/casesStore',
+            '@/crm/documentsStore',
+            '@/crm/workstreamStore',
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/crm/casesStore.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            './documentsStore',
+            './workstreamStore',
+            '@/crm/documentsStore',
+            '@/crm/workstreamStore',
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/crm/documentsStore.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: ['./workstreamStore', '@/crm/workstreamStore'],
+        },
+      ],
+    },
+  },
   // Prettier config (must be last to override conflicting rules)
   prettier,
 ];

@@ -28,10 +28,10 @@ Single-project TypeScript app (Electron + React). New tree: `src/crm/`. Test sub
 
 **Purpose**: Create the empty subtrees and register the cross-store import lint rule. No feature code yet.
 
-- [ ] T001 Create the directory tree `src/crm/{domain,fixtures}` and `test/unit/crm/` (empty directories, ready for feature files)
-- [ ] T002 [P] Capture the exact license header block from the top of `src/store/spaceStore.ts` into a scratch file `src/crm/.license-header.txt` for reuse by every new `.ts` file in this feature (tracked, not committed if the repo convention is inline — check the actual header form before deciding)
-- [ ] T003 Add the one-directional cross-store `no-restricted-imports` ESLint rule to the repo's existing eslint config (additive entry only; no other rules touched) forbidding: `src/crm/clientsStore.ts` from importing anything under `src/crm/{casesStore,documentsStore,workstreamStore}`; `src/crm/casesStore.ts` from importing `documentsStore`/`workstreamStore`; `src/crm/documentsStore.ts` from importing `workstreamStore` (spec FR-014)
-- [ ] T004 [P] Verify `pnpm type-check`, `pnpm lint`, `pnpm build`, and `pnpm test` are all green on the base branch before any feature file lands (baseline capture — used to prove SC-004 / SC-005 additivity)
+- [x] T001 Create the directory tree `src/crm/{domain,fixtures}` and `test/unit/crm/` (empty directories, ready for feature files)
+- [x] T002 [P] Capture the exact license header block from the top of `src/store/spaceStore.ts` into a scratch file `src/crm/.license-header.txt` for reuse by every new `.ts` file in this feature (tracked, not committed if the repo convention is inline — check the actual header form before deciding)
+- [x] T003 Add the one-directional cross-store `no-restricted-imports` ESLint rule to the repo's existing eslint config (additive entry only; no other rules touched) forbidding: `src/crm/clientsStore.ts` from importing anything under `src/crm/{casesStore,documentsStore,workstreamStore}`; `src/crm/casesStore.ts` from importing `documentsStore`/`workstreamStore`; `src/crm/documentsStore.ts` from importing `workstreamStore` (spec FR-014)
+- [x] T004 [P] Verify `pnpm type-check`, `pnpm lint`, `pnpm build`, and `pnpm test` are all green on the base branch before any feature file lands (baseline capture — used to prove SC-004 / SC-005 additivity)
 
 **Checkpoint**: The empty subtree exists, the lint rule is armed, and the baseline is green. Foundational work can begin.
 
