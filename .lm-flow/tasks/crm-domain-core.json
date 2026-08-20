@@ -1,0 +1,726 @@
+{
+  "feature": "crm-domain-core",
+  "spec": "specs/001-crm-domain-core/spec.md",
+  "plan": "specs/001-crm-domain-core/plan.md",
+  "tasks_md": "specs/001-crm-domain-core/tasks.md",
+  "phases": [
+    {
+      "name": "Phase 1 \u2014 Setup (Shared Infrastructure)",
+      "tasks": [
+        {
+          "id": "T001",
+          "title": "Create the directory tree `src/crm/{domain,fixtures}` and `test/unit/crm/` (empty direc...",
+          "acceptance": "Done when: Create the directory tree `src/crm/{domain,fixtures}` and `test/unit/crm/` (empty directories, ready for feature files)",
+          "files": ["src/crm/{domain,fixtures}"],
+          "depends_on": [],
+          "size": "xs"
+        },
+        {
+          "id": "T002",
+          "title": "Capture the exact license header block from the top of `src/store/spaceStore.ts` into a...",
+          "acceptance": "Done when: Capture the exact license header block from the top of `src/store/spaceStore.ts` into a scratch file `src/crm/.license-header.txt` for reuse by every new `.ts` file in this feature (tracked, not committed if the repo convention is inline \u2014 check the actual header form before deciding)",
+          "files": ["src/store/spaceStore.ts", "src/crm/.license-header.txt"],
+          "depends_on": [],
+          "size": "xs"
+        },
+        {
+          "id": "T003",
+          "title": "Add the one-directional cross-store `no-restricted-imports` ESLint rule to the repo's e...",
+          "acceptance": "Done when: Add the one-directional cross-store `no-restricted-imports` ESLint rule to the repo's existing eslint config (additive entry only; no other rules touched) forbidding: `src/crm/clientsStore.ts` from importing anything under `src/crm/{casesStore,documentsStore,workstreamStore}`; `src/crm/casesStore.ts` from importing `documentsStore`/`workstreamStore`; `src/crm/documentsStore.ts` from importing `workstreamStore` (spec FR-014)",
+          "files": [
+            "src/crm/clientsStore.ts",
+            "src/crm/{casesStore,documentsStore,workstreamStore}",
+            "src/crm/casesStore.ts",
+            "src/crm/documentsStore.ts"
+          ],
+          "depends_on": [],
+          "size": "s"
+        },
+        {
+          "id": "T004",
+          "title": "Verify `pnpm type-check`, `pnpm lint`, `pnpm build`, and `pnpm test` are all green on t...",
+          "acceptance": "Done when: Verify `pnpm type-check`, `pnpm lint`, `pnpm build`, and `pnpm test` are all green on the base branch before any feature file lands (baseline capture \u2014 used to prove SC-004 / SC-005 additivity)",
+          "files": [],
+          "depends_on": [],
+          "size": "xs"
+        }
+      ]
+    },
+    {
+      "name": "Phase 2 \u2014 Foundational (Blocking Prerequisites)",
+      "tasks": [
+        {
+          "id": "T005",
+          "title": "Author `src/crm/domain/types.ts`",
+          "acceptance": "Done when: Author `src/crm/domain/types.ts` \u2014 every entity type per data-model \u00a72 (Client, Case, Applicant, FactFindField, FactFindSection, CaseProperty, Deposit, Requirement, Affordability, CrmDocument, DocInsight, DocChecklistItem, WorklistItem, StreamEntry, ReasoningTrace, EvidenceCitation, ActivityEvent, CriterionCheck, Product, RetentionEntry, ConflictRecord, ConflictValue, FieldChangeEvent, RepairReport, CaseFileExport, ComplianceRecord), every enum (Stage, WorklistKind, StreamKind, DocumentStatus, ChecklistStatus, CriterionStatus), the discriminated-union `FieldValue` keyed by `t` (spec FR-004), the `origin?: {artifactId, runId}` seam on every agent-producible entity (spec FR-002), and `export const CRM_SCHEMA_VERSION = 1` (spec FR-003). License header at top.",
+          "files": ["src/crm/domain/types.ts"],
+          "depends_on": [],
+          "size": "l"
+        },
+        {
+          "id": "T006",
+          "title": "Author `src/crm/domain/money.ts`",
+          "acceptance": "Done when: Author `src/crm/domain/money.ts` \u2014 branded `Pence = number & { readonly __brand: 'Pence' }`, `formatGbp(pence: Pence, opts?: {compact?: boolean}): string`, `parseGbp(input: string): Pence | null` (spec FR-010). License header at top.",
+          "files": ["src/crm/domain/money.ts"],
+          "depends_on": [],
+          "size": "s"
+        },
+        {
+          "id": "T007",
+          "title": "Author `src/crm/domain/stages.ts`",
+          "acceptance": "Done when: Author `src/crm/domain/stages.ts` \u2014 the 8-stage catalog `{key, label, short, tone}` where `tone` is a semantic tone key string (never hex/rgb/tailwind color \u2014 spec FR-008), plus pure helpers `stageIndex(stage: Stage): number` and `nextStage(stage: Stage): Stage | null` (spec FR-009). License header at top.",
+          "files": ["src/crm/domain/stages.ts"],
+          "depends_on": [],
+          "size": "s"
+        },
+        {
+          "id": "T008",
+          "title": "Author `src/crm/domain/ids.ts`",
+          "acceptance": "Done when: Author `src/crm/domain/ids.ts` \u2014 `newCrmId(prefix: 'client'|'case'|'doc'|'insight'|'wl'|'stream'|'event'|'conflict'|'stream_trunc'): string` composed on top of the repo's existing `generateUniqueId()` helper (spec FR-011). License header at top.",
+          "files": ["src/crm/domain/ids.ts"],
+          "depends_on": [],
+          "size": "xs"
+        },
+        {
+          "id": "T009",
+          "title": "Author `src/crm/domain/factFindSchema.ts`",
+          "acceptance": "Done when: Author `src/crm/domain/factFindSchema.ts` \u2014 required field-key tuples per section per applicant category (employed keys for Aisha/Daniel; self-employed keys for Tom), all `as const` so the union of legal keys is derivable at the type level (spec FR-006). License header at top.",
+          "files": ["src/crm/domain/factFindSchema.ts"],
+          "depends_on": [],
+          "size": "m"
+        },
+        {
+          "id": "T010",
+          "title": "Author `src/crm/domain/emptyConstants.ts`",
+          "acceptance": "Done when: Author `src/crm/domain/emptyConstants.ts` \u2014 export shared `EMPTY_ARRAY: readonly never[]` and `EMPTY_MAP: ReadonlyMap<never, never>` referentially-stable singletons for selectors to return on empty input (spec FR-043). License header at top.",
+          "files": ["src/crm/domain/emptyConstants.ts"],
+          "depends_on": [],
+          "size": "xs"
+        },
+        {
+          "id": "T011",
+          "title": "Author `src/crm/clientsStore.ts`",
+          "acceptance": "Done when: Author `src/crm/clientsStore.ts` \u2014 `useCrmClientsStore` + `getCrmClientsStore()` with `persist({name: 'crm-clients-store', version: CRM_CLIENTS_PERSIST_VERSION, migrate, partialize (allowlist), storageEnvironmentKey: getAuthEnvironmentKey()})` per `spaceStore.ts:764-801` template; state shape only (`clients: Record<string, Client>`), empty action stubs for later phases (spec FR-012). License header at top.",
+          "files": ["src/crm/clientsStore.ts"],
+          "depends_on": [],
+          "size": "s"
+        },
+        {
+          "id": "T012",
+          "title": "Author `src/crm/casesStore.ts`",
+          "acceptance": "Done when: Author `src/crm/casesStore.ts` \u2014 `useCrmCasesStore` + `getCrmCasesStore()` with `crm-cases-store` envelope; state shape `{cases: Record<string, Case>, conflicts: Record<string, ConflictRecord>, criteria: Record<string, CriterionCheck>, products: Record<string, Product>, compliance: Record<string, ComplianceRecord>}`; empty action stubs (spec FR-012).",
+          "files": ["src/crm/casesStore.ts"],
+          "depends_on": [],
+          "size": "s"
+        },
+        {
+          "id": "T013",
+          "title": "Author `src/crm/documentsStore.ts`",
+          "acceptance": "Done when: Author `src/crm/documentsStore.ts` \u2014 `useCrmDocumentsStore` + `getCrmDocumentsStore()` with `crm-documents-store` envelope; state shape `{documents: Record<string, CrmDocument>, checklist: Record<string, DocChecklistItem>}`; empty action stubs (spec FR-012).",
+          "files": ["src/crm/documentsStore.ts"],
+          "depends_on": [],
+          "size": "s"
+        },
+        {
+          "id": "T014",
+          "title": "Author `src/crm/workstreamStore.ts`",
+          "acceptance": "Done when: Author `src/crm/workstreamStore.ts` \u2014 `useCrmWorkstreamStore` + `getCrmWorkstreamStore()` with `crm-workstream-store` envelope; state shape `{worklist: Record<string, WorklistItem>, stream: Record<string /* caseId */, StreamEntry[]>, activity: Record<string /* caseId */, ActivityEvent[]>, retention: RetentionEntry[], fieldChangeEvents: FieldChangeEvent[], lastRepairReport: RepairReport | null}`; empty action stubs (spec FR-012).",
+          "files": ["src/crm/workstreamStore.ts"],
+          "depends_on": [],
+          "size": "s"
+        },
+        {
+          "id": "T015",
+          "title": "Author `src/crm/integrity.ts`",
+          "acceptance": "Done when: Author `src/crm/integrity.ts` \u2014 export `crmIntegrityRepair(): RepairReport` skeleton with the six ordered passes stubbed (spec FR-036: placeholder clients, placeholder document owners, prune orphan worklist, prune orphan stream, prune orphan activity, recompute case completeness), plus `getLastRepairReport(): RepairReport | null` reading from `workstreamStore`, plus queueMicrotask post-hydration wiring hooked from each store's `onRehydrateStorage` (a barrier that fires the single pass once all four stores have hydrated). Implementations for each pass land in T085; this task lands the entry-point wiring only. Depends on T011\u2013T014.",
+          "files": ["src/crm/integrity.ts"],
+          "depends_on": ["T011", "T012", "T013", "T014"],
+          "size": "m"
+        },
+        {
+          "id": "T016",
+          "title": "Author `src/crm/index.ts`",
+          "acceptance": "Done when: Author `src/crm/index.ts` \u2014 public barrel that re-exports ONLY the public surface (all four `useCrm*Store` hooks + `getCrm*Store()` accessors, all types from `domain/types.ts`, `CRM_SCHEMA_VERSION`, `crmIntegrityRepair`, `getLastRepairReport`, `EMPTY_ARRAY`, `EMPTY_MAP`, `formatGbp`, `parseGbp`, stage catalog + helpers, `newCrmId`, factFindSchema tuples). Does NOT re-export anything under `src/crm/fixtures/` (fixtures are internal). Depends on T005\u2013T015.",
+          "files": ["src/crm/index.ts", "domain/types.ts", "src/crm/fixtures/"],
+          "depends_on": [
+            "T005",
+            "T006",
+            "T007",
+            "T008",
+            "T009",
+            "T010",
+            "T011",
+            "T012",
+            "T013",
+            "T014",
+            "T015"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T017",
+          "title": "Test `src/crm/domain/money.test.ts`",
+          "acceptance": "Done when: Test `src/crm/domain/money.test.ts` \u2014 asserts `formatGbp(4_275_000 as Pence) === '\u00a342,750.00'`; compact form `'\u00a342.8k'`; `parseGbp('\u00a338,500') === 3_850_000`; `parseGbp('nonsense') === null`; branded-type prevents assigning raw number without cast (compile-time assertion via `// @ts-expect-error`). Depends on T006.",
+          "files": ["src/crm/domain/money.test.ts"],
+          "depends_on": ["T006"],
+          "size": "s"
+        },
+        {
+          "id": "T018",
+          "title": "Test `src/crm/domain/stages.test.ts`",
+          "acceptance": "Done when: Test `src/crm/domain/stages.test.ts` \u2014 asserts the 8-stage order, `stageIndex` monotonic, `nextStage('COMPLETION') === null`, every `tone` value is a semantic token key (regex: no `#`, no `rgb(`, no direct tailwind color class like `bg-red-500`). Depends on T007.",
+          "files": ["src/crm/domain/stages.test.ts"],
+          "depends_on": ["T007"],
+          "size": "s"
+        },
+        {
+          "id": "T019",
+          "title": "Test `src/crm/domain/ids.test.ts`",
+          "acceptance": "Done when: Test `src/crm/domain/ids.test.ts` \u2014 asserts each supported prefix produces an id starting with `<prefix>_` and uniqueness across 1000 sequential calls. Depends on T008.",
+          "files": ["src/crm/domain/ids.test.ts"],
+          "depends_on": ["T008"],
+          "size": "s"
+        }
+      ]
+    },
+    {
+      "name": "Phase 3 \u2014 User Story 1 \u2014 Seed and read the golden path (Priority: P1) \ud83c\udfaf MVP",
+      "tasks": [
+        {
+          "id": "T020",
+          "title": "Add action `upsertClients(clients: Client[])` to `src/crm/clientsStore.ts`",
+          "acceptance": "Done when: Add action `upsertClients(clients: Client[])` to `src/crm/clientsStore.ts` \u2014 insert-or-update by id, stamps `schemaVersion`, dedupes; also add `noteClientCase(clientId, caseId)` (append if not present) and `ensureClient(id): Client | Placeholder` returning a `repaired:true` placeholder for missing ids (spec FR-015, FR-017, FR-038). Depends on T011.",
+          "files": ["src/crm/clientsStore.ts"],
+          "depends_on": ["T005", "T011"],
+          "size": "m"
+        },
+        {
+          "id": "T021",
+          "title": "Add action `upsertCases(cases: Case[])` to `src/crm/casesStore.ts`",
+          "acceptance": "Done when: Add action `upsertCases(cases: Case[])` to `src/crm/casesStore.ts` \u2014 insert-or-update by id, stamps `schemaVersion`; add `upsertConflictRecords(records)`, `upsertCriteriaChecks(checks)`, `upsertProducts(products)`, `upsertCompliance(record)` for fixture load. Add pure `computeSectionCompleteness(section, requiredKeys)` and `computeCaseCompleteness(applicants[])` as module-level functions importable without instantiating a store (spec FR-007). Depends on T012, T005, T009.",
+          "files": ["src/crm/casesStore.ts"],
+          "depends_on": ["T005", "T009", "T012"],
+          "size": "m"
+        },
+        {
+          "id": "T022",
+          "title": "Add action `addDocument(doc)` (`PROCESSING` state if `attribution == null`), `completeD...",
+          "acceptance": "Done when: Add action `addDocument(doc)` (`PROCESSING` state if `attribution == null`), `completeDocument(id, {type, attribution, insights})`, `upsertDocuments(docs[])` (bulk load path for fixtures), and `setChecklistStatus(owner, itemKey, status, {note?})` to `src/crm/documentsStore.ts` (spec FR-023, FR-024, FR-025). Depends on T013.",
+          "files": ["src/crm/documentsStore.ts"],
+          "depends_on": ["T013"],
+          "size": "m"
+        },
+        {
+          "id": "T023",
+          "title": "Add actions `pushStreamEntry(caseId, entry)` (stamps id/schemaVersion, preserves `trace...",
+          "acceptance": "Done when: Add actions `pushStreamEntry(caseId, entry)` (stamps id/schemaVersion, preserves `trace` verbatim, cap enforcement lands in T072), `noteActivity(caseId, activity)`, `upsertWorklistItems(items[])`, `upsertRetention(entry)` (keyed by `clientId + endsAt`), and read helpers `getFieldChangeEventsForField(caseId, clientId, section, fieldKey)`, `getFieldChangeEventsForCase(caseId)` (ascending by `changedAt`) to `src/crm/workstreamStore.ts` (spec FR-028, FR-029, FR-031, FR-034). Depends on T014.",
+          "files": ["src/crm/workstreamStore.ts"],
+          "depends_on": ["T014"],
+          "size": "m"
+        },
+        {
+          "id": "T024",
+          "title": "Author `src/crm/fixtures/clients.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/clients.ts` \u2014 export `aishaOkafor`, `danielReyes`, `tomHargreaves`, and adviser fixture `adviserEleanorVance` (per design reference \u00a73.1 and \u00a73.4), with `tint`/`textCls` as semantic tone keys only. Depends on T005.",
+          "files": ["src/crm/fixtures/clients.ts"],
+          "depends_on": ["T005"],
+          "size": "s"
+        },
+        {
+          "id": "T025",
+          "title": "Author `src/crm/fixtures/case417.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/case417.ts` \u2014 case `c417` (LM-2026-0417): FTB purchase, 8 Brookfield Avenue Didsbury \u00a3285,000, deposit \u00a342,750 (15%) including \u00a32,000 gift flag, \u00a3242,250 loan (24_225_000 pence), 85% LTV, 32-year term, C&I, 2-year fixed. Applicants: Aisha (primary) + Daniel (secondary). Fact-find sections populated for both applicants with every FR-006 employed field key at correct `src` and `hint`; Daniel's `employment` carries `inProbation:true`, `startDate:'2026-01-06'`, `yearsInRole:0.4`; Daniel's `income.basic` carries `conflictId` referencing the salary conflict fixture; `ownership: {adviserId:'adviser_eleanor_vance', firmId:'firm_meridian_mortgages', networkId:'network_stonebridge'}` (spec FR-022, FR-044). Depends on T005, T009, T024.",
+          "files": ["src/crm/fixtures/case417.ts"],
+          "depends_on": ["T005", "T009", "T024"],
+          "size": "l"
+        },
+        {
+          "id": "T026",
+          "title": "Author `src/crm/fixtures/case392.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/case392.ts` \u2014 case `c392` (LM-2026-0392): Tom Hargreaves solo remortgage, 22 Royal York Crescent Clifton \u00a3520,000, equity deposit \u00a3208,000 (40%), \u00a3335,000 loan, 5-year fixed, `retention: {reason:'Fixed rate ends 31 Aug 2026', daysLeft:79}`. Fact-find sections populated with FR-006 self-employed keys. Ownership seeded to Eleanor Vance (spec FR-044). Depends on T005, T009, T024.",
+          "files": ["src/crm/fixtures/case392.ts"],
+          "depends_on": ["T005", "T009", "T024"],
+          "size": "m"
+        },
+        {
+          "id": "T027",
+          "title": "Author `src/crm/fixtures/pipeline.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/pipeline.ts` \u2014 8-row pipeline dataset per design reference \u00a73.6, including cases `c417` and `c392` and 6 pipeline-only stubs achieving the stage distribution `{LEAD:1, FACT_FIND:2, SOURCING:0, DIP:1, APPLICATION:1, VALUATION:1, OFFER:1, COMPLETION:1}` (spec SC-001). Depends on T005.",
+          "files": ["src/crm/fixtures/pipeline.ts"],
+          "depends_on": ["T005"],
+          "size": "s"
+        },
+        {
+          "id": "T028",
+          "title": "Author `src/crm/fixtures/documents.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/documents.ts` \u2014 6 documents per design reference \u00a73.7 with typed insights: joint bank statement `attribution: 0.74`; employment contract with `Salary` insight `conflict:true` (linked to the salary `ConflictRecord` in `conflicts.ts`); all others per reference. Every `iconTone` is a semantic token key (spec FR-044, FR-045). Depends on T005.",
+          "files": ["src/crm/fixtures/documents.ts"],
+          "depends_on": ["T005"],
+          "size": "m"
+        },
+        {
+          "id": "T029",
+          "title": "Author `src/crm/fixtures/checklists.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/checklists.ts` \u2014 per-owner checklist per \u00a73.8: 4 aisha items, 3 daniel items, 3 joint items with correct statuses. Depends on T005.",
+          "files": ["src/crm/fixtures/checklists.ts"],
+          "depends_on": ["T005"],
+          "size": "xs"
+        },
+        {
+          "id": "T030",
+          "title": "Author `src/crm/fixtures/worklist.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/worklist.ts` \u2014 6 worklist items in design-reference order (kinds `conflict, criteria, doc/auto, approval, doc/auto, retention`), each linked to real fixture entities: item `w1` links to the salary conflict, `w4` links to the compliance approval etc (spec FR-044 acceptance #4). Depends on T005, T028.",
+          "files": ["src/crm/fixtures/worklist.ts"],
+          "depends_on": ["T005", "T028"],
+          "size": "s"
+        },
+        {
+          "id": "T031",
+          "title": "Author `src/crm/fixtures/conflicts.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/conflicts.ts` \u2014 the c417 Daniel-income-basic `ConflictRecord` with both `ConflictValue`s populated: `{value: {t:'money', v:3_850_000}, source:{kind:'document', docId:'d5', insightLabel:'Salary', quote:'\u2026'}}` and `{value: {t:'money', v:3_730_000}, source:{kind:'document', docId:'d2', insightLabel:'Annual income', quote:'\u2026'}}`; composite address `(c417, danielId, 'income', 'basic')`; `detectedAt` set (spec FR-032). Depends on T005.",
+          "files": ["src/crm/fixtures/conflicts.ts"],
+          "depends_on": ["T005"],
+          "size": "s"
+        },
+        {
+          "id": "T032",
+          "title": "Author `src/crm/fixtures/stream417.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/stream417.ts` \u2014 8 stream entries per \u00a73.22 STREAM_417 with full `ReasoningTrace`s: claim, subject, numbered working, cited evidence with verbatim quotes and `source` refs (e.g. `'Halifax criteria \u00b7 Section 4.2 v24.6'`, `'Page 1, line 18'`), alternatives where design specifies, calibrated confidences `.96, .78, .93, .85, .96, .95, .93, 1.0`; live solver entry pinned first (spec FR-044). Depends on T005.",
+          "files": ["src/crm/fixtures/stream417.ts"],
+          "depends_on": ["T005"],
+          "size": "l"
+        },
+        {
+          "id": "T033",
+          "title": "Author `src/crm/fixtures/stream392.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/stream392.ts` \u2014 2 stream entries per \u00a73.22 STREAM_392 with full traces. Depends on T005.",
+          "files": ["src/crm/fixtures/stream392.ts"],
+          "depends_on": ["T005"],
+          "size": "s"
+        },
+        {
+          "id": "T034",
+          "title": "Author `src/crm/fixtures/criteria.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/criteria.ts` \u2014 10 criteria checks per \u00a73.12, each with `group`, `status`, `reasoning`, `impacts[]` per-lender note as specified (spec FR-044). Depends on T005.",
+          "files": ["src/crm/fixtures/criteria.ts"],
+          "depends_on": ["T005"],
+          "size": "m"
+        },
+        {
+          "id": "T035",
+          "title": "Author `src/crm/fixtures/products.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/products.ts` \u2014 primary 2-year universe `hx, nw, ac, sk, cov` (\u00a73.13) with passes/fails preserved; every `pass` row carries non-empty `rationale` and `criteriaTrail`; every `fail` row carries `rejectReason`, `rejectCriterion` (e.g. `'Skipton \u00a7 3.1 Employment tenure'`), `failOn`. Export `SOLVER_LENDERS` (`tsb, barclays, santander, natwest`) and `SOLVER_LENDERS_5YR` (Halifax, Nationwide, Accord 5yr) as separate arrays (spec FR-044 acceptance #6). Depends on T005.",
+          "files": ["src/crm/fixtures/products.ts"],
+          "depends_on": ["T005"],
+          "size": "m"
+        },
+        {
+          "id": "T036",
+          "title": "Author `src/crm/fixtures/compliance.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/compliance.ts` \u2014 c417 compliance record per \u00a73.20: disclosures, ID&V, AML SmartSearch, vulnerability, Consumer Duty pillars, declaration, supervision items (including the pending gifted-deposit letter) (spec FR-044). Depends on T005.",
+          "files": ["src/crm/fixtures/compliance.ts"],
+          "depends_on": ["T005"],
+          "size": "m"
+        },
+        {
+          "id": "T037",
+          "title": "Author `src/crm/fixtures/retention.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/retention.ts` \u2014 4-entry retention radar per \u00a73.11: Tom's 79-day entry at top, plus three other clients' entries with correctly-computed `daysLeft` values relative to seed clock (spec FR-044). Depends on T005.",
+          "files": ["src/crm/fixtures/retention.ts"],
+          "depends_on": ["T005"],
+          "size": "s"
+        },
+        {
+          "id": "T038",
+          "title": "Author `src/crm/fixtures/goldenPath.ts`",
+          "acceptance": "Done when: Author `src/crm/fixtures/goldenPath.ts` \u2014 bundles all above fixtures into `{clients[], adviser, cases[], documents[], checklist[], worklist[], stream: {c417, c392}, activity[], criteria[], products[], compliance[], retention[], conflicts[]}` for the seed to iterate over once. Depends on T024\u2013T037.",
+          "files": ["src/crm/fixtures/goldenPath.ts"],
+          "depends_on": [
+            "T024",
+            "T025",
+            "T026",
+            "T027",
+            "T028",
+            "T029",
+            "T030",
+            "T031",
+            "T032",
+            "T033",
+            "T034",
+            "T035",
+            "T036",
+            "T037"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T039",
+          "title": "Author `src/crm/seed.ts`",
+          "acceptance": "Done when: Author `src/crm/seed.ts` \u2014 `seedCrmGoldenPath()`: dev-gated (guarded by the same idiom as `INITIAL_BLANK_SPACE_CREATED_FROM` in `spaceStore.ts`; falls back to `import.meta.env.DEV`), idempotent (returns early with no writes if any of the four stores is non-empty). Writes fixtures to all four stores such that a zustand subscriber observes ONE non-empty transition per store (single `setState` per store \u2014 no per-record loops that would trigger intermediate emissions) (spec FR-046, User Story 1 acceptance #2). Emits `FieldChangeEvent`s with `reason: 'seed'` for the seeded fact-find fields (spec FR-034). Depends on T020\u2013T023, T038.",
+          "files": ["src/crm/seed.ts"],
+          "depends_on": ["T009", "T020", "T021", "T022", "T023", "T038"],
+          "size": "m"
+        },
+        {
+          "id": "T040",
+          "title": "Author `src/crm/selectors.ts`",
+          "acceptance": "Done when: Author `src/crm/selectors.ts` \u2014 pure module-level selector functions each returning stable empty constants (`EMPTY_ARRAY` / `EMPTY_MAP`) on empty input (spec FR-042, FR-043): - `selectNeedsYou(worklist)` \u2014 items with `status: 'open'` ordered per design - `selectNeedsYouCount(worklist)` - `selectPipelineCounts(cases)` \u2014 record keyed by stage - `selectOpenConflicts(cases, conflicts)` \u2014 active `ConflictRecord`s - `selectRetentionUrgency(entries, now)` \u2014 sorted ascending `daysLeft`, `<90` = urgent - `selectCaseStreamSections(stream)` \u2014 returns ordered `{live[], needsYou[], directives[], activity[]}` - `selectDetSynCounts(applicant)` \u2014 `{det, syn, awaiting}` - `selectCaseCompleteness(caseId, casesState)` Depends on T005, T010, T012, T014.",
+          "files": ["src/crm/selectors.ts"],
+          "depends_on": ["T005", "T010", "T012", "T014"],
+          "size": "m"
+        },
+        {
+          "id": "T041",
+          "title": "Test `src/crm/clientsStore.test.ts`",
+          "acceptance": "Done when: Test `src/crm/clientsStore.test.ts` \u2014 `upsertClients` idempotence; `noteClientCase` append-if-absent; `ensureClient` returns `{repaired:true}` placeholder for missing id and never throws. Depends on T020.",
+          "files": ["src/crm/clientsStore.test.ts"],
+          "depends_on": ["T020"],
+          "size": "s"
+        },
+        {
+          "id": "T042",
+          "title": "Test `src/crm/casesStore.test.ts` (US1 subset)",
+          "acceptance": "Done when: Test `src/crm/casesStore.test.ts` (US1 subset) \u2014 `upsertCases` idempotence; `computeCaseCompleteness` pure math for the c417 fixture returns `[0.895, 0.905]`; `upsertConflictRecords` insert path; ownership object seeded correctly. (Conflict-resolution behavior tests live in T059.) Depends on T021, T025.",
+          "files": ["src/crm/casesStore.test.ts"],
+          "depends_on": ["T021", "T025"],
+          "size": "s"
+        },
+        {
+          "id": "T043",
+          "title": "Test `src/crm/documentsStore.test.ts` (US1 subset)",
+          "acceptance": "Done when: Test `src/crm/documentsStore.test.ts` (US1 subset) \u2014 `addDocument` sets `PROCESSING` if attribution null; `completeDocument` flips to `COMPLETED`; `confirmAttribution` timestamp; `setChecklistStatus` per owner; document-insight `conflict:true` does NOT auto-mutate any fact-find field (spec FR-026). Depends on T022.",
+          "files": ["src/crm/documentsStore.test.ts"],
+          "depends_on": ["T022"],
+          "size": "s"
+        },
+        {
+          "id": "T044",
+          "title": "Test `src/crm/workstreamStore.test.ts` (US1 subset)",
+          "acceptance": "Done when: Test `src/crm/workstreamStore.test.ts` (US1 subset) \u2014 `pushStreamEntry` preserves `trace` verbatim (deep-equal after append); `noteActivity` appends; `upsertRetention` keyed by `(clientId, endsAt)` \u2014 same key updates in place, different key appends. (Cap eviction, FieldChangeEvent queries, and resolveWorklistItem behavior live in later tasks.) Depends on T023.",
+          "files": ["src/crm/workstreamStore.test.ts"],
+          "depends_on": ["T023"],
+          "size": "s"
+        },
+        {
+          "id": "T045",
+          "title": "Test `src/crm/selectors.test.ts`",
+          "acceptance": "Done when: Test `src/crm/selectors.test.ts` \u2014 every selector returns `EMPTY_ARRAY`/`EMPTY_MAP` singletons on empty input (`selector(empty) === selector(empty)` referential equality); every selector output matches fixture expectations after seed (asserted numbers: `selectNeedsYouCount === 6`, pipeline distribution, c417 completeness in range, retention ranking) (spec FR-042, FR-043, SC-001). Depends on T039, T040.",
+          "files": ["src/crm/selectors.test.ts"],
+          "depends_on": ["T039", "T040"],
+          "size": "s"
+        },
+        {
+          "id": "T046",
+          "title": "Test `src/crm/fixtures/goldenPath.test.ts`",
+          "acceptance": "Done when: Test `src/crm/fixtures/goldenPath.test.ts` \u2014 fixture-integrity assertions independent of the stores: c417 LTV = 85% (\u00b10.01) (computed `deposit / propertyPrice`), LTI = 2.95\u00d7 (\u00b10.01), loan = 24_225_000 pence, combined income = \u00a382,100; Daniel's `income.basic` field carries the `conflictId` matching the ConflictRecord id; every c417 sourcing `pass` row has non-empty `rationale` and `criteriaTrail`; every `fail` row carries `rejectReason`, `rejectCriterion`, `failOn`; every fixture color reference is a semantic tone key (regex scan). Depends on T038.",
+          "files": ["src/crm/fixtures/goldenPath.test.ts"],
+          "depends_on": ["T038"],
+          "size": "s"
+        },
+        {
+          "id": "T047",
+          "title": "Integration test `test/unit/crm/seed.integration.test.ts`",
+          "acceptance": "Done when: Integration test `test/unit/crm/seed.integration.test.ts` \u2014 the full Journey A per quickstart.md \u00a7 Journey A: reset all four stores in `beforeEach`; assert stores start empty; subscribe with spies before `seedCrmGoldenPath()`; assert one non-empty transition per store; assert the four `localStorage` envelope keys exist under the current environment key; second call is a no-op (no additional persist writes, no duplicate records); run every SC-001 selector assertion (needsYouCount, pipelineCounts, c417 completeness, needsYou order, streamSections with live solver first, retentionUrgency ranking) (spec User Story 1 acceptance #1\u2013#6). Depends on T039, T040.",
+          "files": ["test/unit/crm/seed.integration.test.ts"],
+          "depends_on": ["T011", "T012", "T013", "T014", "T039", "T040"],
+          "size": "m"
+        }
+      ]
+    },
+    {
+      "name": "Phase 4 \u2014 User Story 2 \u2014 Resolve a conflict atomically, with a persisted audit (Priority: P2)",
+      "tasks": [
+        {
+          "id": "T048",
+          "title": "Add `setFactFindField(caseId, clientId, section, fieldKey, newValue: FieldValue, {reaso...",
+          "acceptance": "Done when: Add `setFactFindField(caseId, clientId, section, fieldKey, newValue: FieldValue, {reason?: FieldChangeEvent['reason'], changedBy: string, src?: 'det'|'syn'})` to `src/crm/casesStore.ts` \u2014 one store update: write field value + `src` (defaults to `'det'`), emit a `FieldChangeEvent` to workstream store capturing `{priorValue, newValue, priorSrc, newSrc, changedAt: Date.now(), changedBy, reason: reason ?? 'edit'}`, recompute the affected section's completeness. Guards against writing money as a display string (type-level via `FieldValue.t`, runtime via a defensive check on `t:'money'` payloads) (spec FR-018). Depends on T021, T023.",
+          "files": ["src/crm/casesStore.ts"],
+          "depends_on": ["T021", "T023"],
+          "size": "m"
+        },
+        {
+          "id": "T049",
+          "title": "Add `confirmSynthesizedField(caseId, clientId, section, fieldKey, {confirmedBy})` to `s...",
+          "acceptance": "Done when: Add `confirmSynthesizedField(caseId, clientId, section, fieldKey, {confirmedBy})` to `src/crm/casesStore.ts` \u2014 flip `src: 'syn' \u2192 'det'`, record `confirmedAt: Date.now()` and `confirmedBy` on the field, emit `FieldChangeEvent` with `reason: 'confirm-synthesized'` (spec FR-019). Depends on T048.",
+          "files": ["src/crm/casesStore.ts"],
+          "depends_on": ["T048"],
+          "size": "s"
+        },
+        {
+          "id": "T050",
+          "title": "Add `moveStage(caseId, nextStageKey: Stage)` to `src/crm/casesStore.ts`",
+          "acceptance": "Done when: Add `moveStage(caseId, nextStageKey: Stage)` to `src/crm/casesStore.ts` \u2014 validates `nextStageKey` via `stageIndex`/`nextStage` (does not skip stages silently \u2014 throws / returns typed refusal for a bad key), updates `Case.stage`, appends `ActivityEvent` via `workstreamStore.noteActivity` (spec FR-021). Depends on T021, T023, T007.",
+          "files": ["src/crm/casesStore.ts"],
+          "depends_on": ["T007", "T021", "T023"],
+          "size": "s"
+        },
+        {
+          "id": "T051",
+          "title": "Add `resolveWorklistItem(id, {resolution, resolvedBy})` to `src/crm/workstreamStore.ts`",
+          "acceptance": "Done when: Add `resolveWorklistItem(id, {resolution, resolvedBy})` to `src/crm/workstreamStore.ts` \u2014 sets `status: 'resolved'`, `resolvedAt: Date.now()`, `resolvedBy`, `resolution: {\u2026}`; item is **retained** (never deleted); second call on an already-resolved item is a no-op (spec FR-027). Depends on T023.",
+          "files": ["src/crm/workstreamStore.ts"],
+          "depends_on": ["T023"],
+          "size": "s"
+        },
+        {
+          "id": "T052",
+          "title": "Add `resolveConflict(conflictId, {chosenValue: FieldValue, method: 'confirm-value'|'ask...",
+          "acceptance": "Done when: Add `resolveConflict(conflictId, {chosenValue: FieldValue, method: 'confirm-value'|'ask-client', resolvedBy: string, reasoning?: string})` to `src/crm/casesStore.ts` \u2014 the atomic orchestration (spec FR-020, User Story 2 acceptance #1). Sequence (all in one setState per store, in fixed order `cases \u2192 documents \u2192 workstream`, so no subscriber can observe partial state): - Idempotence guard: if `ConflictRecord.resolvedAt` already set, return with no side-effects. - Cases store setState: (a) `setFactFindField` semantics on the referenced field with `reason:'conflict-resolution'`, `src: 'det'`, `chosenValue`; (b) mark `ConflictRecord.resolvedAt`, `.resolvedBy`, `.resolution = {method, reasoning}` while PRESERVING both `values[]` entries. - Documents store setState: (c) flip corresponding document-insight (`d5` Salary) from `conflict:true` to `conflict:false`. - Workstream store setState: (...",
+          "files": ["src/crm/casesStore.ts"],
+          "depends_on": ["T048", "T051"],
+          "size": "l"
+        },
+        {
+          "id": "T053",
+          "title": "Test `src/crm/casesStore.setFactFindField.test.ts`",
+          "acceptance": "Done when: Test `src/crm/casesStore.setFactFindField.test.ts` \u2014 asserts `setFactFindField` emits exactly one `FieldChangeEvent` with `{priorValue, newValue, priorSrc, newSrc, changedAt, changedBy, reason}` correctly populated; asserts section completeness recomputed; asserts writing a money field with `t:'money'` accepts `Pence` and (defensive) rejects a display string at runtime (spec FR-018, FR-034). Depends on T048.",
+          "files": ["src/crm/casesStore.setFactFindField.test.ts"],
+          "depends_on": ["T048"],
+          "size": "s"
+        },
+        {
+          "id": "T054",
+          "title": "Test `src/crm/casesStore.confirmSynthesizedField.test.ts`",
+          "acceptance": "Done when: Test `src/crm/casesStore.confirmSynthesizedField.test.ts` \u2014 asserts `src: 'syn' \u2192 'det'`, `confirmedAt` and `confirmedBy` populated, `FieldChangeEvent` with `reason:'confirm-synthesized'` emitted (spec FR-019). Depends on T049.",
+          "files": ["src/crm/casesStore.confirmSynthesizedField.test.ts"],
+          "depends_on": ["T049"],
+          "size": "s"
+        },
+        {
+          "id": "T055",
+          "title": "Test `src/crm/casesStore.moveStage.test.ts`",
+          "acceptance": "Done when: Test `src/crm/casesStore.moveStage.test.ts` \u2014 asserts valid `nextStageKey` transitions succeed, appends ActivityEvent; asserts an invalid skip returns typed refusal / throws (per implementation choice) without mutating state (spec FR-021). Depends on T050.",
+          "files": ["src/crm/casesStore.moveStage.test.ts"],
+          "depends_on": ["T050"],
+          "size": "s"
+        },
+        {
+          "id": "T056",
+          "title": "Test `src/crm/workstreamStore.resolveWorklistItem.test.ts`",
+          "acceptance": "Done when: Test `src/crm/workstreamStore.resolveWorklistItem.test.ts` \u2014 asserts item transitions `open \u2192 resolved`, is retained (still present in store), second call is no-op; asserts refusal to delete via a nonexistent action path (worklist has no `deleteWorklistItem`) (spec FR-027). Depends on T051.",
+          "files": ["src/crm/workstreamStore.resolveWorklistItem.test.ts"],
+          "depends_on": ["T051"],
+          "size": "s"
+        },
+        {
+          "id": "T057",
+          "title": "Test `src/crm/workstreamStore.fieldChangeEvents.test.ts`",
+          "acceptance": "Done when: Test `src/crm/workstreamStore.fieldChangeEvents.test.ts` \u2014 asserts `getFieldChangeEventsForField(caseId, clientId, section, fieldKey)` returns ascending by `changedAt`; asserts `getFieldChangeEventsForCase(caseId)` scoped correctly; asserts events are never mutated or deleted after append (spec FR-034). Depends on T023, T048.",
+          "files": ["src/crm/workstreamStore.fieldChangeEvents.test.ts"],
+          "depends_on": ["T023", "T048"],
+          "size": "s"
+        },
+        {
+          "id": "T058",
+          "title": "Integration test `test/unit/crm/conflict.integration.test.ts`",
+          "acceptance": "Done when: Integration test `test/unit/crm/conflict.integration.test.ts` \u2014 the full Journey B per quickstart.md \u00a7 Journey B: seed \u2192 capture initial state (field `conflictId` set, `d5` Salary insight `conflict:true`, `w1` `open`, stream length N, `FieldChangeEvent` count = seed events) \u2192 subscribe spy across all four stores \u2192 single `resolveConflict` call \u2192 assert exactly one emission per affected store (atomicity) \u2192 assert all seven side-effects (a)\u2013(g) \u2192 assert `ConflictRecord.values[]` still contains both `{v:3_850_000}` and `{v:3_730_000}` \u2192 assert idempotent second call (no additional stream entry, no additional FieldChangeEvent) \u2192 assert round-trip through export/wipe/import preserves resolved conflict + FieldChangeEvent + done-kind stream entry (spec User Story 2 acceptance #1\u2013#6, SC-002). Depends on T052, T047. Requires T059, T060 (export/import) for the round-trip assertion.",
+          "files": ["test/unit/crm/conflict.integration.test.ts"],
+          "depends_on": ["T047", "T052", "T059", "T060"],
+          "size": "l"
+        }
+      ]
+    },
+    {
+      "name": "Phase 5 \u2014 User Story 3 \u2014 Export and wipe for compliance lifecycle (Priority: P3)",
+      "tasks": [
+        {
+          "id": "T059",
+          "title": "Author `src/crm/caseFile.ts`",
+          "acceptance": "Done when: Author `src/crm/caseFile.ts` \u2014 `exportCaseFile(caseId): CaseFileExport | {ok:false, reason:'unknown_case'}` (spec FR-040): - Pure synchronous read across the four stores via `getCrm*Store().getState()`. - Return `{ok:false, reason:'unknown_case'}` (typed refusal, never a throw) if `caseId` is not present. - Build `{envelope: {exportVersion:1, exportedAt: Date.now(), crmSchemaVersion: CRM_SCHEMA_VERSION, caseId}, records: {case, clients (deep), applicants, documents attributed to either applicant, checklist, worklist scoped to case, stream[] with full trace preserved verbatim, activity, criteria, products (both 2yr and 5yr universes), compliance, retention for the referenced clients, conflicts (open + resolved with both `values[]`), fieldChangeEvents matching caseId}}`. Depends on T016, T020\u2013T023.",
+          "files": ["src/crm/caseFile.ts"],
+          "depends_on": ["T016", "T020", "T021", "T022", "T023"],
+          "size": "m"
+        },
+        {
+          "id": "T060",
+          "title": "Add `importCaseFile(export: CaseFileExport): {ok:true, imported:{cases:number,clients:n...",
+          "acceptance": "Done when: Add `importCaseFile(export: CaseFileExport): {ok:true, imported:{cases:number,clients:number,documents:number,workstream:number}} | {ok:false, reason:'id_collision', ids:string[]} | {ok:false, reason:'envelope_incompatible', got:number, expected:number}` to `src/crm/caseFile.ts` \u2014 envelope version check (exportVersion 1 only); id-collision check across all four stores BEFORE writing (rejects overwrite, callers wipe first); one-shot re-hydration per store via a single setState (spec FR-041, User Story 3 acceptance #3, id-collision case).",
+          "files": ["src/crm/caseFile.ts"],
+          "depends_on": [],
+          "size": "m"
+        },
+        {
+          "id": "T061",
+          "title": "Add `clearAllCrmState()` to `src/crm/caseFile.ts` (or `src/crm/reset.ts` if we prefer t...",
+          "acceptance": "Done when: Add `clearAllCrmState()` to `src/crm/caseFile.ts` (or `src/crm/reset.ts` if we prefer the same file to hold serializers only) \u2014 for each of the four stores: full `setState` to the empty initial-state object; `localStorage.removeItem('crm-clients-store' | 'crm-cases-store' | 'crm-documents-store' | 'crm-workstream-store')`. Does NOT touch any other `localStorage` key (spec FR-039).",
+          "files": ["src/crm/caseFile.ts", "src/crm/reset.ts"],
+          "depends_on": [],
+          "size": "s"
+        },
+        {
+          "id": "T062",
+          "title": "Add a `canonicalise(export: CaseFileExport): CaseFileExport` helper inside `src/crm/cas...",
+          "acceptance": "Done when: Add a `canonicalise(export: CaseFileExport): CaseFileExport` helper inside `src/crm/caseFile.ts` \u2014 deterministic recursive key-sort producing a canonical form for byte-equal round-trip assertions (spec SC-003). Kept as an implementation detail of the export module (not re-exported from `index.ts`; used by tests via `caseFile.test.ts`).",
+          "files": ["src/crm/caseFile.ts"],
+          "depends_on": [],
+          "size": "s"
+        },
+        {
+          "id": "T063",
+          "title": "Test `src/crm/caseFile.test.ts`",
+          "acceptance": "Done when: Test `src/crm/caseFile.test.ts` \u2014 `exportCaseFile('c417')` post-seed asserts record counts (`applicants.length === 2`, `documents.length === 6`, `stream.length >= 7`, `conflicts.length >= 1`); envelope has `exportVersion:1`, `crmSchemaVersion === CRM_SCHEMA_VERSION`, `caseId === 'c417'`; every stream entry retains its full `trace` (deep-equal against fixture); every `ConflictRecord` retains both `values[]`; `exportCaseFile('nonexistent')` returns `{ok:false, reason:'unknown_case'}` and does not throw (spec User Story 3 acceptance #1, negative case). Depends on T039, T059.",
+          "files": ["src/crm/caseFile.test.ts"],
+          "depends_on": ["T039", "T059"],
+          "size": "m"
+        },
+        {
+          "id": "T064",
+          "title": "Test `src/crm/reset.test.ts`",
+          "acceptance": "Done when: Test `src/crm/reset.test.ts` \u2014 `clearAllCrmState()` empties all four stores; removes exactly the four CRM `localStorage` keys; a synthetic non-CRM key `localStorage.setItem('unrelated', '1')` set beforehand is still present afterwards (spec FR-039, User Story 3 acceptance #2). Depends on T061.",
+          "files": ["src/crm/reset.test.ts"],
+          "depends_on": ["T061"],
+          "size": "s"
+        },
+        {
+          "id": "T065",
+          "title": "Integration test `test/unit/crm/export.integration.test.ts`",
+          "acceptance": "Done when: Integration test `test/unit/crm/export.integration.test.ts` \u2014 the full Journey C per quickstart.md \u00a7 Journey C: seed \u2192 export1 \u2192 assert counts and envelope \u2192 `clearAllCrmState` \u2192 assert stores empty and CRM keys removed \u2192 `importCaseFile(export1)` \u2192 assert `{ok:true, imported:{...}}` \u2192 re-run every Journey A selector \u2192 assert byte-equal outputs across the two runs \u2192 export2 \u2192 assert `JSON.stringify(canonicalise(export1)) === JSON.stringify(canonicalise(export2))` \u2192 id-collision case: second import without wipe returns `{ok:false, reason:'id_collision', ids:[...]}` \u2192 if Journey B has run before, assert resolved `ConflictRecord`, `FieldChangeEvent`, and done-kind stream entry all round-trip (spec User Story 3 acceptance #1\u2013#5, SC-003). Depends on T059\u2013T062, T047.",
+          "files": ["test/unit/crm/export.integration.test.ts"],
+          "depends_on": ["T047", "T059", "T060", "T061", "T062"],
+          "size": "l"
+        }
+      ]
+    },
+    {
+      "name": "Phase 6 \u2014 Polish & Cross-Cutting Concerns",
+      "tasks": [
+        {
+          "id": "T066",
+          "title": "Add `Placeholder clients` pass to `src/crm/integrity.ts` (pass #1 per spec FR-036)",
+          "acceptance": "Done when: Add `Placeholder clients` pass to `src/crm/integrity.ts` (pass #1 per spec FR-036) \u2014 for every case whose `Applicant.clientId` references a missing client, insert `{id, firstName:'Unknown', lastName:'(repaired)', tint:'placeholder', repaired:true, insertedAt}` into clientsStore; add ids to `RepairReport.placeholderClientsCreated[]`; case is preserved. Depends on T015, T020.",
+          "files": ["src/crm/integrity.ts"],
+          "depends_on": ["T015", "T020"],
+          "size": "s"
+        },
+        {
+          "id": "T067",
+          "title": "Add `Placeholder document owners` pass",
+          "acceptance": "Done when: Add `Placeholder document owners` pass \u2014 for every document whose `owner` clientId is missing, retarget to a placeholder client (as pass #1); add ids to `RepairReport.retargetedDocuments[]`.",
+          "files": [],
+          "depends_on": [],
+          "size": "s"
+        },
+        {
+          "id": "T068",
+          "title": "Add `Prune orphan worklist items` pass",
+          "acceptance": "Done when: Add `Prune orphan worklist items` pass \u2014 remove worklist items whose `caseId` no longer exists; add ids to `RepairReport.prunedWorklist[]`.",
+          "files": [],
+          "depends_on": [],
+          "size": "s"
+        },
+        {
+          "id": "T069",
+          "title": "Add `Prune orphan stream entries` pass",
+          "acceptance": "Done when: Add `Prune orphan stream entries` pass \u2014 remove stream entries whose `caseId` no longer exists; add ids to `RepairReport.prunedStream[]`. Also prune orphan `ActivityEvent`s \u2192 `RepairReport.prunedActivity[]`.",
+          "files": [],
+          "depends_on": [],
+          "size": "s"
+        },
+        {
+          "id": "T070",
+          "title": "Add `Recompute case completeness` pass",
+          "acceptance": "Done when: Add `Recompute case completeness` pass \u2014 after prior passes, recompute `Case.completeness` and each `Applicant.completeness` for every case that was touched by any earlier pass; add ids to `RepairReport.recomputedCases[]`.",
+          "files": [],
+          "depends_on": [],
+          "size": "s"
+        },
+        {
+          "id": "T071",
+          "title": "Wire `RepairReport` surfacing: workstream store caches the last report via `setLastRepa...",
+          "acceptance": "Done when: Wire `RepairReport` surfacing: workstream store caches the last report via `setLastRepairReport(report)`; each state-mutating pass appends an `ActivityEvent` describing the repair; every replaced/pruned record is described with its id via `console.warn` so it appears in dev logs (spec FR-037). Depends on T066\u2013T070.",
+          "files": [],
+          "depends_on": ["T066", "T067", "T068", "T069", "T070"],
+          "size": "s"
+        },
+        {
+          "id": "T072",
+          "title": "Implement `STREAM_ENTRIES_PER_CASE_CAP = 200` enforcement in `src/crm/workstreamStore.t...",
+          "acceptance": "Done when: Implement `STREAM_ENTRIES_PER_CASE_CAP = 200` enforcement in `src/crm/workstreamStore.ts` `pushStreamEntry` (spec FR-030): - On append, if adding would push the case above the cap, enumerate eviction-eligible entries: kinds `done`/`external`/`activity` whose linked worklist item (if any) has `status:'resolved'`. - Evict the oldest eligible entry. - Insert a synthetic marker `{kind:'done', id:'stream_trunc_<n>', title:'Older activity truncated', body:'<count> older entries evicted at cap.', truncatedBefore:<ts>, truncatedCount:<n>}` at the eviction point. - If no eligible entries exist (all unresolved), append the new entry and do NOT evict (soft ceiling \u2014 unresolved `conflict`/`approval` entries are NEVER evicted). Export the cap constant from `src/crm/index.ts`. Depends on T023, T051.",
+          "files": ["src/crm/workstreamStore.ts", "src/crm/index.ts"],
+          "depends_on": ["T023", "T051"],
+          "size": "m"
+        },
+        {
+          "id": "T073",
+          "title": "Add `removeClient(id): {ok:true} | {ok:false, reason:'referenced_by_case', caseIds:stri...",
+          "acceptance": "Done when: Add `removeClient(id): {ok:true} | {ok:false, reason:'referenced_by_case', caseIds:string[]}` to `src/crm/clientsStore.ts` \u2014 reads `casesStore.getState()` (legal one-directional read per spec FR-014), refuses if any case's applicants reference the client, returns typed refusal (never throws); on refusal, appends an `ActivityEvent` to workstream store recording the refusal (spec FR-016). Depends on T020, T023.",
+          "files": ["src/crm/clientsStore.ts"],
+          "depends_on": ["T020", "T023"],
+          "size": "s"
+        },
+        {
+          "id": "T074",
+          "title": "Test `test/unit/crm/persist.roundtrip.test.ts`",
+          "acceptance": "Done when: Test `test/unit/crm/persist.roundtrip.test.ts` \u2014 for each of the four stores: `JSON.stringify(getCrm*Store().getState())` succeeds after seed (no `bigint`, no `Date` object, no function, no `Symbol`, no `undefined` in persisted values); `persist.getOptions().migrate?.(fixtureEnvelope, 0)` shape-repairs correctly; `partialize` output is exactly the allowlisted keys; envelope shape matches `{state, version, storageEnvironmentKey}` (spec FR-012, edge case \"JSON serialization must succeed\"). Depends on T011\u2013T014, T039.",
+          "files": ["test/unit/crm/persist.roundtrip.test.ts"],
+          "depends_on": ["T011", "T012", "T013", "T014", "T039"],
+          "size": "m"
+        },
+        {
+          "id": "T075",
+          "title": "Test `test/unit/crm/envMismatch.test.ts`",
+          "acceptance": "Done when: Test `test/unit/crm/envMismatch.test.ts` \u2014 write a fake envelope under a different `storageEnvironmentKey` to `localStorage`; force store rehydration; assert state is empty (no cross-tenant bleed); assert the subsequent `crmIntegrityRepair()` `RepairReport` notes `envMismatch: true` (spec edge case, FR-012). Depends on T011\u2013T015, T071.",
+          "files": ["test/unit/crm/envMismatch.test.ts"],
+          "depends_on": ["T011", "T012", "T013", "T014", "T015", "T071"],
+          "size": "s"
+        },
+        {
+          "id": "T076",
+          "title": "Test `test/unit/crm/integrity.test.ts`",
+          "acceptance": "Done when: Test `test/unit/crm/integrity.test.ts` \u2014 six pass conditions of `crmIntegrityRepair()` (spec SC-007): - Pass #1: seed with a manually-broken applicant referencing missing `clientId`; assert placeholder client created with `repaired:true`; assert `RepairReport.placeholderClientsCreated` contains its id; assert `ActivityEvent` recorded. - Pass #2: document owner missing; assert retargeted. - Passes #3/#4: orphan worklist / stream / activity items pruned; report reflects. - Pass #5: touched cases recomputed. - Also assert `getLastRepairReport()` returns the same report; assert `console.warn` invoked for each pruned/replaced record (spy). Depends on T066\u2013T071.",
+          "files": ["test/unit/crm/integrity.test.ts"],
+          "depends_on": ["T066", "T067", "T068", "T069", "T070", "T071"],
+          "size": "m"
+        },
+        {
+          "id": "T077",
+          "title": "Test `src/crm/workstreamStore.streamCap.test.ts`",
+          "acceptance": "Done when: Test `src/crm/workstreamStore.streamCap.test.ts` \u2014 cap eviction rules (spec FR-030): - Populate a case's stream to exactly `STREAM_ENTRIES_PER_CASE_CAP` entries with mixed kinds. - Append one more `done`-kind entry; assert oldest eligible entry evicted, truncation marker inserted at the eviction point with correct `truncatedCount` and `truncatedBefore`. - Populate a case's stream with only `conflict` and `approval` kinds all linked to `open` worklist items; append one more; assert NO eviction occurred and the append proceeded (soft ceiling). - Populate with a mix where a `conflict` entry is linked to a `status:'resolved'` worklist item; assert it IS eligible for eviction (linked worklist item resolved). Depends on T072.",
+          "files": ["src/crm/workstreamStore.streamCap.test.ts"],
+          "depends_on": ["T072"],
+          "size": "m"
+        },
+        {
+          "id": "T078",
+          "title": "Test `test/unit/crm/crossStoreImports.test.ts`",
+          "acceptance": "Done when: Test `test/unit/crm/crossStoreImports.test.ts` \u2014 parse each of the four store files (`clientsStore.ts`, `casesStore.ts`, `documentsStore.ts`, `workstreamStore.ts`) and assert that the direction-forbidden imports per spec FR-014 are absent (regex over the source text: `clientsStore` must not import any of the other three CRM stores; `casesStore` must not import `documentsStore` or `workstreamStore`; `documentsStore` must not import `workstreamStore`). Backs the eslint `no-restricted-imports` rule with an in-suite assertion. Depends on T003, T011\u2013T014.",
+          "files": ["test/unit/crm/crossStoreImports.test.ts"],
+          "depends_on": ["T003", "T011", "T012", "T013", "T014"],
+          "size": "s"
+        },
+        {
+          "id": "T079",
+          "title": "Test `src/crm/clientsStore.removeClient.test.ts`",
+          "acceptance": "Done when: Test `src/crm/clientsStore.removeClient.test.ts` \u2014 refusal path: seed a case referencing a client; call `removeClient(id)`; assert `{ok:false, reason:'referenced_by_case', caseIds}`; assert client still present; assert an `ActivityEvent` describing the refusal appended to workstream store. Success path: unreferenced client removed cleanly (spec FR-016). Depends on T073.",
+          "files": ["src/crm/clientsStore.removeClient.test.ts"],
+          "depends_on": ["T073"],
+          "size": "s"
+        },
+        {
+          "id": "T080",
+          "title": "Verify the coverage floor: run `pnpm test -- --run test/unit/crm src/crm` and confirm \u2265...",
+          "acceptance": "Done when: Verify the coverage floor: run `pnpm test -- --run test/unit/crm src/crm` and confirm \u226560 new passing tests (spec SC-005). If under, add supplementary tests for the least-covered actions (typically: `noteActivity` shape, `upsertRetention` key semantics both branches, `setChecklistStatus` all four transitions).",
+          "files": [],
+          "depends_on": ["T047", "T058", "T065"],
+          "size": "s"
+        },
+        {
+          "id": "T081",
+          "title": "Run `pnpm build && pnpm type-check && pnpm lint && pnpm test` end-to-end; assert every ...",
+          "acceptance": "Done when: Run `pnpm build && pnpm type-check && pnpm lint && pnpm test` end-to-end; assert every gate green (design-token scan over all of `src/` including fixtures, no-legacy-backend gate for the two-word case-convention token, no-dead-brain-identifier gate, i18n parity, vitest baseline additive-only) \u2014 SC-004.",
+          "files": [],
+          "depends_on": ["T080"],
+          "size": "s"
+        },
+        {
+          "id": "T082",
+          "title": "Confirm `package.json` diff is exactly zero (no new dependencies added",
+          "acceptance": "Done when: Confirm `package.json` diff is exactly zero (no new dependencies added \u2014 spec constraint).",
+          "files": [],
+          "depends_on": ["T081"],
+          "size": "xs"
+        }
+      ]
+    }
+  ]
+}
