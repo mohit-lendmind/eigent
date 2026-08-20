@@ -77,3 +77,19 @@ export {
   getLastRepairReport,
   scheduleIntegrityRepair,
 } from './integrity';
+
+export {
+  STAGE_ORDER,
+  selectCaseCompleteness,
+  selectCaseStreamSections,
+  selectDetSynCounts,
+  selectNeedsYou,
+  selectNeedsYouCount,
+  selectOpenConflicts,
+  selectPipelineCounts,
+  selectRetentionUrgency,
+  type CaseStreamSections,
+  type DetSynCounts,
+} from './selectors';
+
+export { seedCrmGoldenPath, type SeedOptions } from './seed';
