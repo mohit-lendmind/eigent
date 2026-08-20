@@ -130,3 +130,17 @@ Per agent: golden-path fixtures (c417/c392) as eval inputs + recorded `e2e/*.eva
 
 ## 9. Implementation phasing (post-panel; each = autonomous runner feature)
 M1 agent contracts + directive/artifact schemas + audit spine (extends F01) · M2 watcher + onboarding (email v1) · M3 docintel · M4 sourcing (MSE adapter) · M5 criteria + affordability · M6 comms + gates UI · M7 adviser CRM surfaces over agent state (reuses F02 recon) · M8 client view · M9 DIP submission (browser-use, G8) · M10 evidence-of-research + compliance pack.
+
+---
+
+## 10. SCOPE CHANGE v1.1 (Bharat, 2026-08-20, binding on panel synthesis)
+
+**Lendmind is the workflow glue, not a CRM.** The marriage is: Lendmind's caseload vision (stage machine, fact find, audit, gates) + eigent's agents. We do NOT build CRM journeys or replace the adviser's existing tools. We build:
+
+1. **Stage-aware orchestration** — agents that understand which stage a case is in and what the next step is, then do it: product sourcing → source it; criteria search → do it; affordability test → run it.
+2. **Browser-use connectors to EXISTING tools** — the adviser's current CRM, sourcing systems (Mortgage Brain / Twenty7Tec / Mortgage Magic — per-firm config), lender portals. Agents read from and write into those tools under the adviser's logged-in session (LB4).
+3. **The gaps between tools** — the rekeying, chasing, checking, evidencing that today happens by hand between systems.
+
+**Deprioritized (not deleted):** M7 adviser CRM surfaces, M8 client view as full products. The adviser-facing surface shrinks to: the Today/needs-you queue, approval gates, the case stream/audit trail — the minimum window onto agent work. Client-facing surfaces limited to what collection strictly requires.
+**Elevated:** the stage-detection capability (agents infer stage from the EXISTING tools' state, not only our store), the connector adapter framework, and per-firm tool configuration.
+**Panel synthesis instruction:** apply all agent/gate/FCA/ops feedback to this narrowed scope; park CRM-surface feedback in a "if we ever build surfaces" appendix.
