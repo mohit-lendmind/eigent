@@ -20,8 +20,10 @@
 //     bazel run //dev/eigent_local:up                            (in aion-v1)
 //   EIGENT_E2E_FIXTURE_PICKER=1 EIGENT_E2E_BROWSER_MODE=1 \
 //     npx playwright test --config e2e/playwright.config.ts local-browser
-// (The delegated tests need only the fixture picker; the pod-mode control
-// additionally needs the browser template.)
+// Both halves need the browser template, including the delegated one: the
+// template gates the whole `browser_*` tool roster server-side, so without it
+// a delegated run fails with `unknown tool: "browser_visit_page"` even though
+// the desktop, not a pod, is the executor.
 
 import {
   _electron as electron,

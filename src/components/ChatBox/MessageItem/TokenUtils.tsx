@@ -30,10 +30,19 @@ const TOKEN_UNITS = [
 
 /**
  * Elapsed time during splitting / planning: seconds, then minutes + seconds.
- * Examples: "0s", "45s", "1m 05s", "12m 00s"
+ * A run that took any time at all never reads "0s": flooring a sub-second run
+ * to zero is indistinguishable from a clock that was never started, which is
+ * the exact failure the header timer exists to rule out. Only a genuinely
+ * unstarted clock reads "0s".
+ *
+ * Sub-second runs carry one decimal rather than a "<1s" form: the label is
+ * interpolated into a `Trans` value, which parses its output as nodes, so a
+ * leading "<" is read as a malformed tag and the whole value is dropped.
+ * Examples: "0s", "0.5s", "45s", "1m 05s", "12m 00s"
  */
 export function formatSplittingElapsed(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return '0s';
+  if (!Number.isFinite(ms) || ms <= 0) return '0s';
+  if (ms < 1000) return `${Math.max(1, Math.round(ms / 100)) / 10}s`;
   const sec = Math.floor(ms / 1000);
   if (sec < 60) return `${sec}s`;
   const m = Math.floor(sec / 60);

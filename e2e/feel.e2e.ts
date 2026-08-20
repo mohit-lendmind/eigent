@@ -404,16 +404,20 @@ test('tool rows settle with their results and the clock counts real time', async
       ).toBe(true);
     }
 
-    // Open the bash row: its Response fold must carry the result content the
-    // edge stored for that call — the fold that used to render permanently
-    // empty because no deactivation ever delivered the output.
+    // Open the bash row: its fold must carry the result content the edge stored
+    // for that call — the fold that used to render permanently empty because no
+    // deactivation ever delivered the output. An aion row carries
+    // argumentsJson, so the fold is the typed bash card, not the legacy
+    // Request/Response markdown.
     const bashResult = toolResults
       .map((e) => String(e.data?.content ?? ''))
       .find((content) => content.startsWith('exit='));
     expect(bashResult).toBeTruthy();
     const bashRow = rows.filter({ hasText: 'bash' }).first();
     await bashRow.locator('button').first().click();
-    await expect(bashRow).toContainText('Response');
+    const bashCard = bashRow.locator('[data-testid="tool-card-bash"]');
+    await expect(bashCard).toHaveCount(1);
+    await expect(bashCard).toHaveAttribute('data-tool-card-status', 'done');
     await expect(bashRow).toContainText(bashResult!.split('\n')[0]);
 
     // The final answer is in the chat in full — no typewriter holding it back.
