@@ -6,6 +6,11 @@ info:
     Canonical desktop SSE projection. Each frame uses `id: <sequence>`,
     `event: project_event`, and a JSON ProjectEvent in `data:`. A clean stream
     may reconnect at any event boundary without re-executing work.
+
+    The three terminal kinds (`run_completed`, `run_failed`, `run_cancelled`)
+    carry what the run consumed on their `data` — tokens, cost, and turn count,
+    each omitted independently when not recorded. See TerminalConsumption in
+    the OpenAPI document; a stream-only consumer has no other way to learn it.
 servers:
   edge:
     host: api.eternly.example

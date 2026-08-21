@@ -8,5 +8,18 @@
   "visibility": "user",
   "occurred_at": "2026-08-08T09:00:07Z",
   "correlation": {"aion_run_id": "aionrun_01JY00000000000000001"},
-  "data": {"summary": "The failing target and minimal fix were identified."}
+  "data": {
+    "summary": "The failing target and minimal fix were identified.",
+    "turn_count": 14,
+    "tokens": {
+      "prompt_tokens": "412880",
+      "completion_tokens": "9142",
+      "reasoning_tokens": "1204",
+      "cache_read_tokens": "389120",
+      "cache_creation_tokens": "6144",
+      "billable_input_tokens": "17616",
+      "total_tokens": "422022"
+    },
+    "cost": {"cost_micro_usd": "12000", "provider_calls": "3"}
+  }
 }

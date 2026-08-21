@@ -3,7 +3,17 @@
     "cost_micro_usd": "12000",
     "provider_calls": "5",
     "runs_settled": "3",
-    "runs_unrecorded": "1"
+    "runs_unrecorded": "1",
+    "runs_without_tokens": "1",
+    "tokens": {
+      "prompt_tokens": "437190",
+      "completion_tokens": "11028",
+      "reasoning_tokens": "1204",
+      "cache_read_tokens": "389120",
+      "cache_creation_tokens": "18432",
+      "billable_input_tokens": "29638",
+      "total_tokens": "448218"
+    }
   },
   "runs": [
     {
@@ -12,7 +22,16 @@
       "status": "succeeded",
       "ended_at": "2026-08-14T11:04:12Z",
       "cost_micro_usd": "12000",
-      "provider_calls": "3"
+      "provider_calls": "3",
+      "tokens": {
+        "prompt_tokens": "412880",
+        "completion_tokens": "9142",
+        "reasoning_tokens": "1204",
+        "cache_read_tokens": "389120",
+        "cache_creation_tokens": "6144",
+        "billable_input_tokens": "17616",
+        "total_tokens": "422022"
+      }
     },
     {
       "run_id": "run_01JY0000000000000000000002",
@@ -26,7 +45,16 @@
       "run_id": "run_01JY0000000000000000000001",
       "project_id": "prj_01JY0000000000000000000002",
       "status": "succeeded",
-      "ended_at": "2026-08-14T09:58:33Z"
+      "ended_at": "2026-08-14T09:58:33Z",
+      "tokens": {
+        "prompt_tokens": "24310",
+        "completion_tokens": "1886",
+        "reasoning_tokens": "0",
+        "cache_read_tokens": "0",
+        "cache_creation_tokens": "12288",
+        "billable_input_tokens": "12022",
+        "total_tokens": "26196"
+      }
     }
   ],
   "next_page_token": "Y3JlYXRlZC1hdC1jdXJzb3I"

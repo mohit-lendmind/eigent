@@ -56,12 +56,53 @@ export interface RunProgressState {
   sequence: string;
 }
 
+/**
+ * What a run consumed, read off its terminal event. Both halves are optional
+ * and independent: tokens come from the engine's own outcome and cost from the
+ * inference ledger, so a run routinely records one without the other. An
+ * absent half means NOT RECORDED — a surface that renders it as zero reports a
+ * free run, which is the one thing it can never truthfully say.
+ *
+ * The token figures are decimal strings on the wire because they are 64-bit;
+ * they are kept as strings here so a display never rounds one.
+ */
+export interface RunTokenUsage {
+  promptTokens: string;
+  completionTokens: string;
+  reasoningTokens: string;
+  cacheReadTokens: string;
+  cacheCreationTokens: string;
+  /** prompt − cache_read − cache_creation, floored at zero, computed server-side. */
+  billableInputTokens: string;
+  totalTokens: string;
+}
+
+export interface RunCostState {
+  costMicroUSD: string;
+  /**
+   * Calls behind that cost. Read the pair together: calls without cost means
+   * the alias carries no price list, which is UNPRICED, not free.
+   */
+  providerCalls: string;
+}
+
+export interface RunConsumption {
+  tokens?: RunTokenUsage;
+  cost?: RunCostState;
+  turnCount?: number;
+}
+
 export interface RunState {
   runId: string;
   status: RunUIStatus;
   runEpoch?: string;
   /** Set by run_progress while the run is still being dispatched. */
   progress?: RunProgressState;
+  /**
+   * What the run consumed, announced on its terminal. Absent on a run whose
+   * terminal predates the field or recorded neither half.
+   */
+  consumption?: RunConsumption;
   /** run_failed reason code / run_cancelled reason, verbatim from the event. */
   outcomeReason?: string;
   /** run_completed summary or run_failed message, verbatim from the event. */
@@ -408,6 +449,72 @@ function compareSequence(a: string, b: string): number {
 
 function str(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
+}
+
+/** A wire integer: decimal string, or a JSON number a server chose to send. */
+function digits(value: unknown): string | undefined {
+  if (typeof value === 'string') return /^[0-9]+$/.test(value) ? value : undefined;
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) {
+    return String(value);
+  }
+  return undefined;
+}
+
+/**
+ * Every dimension must be present and well-formed or the block is dropped
+ * whole. A partially-read token block would render a total smaller than the
+ * run's real consumption while looking exactly like a complete one.
+ */
+function tokenUsage(value: unknown): RunTokenUsage | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  const promptTokens = digits(raw.prompt_tokens);
+  const completionTokens = digits(raw.completion_tokens);
+  const reasoningTokens = digits(raw.reasoning_tokens);
+  const cacheReadTokens = digits(raw.cache_read_tokens);
+  const cacheCreationTokens = digits(raw.cache_creation_tokens);
+  const billableInputTokens = digits(raw.billable_input_tokens);
+  const totalTokens = digits(raw.total_tokens);
+  if (
+    promptTokens === undefined ||
+    completionTokens === undefined ||
+    reasoningTokens === undefined ||
+    cacheReadTokens === undefined ||
+    cacheCreationTokens === undefined ||
+    billableInputTokens === undefined ||
+    totalTokens === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    promptTokens,
+    completionTokens,
+    reasoningTokens,
+    cacheReadTokens,
+    cacheCreationTokens,
+    billableInputTokens,
+    totalTokens,
+  };
+}
+
+function runCost(value: unknown): RunCostState | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  const costMicroUSD = digits(raw.cost_micro_usd);
+  const providerCalls = digits(raw.provider_calls);
+  if (costMicroUSD === undefined || providerCalls === undefined) return undefined;
+  return { costMicroUSD, providerCalls };
+}
+
+/** Undefined when the terminal announced nothing — never an empty object, so
+ * "the server told us nothing" stays distinguishable from "it told us zero". */
+function runConsumption(data: Record<string, unknown>): RunConsumption | undefined {
+  const tokens = tokenUsage(data.tokens);
+  const cost = runCost(data.cost);
+  const turns = digits(data.turn_count);
+  const turnCount = turns === undefined ? undefined : Number(turns);
+  if (!tokens && !cost && turnCount === undefined) return undefined;
+  return { tokens, cost, turnCount };
 }
 
 /** Evidence accumulates on the row server-side, so each event carries the
@@ -884,7 +991,14 @@ function settleRun(
 ): ProjectUIState {
   const runId = event.run_id;
   const existing = next.runs[runId] ?? { runId, status: 'unknown' as RunUIStatus };
-  next.runs[runId] = { ...existing, status, outcomeReason, outcomeDetail };
+  const consumption = runConsumption(event.data);
+  next.runs[runId] = {
+    ...existing,
+    status,
+    outcomeReason,
+    outcomeDetail,
+    ...(consumption ? { consumption } : {}),
+  };
   if (next.activeRunId === runId) {
     next.activeRunId = null;
   }

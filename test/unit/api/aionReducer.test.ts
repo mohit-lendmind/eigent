@@ -75,6 +75,29 @@ describe('aion Project reducer (golden fixtures)', () => {
       outcomeReason: 'user_requested',
     });
 
+    // What each run consumed, read off its own terminal. The cancelled run's
+    // fixture carries tokens and NO cost, which is the case the product gets
+    // wrong by rendering zero: the two halves come from different planes.
+    expect(state.runs['run_01JY0000000000000000000001'].consumption).toEqual({
+      tokens: {
+        promptTokens: '412880',
+        completionTokens: '9142',
+        reasoningTokens: '1204',
+        cacheReadTokens: '389120',
+        cacheCreationTokens: '6144',
+        billableInputTokens: '17616',
+        totalTokens: '422022',
+      },
+      cost: { costMicroUSD: '12000', providerCalls: '3' },
+      turnCount: 14,
+    });
+    expect(
+      state.runs['run_01JY0000000000000000000003'].consumption?.cost
+    ).toBeUndefined();
+    expect(
+      state.runs['run_01JY0000000000000000000003'].consumption?.tokens?.totalTokens
+    ).toBe('39616');
+
     // Timeline shape: boundary, text, tool(with result), recovery(the run
     // parked and later moved again — the entry stays because a run that
     // stalled did not have the same history as one that never did),
@@ -678,6 +701,65 @@ describe('aion Project reducer (golden fixtures)', () => {
       ]);
       expect(state.workers).toEqual({});
       expect(workersForRun(state, runId)).toEqual([]);
+    });
+  });
+
+  // The terminal is the only place a stream-only consumer can learn what the
+  // run consumed, so what the reducer must never do is manufacture a figure —
+  // a zero here reads as a free run, and an incomplete token block reads as a
+  // smaller one.
+  describe('run consumption on a terminal', () => {
+    const runId = 'run_01JY0000000000000000000001';
+    const terminal = (data: Record<string, unknown>): ProjectEvent =>
+      decodeProjectEvent({
+        ...(fixture('event_run_completed.json') as Record<string, unknown>),
+        data,
+      });
+
+    it('carries no consumption when the terminal announced none', () => {
+      const state = reduceProjectEvent(
+        initialProjectState(),
+        terminal({ summary: 'done' })
+      );
+      expect(state.runs[runId].status).toBe('succeeded');
+      expect(state.runs[runId].consumption).toBeUndefined();
+    });
+
+    it('keeps the halves independent', () => {
+      const state = reduceProjectEvent(
+        initialProjectState(),
+        terminal({ summary: 'done', cost: { cost_micro_usd: '900', provider_calls: '2' } })
+      );
+      expect(state.runs[runId].consumption).toEqual({
+        tokens: undefined,
+        cost: { costMicroUSD: '900', providerCalls: '2' },
+        turnCount: undefined,
+      });
+    });
+
+    // Dropping the whole block is the honest failure: a partial one is
+    // indistinguishable from a complete one at the point it gets rendered,
+    // and it understates the run.
+    it('drops a token block missing a dimension rather than reading it partly', () => {
+      const state = reduceProjectEvent(
+        initialProjectState(),
+        terminal({
+          summary: 'done',
+          tokens: { prompt_tokens: '10', completion_tokens: '4' },
+        })
+      );
+      expect(state.runs[runId].consumption).toBeUndefined();
+    });
+
+    it('refuses a non-numeric figure', () => {
+      const state = reduceProjectEvent(
+        initialProjectState(),
+        terminal({
+          summary: 'done',
+          cost: { cost_micro_usd: 'lots', provider_calls: '2' },
+        })
+      );
+      expect(state.runs[runId].consumption).toBeUndefined();
     });
   });
 
