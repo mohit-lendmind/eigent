@@ -125,6 +125,19 @@ describe('aionUsageStore projection', () => {
       providerCalls: 5n,
       runsSettled: 3n,
       runsUnrecorded: 1n,
+      // Cost and tokens are recorded by different planes, so a window has two
+      // independent floors. The fixture has one run missing each, and they are
+      // not the same run.
+      runsWithoutTokens: 1n,
+      tokens: {
+        promptTokens: 437190n,
+        completionTokens: 11028n,
+        reasoningTokens: 1204n,
+        cacheReadTokens: 389120n,
+        cacheCreationTokens: 18432n,
+        billableInputTokens: 29638n,
+        totalTokens: 448218n,
+      },
     });
     expect(page.nextPageToken).toBe('Y3JlYXRlZC1hdC1jdXJzb3I');
 
@@ -143,6 +156,12 @@ describe('aionUsageStore projection', () => {
     expect(unrecorded).not.toHaveProperty('spend');
     expect(store.runCost(unrecorded)).toEqual({ kind: 'pending' });
     expect(unrecorded.endedAt).toBe(Date.parse('2026-08-14T09:58:33Z'));
+
+    // The two axes cross: the priced run carries tokens, the unpriced one does
+    // not, and the run with no cost at all still reports what it consumed.
+    expect(priced.tokens?.totalTokens).toBe(422022n);
+    expect(unpriced).not.toHaveProperty('tokens');
+    expect(unrecorded.tokens?.totalTokens).toBe(26196n);
   });
 
   it('treats half a cost pair as pending rather than inventing the other half', async () => {
@@ -169,6 +188,35 @@ describe('aionUsageStore projection', () => {
     const [run] = (await store.loadAionUsage()).runs;
     expect(run).not.toHaveProperty('spend');
     expect(store.runCost(run)).toEqual({ kind: 'pending' });
+  });
+
+  // A partial block would still render as a complete one and quietly
+  // understate the run, so the whole block is dropped.
+  it('drops a token block missing a dimension rather than reading it partly', async () => {
+    setRemoteConfig();
+    getIntegrationStatus.mockResolvedValue(remoteStatus());
+    getUsage.mockResolvedValue({
+      totals: {
+        cost_micro_usd: '0',
+        provider_calls: '0',
+        runs_settled: '1',
+        runs_unrecorded: '1',
+        runs_without_tokens: '0',
+      },
+      runs: [
+        {
+          run_id: 'run_1',
+          project_id: 'prj_1',
+          status: 'succeeded',
+          tokens: { prompt_tokens: '10', completion_tokens: '4' },
+        },
+      ],
+    });
+    const store = await freshModule();
+
+    const page = await store.loadAionUsage();
+    expect(page.totals).not.toHaveProperty('tokens');
+    expect(page.runs[0]).not.toHaveProperty('tokens');
   });
 
   it('serves an empty bill as zeros without a token', async () => {

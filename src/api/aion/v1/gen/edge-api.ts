@@ -1181,6 +1181,50 @@ export type components = {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * @description What a run (or a window of runs) consumed, in tokens. Every figure is a
+         *     decimal string.
+         *
+         *     `prompt_tokens` is the TOTAL effective prompt and ALREADY INCLUDES both
+         *     cache dimensions — adding them to it double-counts. `billable_input_tokens`
+         *     is the subtraction already done for you (floored at zero), and
+         *     `total_tokens` is `prompt_tokens + completion_tokens`; both are served
+         *     rather than left to clients so two surfaces cannot disagree about the
+         *     same run. `reasoning_tokens` is a VISIBILITY split of
+         *     `completion_tokens`, never an addend.
+         */
+        TokenUsage: {
+            prompt_tokens: string;
+            completion_tokens: string;
+            reasoning_tokens: string;
+            cache_read_tokens: string;
+            cache_creation_tokens: string;
+            /**
+             * @description `prompt_tokens - cache_read_tokens - cache_creation_tokens`, floored
+             *     at zero. The floor is load-bearing on a provider whose cache figures
+             *     are reported against a differently-scoped prompt total.
+             */
+            billable_input_tokens: string;
+            total_tokens: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * @description What a run was billed. Present only when the inference plane recorded a
+         *     figure; absent means NOT RECORDED, never zero.
+         */
+        RunCost: {
+            /** @description Micro-USD (1e-6 USD). */
+            cost_micro_usd: string;
+            /**
+             * @description Metered provider calls behind that cost. A non-zero call count
+             *     beside a zero cost means the alias carries no price list, which is
+             *     UNPRICED, not free.
+             */
+            provider_calls: string;
+        } & {
+            [key: string]: unknown;
+        };
         UsageTotals: {
             /** @description Micro-USD (1e-6 USD) summed over the window's settled runs. */
             cost_micro_usd: string;
@@ -1202,6 +1246,18 @@ export type components = {
              *     whole bill.
              */
             runs_unrecorded: string;
+            /**
+             * @description Settled runs that recorded no token figure. It is a SEPARATE floor
+             *     from `runs_unrecorded`: cost comes from the inference ledger and
+             *     tokens from the engine's own outcome, so either can be missing
+             *     alone and the two counts are routinely different.
+             */
+            runs_without_tokens: string;
+            /**
+             * @description Summed over exactly the runs `runs_without_tokens` does NOT count.
+             *     OMITTED when no run in the window recorded tokens.
+             */
+            tokens?: components["schemas"]["TokenUsage"];
         } & {
             [key: string]: unknown;
         };
@@ -1209,6 +1265,8 @@ export type components = {
          * @description One settled run's contribution. `cost_micro_usd` and `provider_calls`
          *     are OMITTED together when nothing was recorded for the run — that
          *     absence is what a client renders as pending, never as a cost of zero.
+         *     `tokens` is omitted on the same rule but INDEPENDENTLY: the two figures
+         *     come from different planes, so a run may carry either alone.
          */
         RunSpend: {
             run_id: string;
@@ -1218,6 +1276,7 @@ export type components = {
             ended_at?: string;
             cost_micro_usd?: string;
             provider_calls?: string;
+            tokens?: components["schemas"]["TokenUsage"];
         } & {
             [key: string]: unknown;
         };
@@ -1353,9 +1412,38 @@ export type components = {
             correlation?: {
                 [key: string]: unknown;
             };
+            /**
+             * @description Kind-specific body. The three terminal kinds (`run_completed`,
+             *     `run_failed`, `run_cancelled`) additionally carry the consumption
+             *     block documented by TerminalConsumption.
+             */
             data: {
                 [key: string]: unknown;
             };
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * @description What the run consumed, carried on the `data` of every terminal event so
+         *     an SSE consumer learns it without a second request — the only way a
+         *     stream-only client can learn it at all. Settling the run and announcing
+         *     these figures is ONE transaction, so a terminal can never claim a figure
+         *     the run row lacks.
+         *
+         *     Each part is omitted independently when not recorded, never zeroed:
+         *     `tokens` comes from the engine's own outcome and `cost` from the
+         *     inference ledger, and a run routinely records one without the other.
+         *     These fields sit beside the kind's own body (e.g. `summary` on
+         *     run_completed, `reason` on run_failed) rather than replacing it.
+         */
+        TerminalConsumption: {
+            tokens?: components["schemas"]["TokenUsage"];
+            cost?: components["schemas"]["RunCost"];
+            /**
+             * @description Provider turns the run took. A JSON number; the token figures are
+             *     strings because they are 64-bit.
+             */
+            turn_count?: number;
         } & {
             [key: string]: unknown;
         };

@@ -9,6 +9,7 @@
 import type {
   BrowserFrame,
   ProjectUIState,
+  RunConsumption,
   RunRecoveryState,
   RunState,
   RunUIStatus,
@@ -656,6 +657,60 @@ export function runTerminalMessage(
   return detail ? `${label}: ${detail}` : `${label}.`;
 }
 
+function grouped(digits: string): string {
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/** Micro-USD to a 4-decimal dollar string, in integers so a large figure
+ * cannot lose its cents to a float. */
+function dollars(microUSD: string): string {
+  const tenThousandths = BigInt(microUSD) / 100n;
+  const whole = tenThousandths / 10_000n;
+  const frac = (tenThousandths % 10_000n).toString().padStart(4, '0');
+  return `$${grouped(whole.toString())}.${frac}`;
+}
+
+/**
+ * What the run consumed, in one line under the outcome. Absent figures are
+ * left out rather than shown as zero: a run whose cost was never recorded and
+ * a run that genuinely cost nothing are different facts, and only one of them
+ * is safe to tell a user.
+ *
+ * `prompt_tokens` is cache-inclusive, so the breakdown reports the billable
+ * input the server already computed alongside the cached read rather than a
+ * prompt figure a reader would add to the cache figure and double-count.
+ * Returns undefined when the terminal announced nothing at all.
+ */
+export function runConsumptionMessage(
+  consumption: RunConsumption | undefined
+): string | undefined {
+  if (!consumption) return undefined;
+  const parts: string[] = [];
+  const { tokens, cost, turnCount } = consumption;
+  if (tokens) {
+    parts.push(
+      `${grouped(tokens.totalTokens)} tokens (${grouped(tokens.billableInputTokens)} billable in · ` +
+        `${grouped(tokens.completionTokens)} out · ${grouped(tokens.cacheReadTokens)} cached)`
+    );
+  }
+  if (turnCount !== undefined) {
+    parts.push(`${turnCount} ${turnCount === 1 ? 'turn' : 'turns'}`);
+  }
+  if (cost) {
+    // Calls without a price is the alias carrying no price list. Saying
+    // "unpriced" keeps that apart from a run that really was free, which is
+    // what a bare $0.0000 would claim.
+    const calls = `${grouped(cost.providerCalls)} provider ${cost.providerCalls === '1' ? 'call' : 'calls'}`;
+    parts.push(
+      cost.costMicroUSD === '0'
+        ? `${calls}, unpriced`
+        : `${dollars(cost.costMicroUSD)} over ${calls}`
+    );
+  }
+  if (parts.length === 0) return undefined;
+  return `📊 ${parts.join(' · ')}`;
+}
+
 /**
  * The message shown while a run is parked on a recovery label. The blocking
  * distinction carries the whole value of showing it: on one side waiting is the
@@ -880,6 +935,17 @@ export function buildTurnMessages(
           run.outcomeReason,
           run.outcomeDetail
         ),
+      });
+    }
+    // After the outcome, never instead of it: a cancelled or failed run
+    // consumed what it consumed, and hiding the figure on the runs that end
+    // badly hides it exactly where someone is most likely to ask.
+    const consumed = runConsumptionMessage(run.consumption);
+    if (consumed) {
+      wanted.push({
+        id: `aion:${runId}:consumption`,
+        role: 'agent',
+        content: consumed,
       });
     }
   }
