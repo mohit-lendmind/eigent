@@ -40,7 +40,7 @@ import {
 } from './utils';
 
 const GRID_CLASS =
-  'grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_120px_88px_112px] gap-x-4 px-3';
+  'grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_120px_100px_88px_112px] gap-x-4 px-3';
 
 function Banner({ message }: { message: string }) {
   return (
@@ -88,14 +88,22 @@ function Stat({
  */
 function Totals({ totals }: { totals: AionUsageTotals }) {
   const { t } = useTranslation();
+  const { tokens } = totals;
   return (
     <div className="mb-4 flex flex-col gap-2" data-testid="aion-usage-totals">
-      <div className="grid grid-cols-3 gap-3">
+      <div className={`grid gap-3 ${tokens ? 'grid-cols-4' : 'grid-cols-3'}`}>
         <Stat
           label={t('layout.usage-total-cost')}
           value={formatMicroUsd(totals.costMicroUsd)}
           testId="aion-usage-total-cost"
         />
+        {tokens ? (
+          <Stat
+            label={t('layout.usage-total-tokens')}
+            value={tokens.totalTokens.toLocaleString('en-US')}
+            testId="aion-usage-total-tokens"
+          />
+        ) : null}
         <Stat
           label={t('layout.usage-total-calls')}
           value={totals.providerCalls.toLocaleString('en-US')}
@@ -107,6 +115,22 @@ function Totals({ totals }: { totals: AionUsageTotals }) {
           testId="aion-usage-runs-settled"
         />
       </div>
+      {/* The breakdown is served, not derived: prompt_tokens is cache-
+          inclusive, so a client adding the cached figure to it double-counts.
+          Showing the billable subtraction beside the cached read is what keeps
+          a reader from making that addition. */}
+      {tokens ? (
+        <div
+          className="px-1 text-body-xs tabular-nums text-ds-text-neutral-muted-default"
+          data-testid="aion-usage-token-breakdown"
+        >
+          {t('layout.usage-token-breakdown', {
+            billable: tokens.billableInputTokens.toLocaleString('en-US'),
+            output: tokens.completionTokens.toLocaleString('en-US'),
+            cached: tokens.cacheReadTokens.toLocaleString('en-US'),
+          })}
+        </div>
+      ) : null}
       {totals.runsUnrecorded > 0n ? (
         <div
           className="px-1 text-body-xs text-ds-text-neutral-muted-default"
@@ -114,6 +138,19 @@ function Totals({ totals }: { totals: AionUsageTotals }) {
         >
           {t('layout.usage-floor-note', {
             runs: totals.runsUnrecorded.toLocaleString('en-US'),
+          })}
+        </div>
+      ) : null}
+      {/* A second, independent floor: cost comes from the inference ledger and
+          tokens from the engine's outcome, so the two counts differ and one
+          note cannot stand for both. */}
+      {totals.runsWithoutTokens > 0n ? (
+        <div
+          className="px-1 text-body-xs text-ds-text-neutral-muted-default"
+          data-testid="aion-usage-token-floor-note"
+        >
+          {t('layout.usage-token-floor-note', {
+            runs: totals.runsWithoutTokens.toLocaleString('en-US'),
           })}
         </div>
       ) : null}
@@ -250,6 +287,7 @@ export default function AionUsage() {
                 'layout.usage-list-run',
                 'layout.usage-list-project',
                 'layout.usage-list-cost',
+                'layout.usage-list-tokens',
                 'layout.usage-list-calls',
                 'layout.usage-list-settled',
               ].map((key, index) => (
@@ -282,6 +320,17 @@ export default function AionUsage() {
                     {run.projectId}
                   </span>
                   <CostCell run={run} />
+                  {/* An em dash, never a zero: this run's engine outcome
+                      recorded no token figure, which is not the same as a run
+                      that consumed none. */}
+                  <span
+                    className="truncate text-right text-body-xs tabular-nums text-ds-text-neutral-muted-default"
+                    data-testid="aion-usage-tokens"
+                  >
+                    {run.tokens
+                      ? run.tokens.totalTokens.toLocaleString('en-US')
+                      : '—'}
+                  </span>
                   <span
                     className="truncate text-right text-body-xs tabular-nums text-ds-text-neutral-muted-default"
                     data-testid="aion-usage-calls"

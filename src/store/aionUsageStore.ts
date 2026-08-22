@@ -7,7 +7,11 @@
 // would bill an unmetered run as free.
 
 import { supportsUsage } from '@/api/aion/v1/compat';
-import { EdgeTransport, type RunSpend } from '@/api/aion/v1/transport';
+import {
+  EdgeTransport,
+  type RunSpend,
+  type TokenUsage,
+} from '@/api/aion/v1/transport';
 import { getAionRemoteConfig } from './aionChatBridge';
 
 /**
@@ -34,6 +38,31 @@ export interface AionUsageTotals {
   providerCalls: bigint;
   runsSettled: bigint;
   runsUnrecorded: bigint;
+  /**
+   * Settled runs that recorded no TOKEN figure — a second, independent floor.
+   * Cost comes from the inference ledger and tokens from the engine's own
+   * outcome, so the two counts are routinely different and one cannot stand
+   * in for the other.
+   */
+  runsWithoutTokens: bigint;
+  /** Absent when no run in the window recorded tokens. */
+  tokens?: AionTokenUsage;
+}
+
+/**
+ * Tokens consumed. `promptTokens` is the TOTAL effective prompt and already
+ * includes both cache dimensions, so adding them double-counts;
+ * `billableInputTokens` is the subtraction the edge already did, and
+ * `reasoningTokens` is a split of `completionTokens`, never an addend.
+ */
+export interface AionTokenUsage {
+  promptTokens: bigint;
+  completionTokens: bigint;
+  reasoningTokens: bigint;
+  cacheReadTokens: bigint;
+  cacheCreationTokens: bigint;
+  billableInputTokens: bigint;
+  totalTokens: bigint;
 }
 
 /** One settled run's contribution, with the cost pair absent when unrecorded. */
@@ -46,6 +75,8 @@ export interface AionRunSpend {
   endedAt: number;
   /** Absent when nothing was recorded for this run — render pending, not zero. */
   spend?: { costMicroUsd: bigint; providerCalls: bigint };
+  /** Absent on the same rule but INDEPENDENTLY of `spend`. */
+  tokens?: AionTokenUsage;
 }
 
 export interface AionUsagePage {
@@ -206,6 +237,10 @@ async function fetchPage(query: AionUsageQuery): Promise<AionUsagePage> {
       providerCalls: decimal(summary.totals?.provider_calls),
       runsSettled: decimal(summary.totals?.runs_settled),
       runsUnrecorded: decimal(summary.totals?.runs_unrecorded),
+      runsWithoutTokens: decimal(summary.totals?.runs_without_tokens),
+      ...(tokenUsage(summary.totals?.tokens)
+        ? { tokens: tokenUsage(summary.totals?.tokens) }
+        : {}),
     },
     runs: (summary.runs ?? []).map(toRunSpend),
     ...(summary.next_page_token
@@ -220,6 +255,7 @@ function toRunSpend(run: RunSpend): AionRunSpend {
   // invent the missing half.
   const recorded =
     run.cost_micro_usd !== undefined && run.provider_calls !== undefined;
+  const tokens = tokenUsage(run.tokens);
   return {
     runId: run.run_id,
     projectId: run.project_id,
@@ -233,6 +269,39 @@ function toRunSpend(run: RunSpend): AionRunSpend {
           },
         }
       : {}),
+    ...(tokens ? { tokens } : {}),
+  };
+}
+
+/**
+ * Every dimension or none. `decimal` floors a malformed figure to zero, which
+ * is the right default for a total that is already advertised as a floor but
+ * the wrong one inside a token block: a run's own breakdown would silently
+ * stop adding up, and the arithmetic the edge serves precisely so two surfaces
+ * cannot disagree would be broken here instead.
+ */
+function tokenUsage(raw: TokenUsage | undefined): AionTokenUsage | undefined {
+  if (!raw) return undefined;
+  const fields = [
+    'prompt_tokens',
+    'completion_tokens',
+    'reasoning_tokens',
+    'cache_read_tokens',
+    'cache_creation_tokens',
+    'billable_input_tokens',
+    'total_tokens',
+  ] as const;
+  if (fields.some((name) => !/^[0-9]+$/.test(String(raw[name] ?? '')))) {
+    return undefined;
+  }
+  return {
+    promptTokens: decimal(raw.prompt_tokens),
+    completionTokens: decimal(raw.completion_tokens),
+    reasoningTokens: decimal(raw.reasoning_tokens),
+    cacheReadTokens: decimal(raw.cache_read_tokens),
+    cacheCreationTokens: decimal(raw.cache_creation_tokens),
+    billableInputTokens: decimal(raw.billable_input_tokens),
+    totalTokens: decimal(raw.total_tokens),
   };
 }
 

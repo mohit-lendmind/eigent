@@ -8,5 +8,19 @@
   "visibility": "user",
   "occurred_at": "2026-08-08T09:00:08Z",
   "correlation": {"aion_run_id": "aionrun_01JY00000000000000002"},
-  "data": {"reason": "context_limit", "message": "The run exceeded the context budget before converging."}
+  "data": {
+    "reason": "context_limit",
+    "message": "The run exceeded the context budget before converging.",
+    "turn_count": 31,
+    "tokens": {
+      "prompt_tokens": "1533139",
+      "completion_tokens": "26268",
+      "reasoning_tokens": "2617",
+      "cache_read_tokens": "1458944",
+      "cache_creation_tokens": "0",
+      "billable_input_tokens": "74195",
+      "total_tokens": "1559407"
+    },
+    "cost": {"cost_micro_usd": "329028", "provider_calls": "31"}
+  }
 }
