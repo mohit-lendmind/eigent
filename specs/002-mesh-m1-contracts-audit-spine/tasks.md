@@ -85,9 +85,9 @@ description: "Task list for feature implementation — mesh-m1-contracts-audit-s
 
 **Independent Test**: export folded golden case → verified; tamper one entry → refold → export names brokenAtSeq.
 
-- [ ] T030 [US2] Extend `src/crm/caseFile.ts` — `CaseFileExportV2` per contracts/exportV2.d.ts: envelope (chainHead, chainVerified, artifactManifest, gatePolicySnapshot from GATE_REGISTRY + firm config delegationRoster, versionsStamp, contractsVersion, firmId) + records (caseLogEntries, outboxUnflushed, quarantine, quarantineTombstones); `importCaseFile` accepts v1 (chainVerified: null) and v2 (verify before trusting) (FR-021)
-- [ ] T031 [P] [US2] Author `test/unit/crm/tamperExport.test.ts` — Journey 2 verbatim: clean export verifies; tampered refold → chainVerified false + brokenAtSeq named + CHAIN_BREAK item distinct from FOLD_GAP + halt that case only; property sweep: flipping ANY single entry's byte flips verification (SC-002)
-- [ ] T032 [P] [US2] Author `test/unit/crm/export.dualVersion.test.ts` — v1 bundle imports with integrity null; v2 round-trips; extend existing `test/unit/crm/export.integration.test.ts` expectations if touched
+- [x] T030 [US2] Extend `src/crm/caseFile.ts` — `CaseFileExportV2` per contracts/exportV2.d.ts: envelope (chainHead, chainVerified, artifactManifest, gatePolicySnapshot from GATE_REGISTRY + firm config delegationRoster, versionsStamp, contractsVersion, firmId) + records (caseLogEntries, outboxUnflushed, quarantine, quarantineTombstones); `importCaseFile` accepts v1 (chainVerified: null) and v2 (verify before trusting) (FR-021)
+- [x] T031 [P] [US2] Author `test/unit/crm/tamperExport.test.ts` — Journey 2 verbatim: clean export verifies; tampered refold → chainVerified false + brokenAtSeq named + CHAIN_BREAK item distinct from FOLD_GAP + halt that case only; property sweep: flipping ANY single entry's byte flips verification (SC-002)
+- [x] T032 [P] [US2] Author `test/unit/crm/export.dualVersion.test.ts` — v1 bundle imports with integrity null; v2 round-trips; extend existing `test/unit/crm/export.integration.test.ts` expectations if touched
 
 **Checkpoint**: US1 + US2 independently green.
 

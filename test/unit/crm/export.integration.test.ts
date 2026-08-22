@@ -38,14 +38,14 @@ describe('Journey C — export → wipe → import round-trip', () => {
     seedCrmGoldenPath({ ignoreDevGate: true });
   });
 
-  it('seed → export1 → clear → import → export2 → byte-equal', () => {
+  it('seed → export1 → clear → import → export2 → byte-equal', async () => {
     const export1 = exportCaseFile('c417');
     if (!('records' in export1)) throw new Error('export1 failed');
     clearAllCrmState();
     expect(Object.keys(useCrmCasesStore.getState().casesById).length).toBe(0);
 
-    const importResult = importCaseFile(export1);
-    expect(importResult).toMatchObject({ ok: true });
+    const importResult = await importCaseFile(export1);
+    expect(importResult).toMatchObject({ ok: true, chainVerified: null });
 
     const export2 = exportCaseFile('c417');
     if (!('records' in export2)) throw new Error('export2 failed');
@@ -62,11 +62,11 @@ describe('Journey C — export → wipe → import round-trip', () => {
     expect(JSON.stringify(norm1)).toBe(JSON.stringify(norm2));
   });
 
-  it('post-import selectors reproduce the design counts', () => {
+  it('post-import selectors reproduce the design counts', async () => {
     const exportResult = exportCaseFile('c417');
     if (!('records' in exportResult)) throw new Error('export failed');
     clearAllCrmState();
-    importCaseFile(exportResult);
+    await importCaseFile(exportResult);
 
     expect(
       selectNeedsYouCount(useCrmWorkstreamStore.getState().worklistItems)
@@ -75,10 +75,10 @@ describe('Journey C — export → wipe → import round-trip', () => {
     expect(counts.DIP).toBeGreaterThanOrEqual(1);
   });
 
-  it('second import without wipe fails with id_collision', () => {
+  it('second import without wipe fails with id_collision', async () => {
     const exportResult = exportCaseFile('c417');
     if (!('records' in exportResult)) throw new Error('export failed');
-    const second = importCaseFile(exportResult);
+    const second = await importCaseFile(exportResult);
     expect(second).toMatchObject({ ok: false, reason: 'id_collision' });
   });
 });

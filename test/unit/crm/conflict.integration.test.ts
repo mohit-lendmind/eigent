@@ -194,7 +194,7 @@ describe('Journey B — atomic conflict resolution', () => {
     clearAllCrmState();
     expect(Object.keys(useCrmCasesStore.getState().casesById).length).toBe(0);
 
-    const importResult = importCaseFile(exportResult);
+    const importResult = await importCaseFile(exportResult);
     expect(importResult).toEqual(expect.objectContaining({ ok: true }));
 
     // Post-import: resolved conflict, event, and done-kind stream entry all reappear

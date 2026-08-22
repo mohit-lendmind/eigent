@@ -12,6 +12,12 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
+import type { CaseLogEntry, DecimalSeq } from './agentContracts/caseLog';
+import {
+  FIRM_CONFIG_DEFAULTS,
+  type FirmConfig,
+} from './agentContracts/firmConfig';
+import { GATE_REGISTRY, type GateDescriptor } from './agentContracts/gates';
 import { CRM_CASES_STORE_KEY, getCrmCasesStore } from './casesStore';
 import { CRM_CLIENTS_STORE_KEY, getCrmClientsStore } from './clientsStore';
 import {
@@ -23,10 +29,12 @@ import {
   type CaseFileExport,
   type CaseId,
 } from './domain/types';
+import { CONTRACTS_VERSION } from './fold/caseLogFold';
 import {
   CRM_EVENTLOG_STORE_KEY,
   getCrmEventLogStore,
 } from './fold/eventLogStore';
+import { verifyChain } from './hashChain';
 import {
   CRM_WORKSTREAM_STORE_KEY,
   getCrmWorkstreamStore,
@@ -52,7 +60,43 @@ export type ImportSuccess = {
     documents: number;
     workstream: number;
   };
+  // v1 bundles carry no chain to check → null ("not verifiable"). v2 bundles
+  // are re-verified from their embedded case-log before this flag is trusted.
+  chainVerified: boolean | null;
 };
+
+// ---- Export v2 (FR-021) — a tamper-evident compliance envelope. ------------
+export interface CaseFileExportEnvelopeV2 {
+  exportVersion: 2;
+  exportedAt: number;
+  crmSchemaVersion: number;
+  contractsVersion: number;
+  caseId: CaseId;
+  firmId: string;
+  chainHead: { seq: DecimalSeq; hash: string } | null;
+  chainVerified: boolean;
+  artifactManifest: readonly {
+    name: string;
+    artifactId: string;
+    version: number;
+    sha256: string;
+  }[];
+  gatePolicySnapshot: {
+    registry: readonly GateDescriptor[];
+    delegationRoster: readonly unknown[];
+  };
+  versionsStamp: Record<string, string>;
+}
+
+export interface CaseFileExportV2 {
+  envelope: CaseFileExportEnvelopeV2;
+  records: CaseFileExport['records'] & {
+    caseLogEntries: readonly CaseLogEntry[];
+    outboxUnflushed: readonly unknown[];
+    quarantine: readonly unknown[];
+    quarantineTombstones: readonly { hash: string; kind: string; at: number }[];
+  };
+}
 
 export function exportCaseFile(caseId: CaseId): CaseFileExport | ExportFailure {
   if (!caseId) return { ok: false, reason: 'no_case_id' };
@@ -128,17 +172,82 @@ export function exportCaseFile(caseId: CaseId): CaseFileExport | ExportFailure {
   };
 }
 
-export function importCaseFile(
-  bundle: CaseFileExport
-): ImportSuccess | ImportFailure {
-  if (bundle.envelope.exportVersion !== 1) {
+function bySeq(a: CaseLogEntry, b: CaseLogEntry): number {
+  const da = BigInt(a.seq);
+  const db = BigInt(b.seq);
+  return da < db ? -1 : da > db ? 1 : 0;
+}
+
+// The v2 envelope is a compliance snapshot: it re-verifies the case's chain from
+// the entries handed in (the same array the fold consumed, freshly re-read from
+// the artifact store), stamps the verified tip, and folds in the gate policy and
+// version provenance a reviewer needs to trust it. The raw entries + unflushed
+// outbox + quarantine ride along so the export is self-contained.
+export async function exportCaseFileV2(
+  caseId: CaseId,
+  entries: readonly CaseLogEntry[],
+  options: { firmConfig?: FirmConfig } = {}
+): Promise<CaseFileExportV2 | ExportFailure> {
+  const v1 = exportCaseFile(caseId);
+  if (!('records' in v1)) return v1;
+
+  const ordered = [...entries].sort(bySeq);
+  const verify = await verifyChain(ordered);
+  const log = getCrmEventLogStore().getState();
+  const head = ordered[ordered.length - 1];
+  const delegationRoster =
+    options.firmConfig?.delegationRoster ??
+    FIRM_CONFIG_DEFAULTS.delegationRoster ??
+    [];
+
+  const envelope: CaseFileExportEnvelopeV2 = {
+    exportVersion: 2,
+    exportedAt: Date.now(),
+    crmSchemaVersion: CRM_SCHEMA_VERSION,
+    contractsVersion: CONTRACTS_VERSION,
+    caseId,
+    firmId: head?.firmId ?? options.firmConfig?.firmId ?? '',
+    chainHead: log.chainHeads[caseId] ?? null,
+    chainVerified: verify.ok,
+    artifactManifest: ordered.map((e) => ({
+      name: `lm/case/${caseId}/${e.seq}`,
+      artifactId: e.origin.artifactId,
+      version: 1,
+      sha256: e.hash,
+    })),
+    gatePolicySnapshot: { registry: GATE_REGISTRY, delegationRoster },
+    versionsStamp: head ? ({ ...head.versions } as Record<string, string>) : {},
+  };
+
+  return {
+    envelope,
+    records: {
+      ...v1.records,
+      caseLogEntries: ordered,
+      outboxUnflushed: log.outbox.filter(
+        (r) => r.caseId === caseId && r.state !== 'settled'
+      ),
+      quarantine: log.quarantine.filter((r) => r.caseId === caseId),
+      quarantineTombstones: log.quarantineTombstones,
+    },
+  };
+}
+
+export async function importCaseFile(
+  bundle: CaseFileExport | CaseFileExportV2
+): Promise<ImportSuccess | ImportFailure> {
+  const exportVersion = bundle.envelope.exportVersion;
+  if (exportVersion !== 1 && exportVersion !== 2) {
     return {
       ok: false,
       reason: 'envelope_incompatible',
-      got: bundle.envelope.exportVersion,
+      got: exportVersion,
       expected: 1,
     };
   }
+  // v2 records are a structural superset of v1 (the v1 records are spread in at
+  // export), so the collision scan and apply below read them as v1-shaped.
+  const v1Records = bundle.records as CaseFileExport['records'];
   const cases = getCrmCasesStore();
   const clients = getCrmClientsStore();
   const docs = getCrmDocumentsStore();
@@ -149,37 +258,37 @@ export function importCaseFile(
   const casesState = cases.getState();
   const docsState = docs.getState();
   const wsState = ws.getState();
-  for (const cl of bundle.records.clients) {
+  for (const cl of v1Records.clients) {
     if (clientsState.clientsById[cl.id]) collisions.push(cl.id);
   }
-  if (casesState.casesById[bundle.records.case.id]) {
-    collisions.push(bundle.records.case.id);
+  if (casesState.casesById[v1Records.case.id]) {
+    collisions.push(v1Records.case.id);
   }
-  for (const d of bundle.records.documents) {
+  for (const d of v1Records.documents) {
     if (docsState.documentsById[d.id]) collisions.push(d.id);
   }
-  for (const c of bundle.records.conflicts) {
+  for (const c of v1Records.conflicts) {
     if (casesState.conflictsById[c.id]) collisions.push(c.id);
   }
-  for (const w of bundle.records.worklist) {
+  for (const w of v1Records.worklist) {
     if (wsState.worklistItems[w.id]) collisions.push(w.id);
   }
   const existingEventIds = new Set(wsState.fieldChangeEvents.map((e) => e.id));
-  for (const e of bundle.records.fieldChangeEvents) {
+  for (const e of v1Records.fieldChangeEvents) {
     if (existingEventIds.has(e.id)) collisions.push(e.id);
   }
   const existingStreamIds = new Set<string>();
   for (const arr of Object.values(wsState.streamByCase)) {
     for (const e of arr) existingStreamIds.add(e.id);
   }
-  for (const e of bundle.records.stream) {
+  for (const e of v1Records.stream) {
     if (existingStreamIds.has(e.id)) collisions.push(e.id);
   }
   const existingActivityIds = new Set<string>();
   for (const arr of Object.values(wsState.activityByCase)) {
     for (const e of arr) existingActivityIds.add(e.id);
   }
-  for (const e of bundle.records.activity) {
+  for (const e of v1Records.activity) {
     if (existingActivityIds.has(e.id)) collisions.push(e.id);
   }
   if (collisions.length > 0) {
@@ -189,7 +298,7 @@ export function importCaseFile(
   // Single setState per store.
   clients.setState((state) => {
     const next = { ...state.clientsById };
-    for (const cl of bundle.records.clients) {
+    for (const cl of v1Records.clients) {
       next[cl.id] = cl;
     }
     return { clientsById: next };
@@ -197,16 +306,16 @@ export function importCaseFile(
 
   cases.setState((state) => {
     const nextCases = { ...state.casesById };
-    nextCases[bundle.records.case.id] = bundle.records.case;
+    nextCases[v1Records.case.id] = v1Records.case;
     const nextConflicts = { ...state.conflictsById };
-    for (const c of bundle.records.conflicts) nextConflicts[c.id] = c;
+    for (const c of v1Records.conflicts) nextConflicts[c.id] = c;
     const nextCriteria = { ...state.criteriaByCase };
-    nextCriteria[bundle.records.case.id] = bundle.records.criteria;
+    nextCriteria[v1Records.case.id] = v1Records.criteria;
     const nextProducts = { ...state.productsByCase };
-    nextProducts[bundle.records.case.id] = bundle.records.products;
+    nextProducts[v1Records.case.id] = v1Records.products;
     const nextCompliance = { ...state.complianceByCase };
-    if (bundle.records.compliance) {
-      nextCompliance[bundle.records.case.id] = bundle.records.compliance;
+    if (v1Records.compliance) {
+      nextCompliance[v1Records.case.id] = v1Records.compliance;
     }
     return {
       casesById: nextCases,
@@ -219,9 +328,9 @@ export function importCaseFile(
 
   docs.setState((state) => {
     const nextDocs = { ...state.documentsById };
-    for (const d of bundle.records.documents) nextDocs[d.id] = d;
+    for (const d of v1Records.documents) nextDocs[d.id] = d;
     const nextChecklist = { ...state.checklistByOwner };
-    for (const item of bundle.records.checklist) {
+    for (const item of v1Records.checklist) {
       const arr = nextChecklist[item.owner] ?? [];
       const idx = arr.findIndex((x) => x.itemKey === item.itemKey);
       nextChecklist[item.owner] =
@@ -232,17 +341,17 @@ export function importCaseFile(
 
   ws.setState((state) => {
     const nextWorklist = { ...state.worklistItems };
-    for (const w of bundle.records.worklist) nextWorklist[w.id] = w;
+    for (const w of v1Records.worklist) nextWorklist[w.id] = w;
     const nextStream = {
       ...state.streamByCase,
-      [bundle.records.case.id]: bundle.records.stream,
+      [v1Records.case.id]: v1Records.stream,
     };
     const nextActivity = {
       ...state.activityByCase,
-      [bundle.records.case.id]: bundle.records.activity,
+      [v1Records.case.id]: v1Records.activity,
     };
     const nextRetention = [...state.retentionEntries];
-    for (const r of bundle.records.retention) {
+    for (const r of v1Records.retention) {
       const idx = nextRetention.findIndex(
         (x) => x.clientId === r.clientId && x.endsAt === r.endsAt
       );
@@ -256,22 +365,33 @@ export function importCaseFile(
       retentionEntries: nextRetention,
       fieldChangeEvents: [
         ...state.fieldChangeEvents,
-        ...bundle.records.fieldChangeEvents,
+        ...v1Records.fieldChangeEvents,
       ],
     };
   });
+
+  // v1 carries no chain → null ("not verifiable"). v2 is re-verified from its
+  // embedded case-log before its chainVerified claim is trusted (FR-021).
+  let chainVerified: boolean | null = null;
+  if (exportVersion === 2) {
+    const verify = await verifyChain(
+      (bundle as CaseFileExportV2).records.caseLogEntries
+    );
+    chainVerified = verify.ok;
+  }
 
   return {
     ok: true,
     imported: {
       cases: 1,
-      clients: bundle.records.clients.length,
-      documents: bundle.records.documents.length,
+      clients: v1Records.clients.length,
+      documents: v1Records.documents.length,
       workstream:
-        bundle.records.worklist.length +
-        bundle.records.stream.length +
-        bundle.records.activity.length,
+        v1Records.worklist.length +
+        v1Records.stream.length +
+        v1Records.activity.length,
     },
+    chainVerified,
   };
 }
 
