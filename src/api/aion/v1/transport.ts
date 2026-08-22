@@ -41,6 +41,7 @@ export type BrowserDelegationResult = Schemas['BrowserDelegationResult'];
 export type UsageSummary = Schemas['UsageSummary'];
 export type UsageTotals = Schemas['UsageTotals'];
 export type RunSpend = Schemas['RunSpend'];
+export type TokenUsage = Schemas['TokenUsage'];
 export type Skill = Schemas['Skill'];
 export type SkillCatalog = Schemas['SkillCatalog'];
 export type PutSkillRequest = Schemas['PutSkillRequest'];

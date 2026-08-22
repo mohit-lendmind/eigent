@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Eigent Desktop Edge API
-  version: 1.22.0
+  version: 1.23.0
   description: |
     Public, additive-only API used by the Eigent desktop application. The edge
     authenticates the device/user, enforces tenant policy, and projects private
@@ -1722,9 +1722,61 @@ components:
             Absent on the last page of per-run detail. It pages `runs` only —
             `totals` is identical on every page.
       additionalProperties: true
+    TokenUsage:
+      type: object
+      description: |
+        What a run (or a window of runs) consumed, in tokens. Every figure is a
+        decimal string.
+
+        `prompt_tokens` is the TOTAL effective prompt and ALREADY INCLUDES both
+        cache dimensions — adding them to it double-counts. `billable_input_tokens`
+        is the subtraction already done for you (floored at zero), and
+        `total_tokens` is `prompt_tokens + completion_tokens`; both are served
+        rather than left to clients so two surfaces cannot disagree about the
+        same run. `reasoning_tokens` is a VISIBILITY split of
+        `completion_tokens`, never an addend.
+      required:
+        [prompt_tokens, completion_tokens, reasoning_tokens, cache_read_tokens,
+         cache_creation_tokens, billable_input_tokens, total_tokens]
+      properties:
+        prompt_tokens: {type: string, pattern: '^[0-9]+$'}
+        completion_tokens: {type: string, pattern: '^[0-9]+$'}
+        reasoning_tokens: {type: string, pattern: '^[0-9]+$'}
+        cache_read_tokens: {type: string, pattern: '^[0-9]+$'}
+        cache_creation_tokens: {type: string, pattern: '^[0-9]+$'}
+        billable_input_tokens:
+          type: string
+          pattern: '^[0-9]+$'
+          description: |
+            `prompt_tokens - cache_read_tokens - cache_creation_tokens`, floored
+            at zero. The floor is load-bearing on a provider whose cache figures
+            are reported against a differently-scoped prompt total.
+        total_tokens: {type: string, pattern: '^[0-9]+$'}
+      additionalProperties: true
+    RunCost:
+      type: object
+      description: |
+        What a run was billed. Present only when the inference plane recorded a
+        figure; absent means NOT RECORDED, never zero.
+      required: [cost_micro_usd, provider_calls]
+      properties:
+        cost_micro_usd:
+          type: string
+          pattern: '^[0-9]+$'
+          description: Micro-USD (1e-6 USD).
+        provider_calls:
+          type: string
+          pattern: '^[0-9]+$'
+          description: |
+            Metered provider calls behind that cost. A non-zero call count
+            beside a zero cost means the alias carries no price list, which is
+            UNPRICED, not free.
+      additionalProperties: true
     UsageTotals:
       type: object
-      required: [cost_micro_usd, provider_calls, runs_settled, runs_unrecorded]
+      required:
+        [cost_micro_usd, provider_calls, runs_settled, runs_unrecorded,
+         runs_without_tokens]
       properties:
         cost_micro_usd:
           type: string
@@ -1752,6 +1804,20 @@ components:
             the sums above, so a non-zero value here means the totals are a
             FLOOR; a surface that drops this term shows a partial sum as the
             whole bill.
+        runs_without_tokens:
+          type: string
+          pattern: '^[0-9]+$'
+          description: |
+            Settled runs that recorded no token figure. It is a SEPARATE floor
+            from `runs_unrecorded`: cost comes from the inference ledger and
+            tokens from the engine's own outcome, so either can be missing
+            alone and the two counts are routinely different.
+        tokens:
+          allOf:
+            - $ref: '#/components/schemas/TokenUsage'
+          description: |
+            Summed over exactly the runs `runs_without_tokens` does NOT count.
+            OMITTED when no run in the window recorded tokens.
       additionalProperties: true
     RunSpend:
       type: object
@@ -1760,6 +1826,8 @@ components:
         One settled run's contribution. `cost_micro_usd` and `provider_calls`
         are OMITTED together when nothing was recorded for the run — that
         absence is what a client renders as pending, never as a cost of zero.
+        `tokens` is omitted on the same rule but INDEPENDENTLY: the two figures
+        come from different planes, so a run may carry either alone.
       properties:
         run_id: {type: string}
         project_id: {type: string}
@@ -1767,6 +1835,7 @@ components:
         ended_at: {type: string, format: date-time}
         cost_micro_usd: {type: string, pattern: '^[0-9]+$'}
         provider_calls: {type: string, pattern: '^[0-9]+$'}
+        tokens: {$ref: '#/components/schemas/TokenUsage'}
       additionalProperties: true
     SubmitCommandRequest:
       type: object
@@ -1955,6 +2024,33 @@ components:
         data:
           type: object
           additionalProperties: true
+          description: |
+            Kind-specific body. The three terminal kinds (`run_completed`,
+            `run_failed`, `run_cancelled`) additionally carry the consumption
+            block documented by TerminalConsumption.
+    TerminalConsumption:
+      type: object
+      description: |
+        What the run consumed, carried on the `data` of every terminal event so
+        an SSE consumer learns it without a second request — the only way a
+        stream-only client can learn it at all. Settling the run and announcing
+        these figures is ONE transaction, so a terminal can never claim a figure
+        the run row lacks.
+
+        Each part is omitted independently when not recorded, never zeroed:
+        `tokens` comes from the engine's own outcome and `cost` from the
+        inference ledger, and a run routinely records one without the other.
+        These fields sit beside the kind's own body (e.g. `summary` on
+        run_completed, `reason` on run_failed) rather than replacing it.
+      properties:
+        tokens: {$ref: '#/components/schemas/TokenUsage'}
+        cost: {$ref: '#/components/schemas/RunCost'}
+        turn_count:
+          type: integer
+          description: |
+            Provider turns the run took. A JSON number; the token figures are
+            strings because they are 64-bit.
+      additionalProperties: true
     Artifact:
       type: object
       required: [artifact_id, project_id, name, version, media_type, size_bytes, sha256, created_at]

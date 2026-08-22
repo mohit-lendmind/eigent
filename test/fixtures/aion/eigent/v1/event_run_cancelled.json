@@ -8,5 +8,17 @@
   "visibility": "user",
   "occurred_at": "2026-08-08T09:00:09Z",
   "correlation": {"command_id": "cmd_01JY0000000000000000000002"},
-  "data": {"reason": "user_requested"}
+  "data": {
+    "reason": "user_requested",
+    "turn_count": 4,
+    "tokens": {
+      "prompt_tokens": "38104",
+      "completion_tokens": "1512",
+      "reasoning_tokens": "0",
+      "cache_read_tokens": "24576",
+      "cache_creation_tokens": "8192",
+      "billable_input_tokens": "5336",
+      "total_tokens": "39616"
+    }
+  }
 }
