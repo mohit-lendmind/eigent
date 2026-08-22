@@ -22,7 +22,7 @@ Lendmind is **workflow glue over the adviser's existing tools**, not a CRM. A me
 | Case | aion project (one per case) in the firm's Space; id on `Case.aionProjectId` |
 | Agent invocation | `submitCommand` with a typed directive envelope (§3) |
 | Agent capability | aion Skill per agent, versioned under `resources/lm-skills/`, **CI-gated deploys, staged rollout with network kill switch (§6)** |
-| Agent output | versioned JSON artifact `lm/<agent>/<seq>-<kind>.json`, zod schemas in `src/crm/agentContracts/` (single source of truth); **schema majors with unknown-major quarantine** |
+| Agent output | versioned JSON artifact `lm/<agent>/<seq>-<kind>.json`, typed contracts in `src/crm/agentContracts/` (house decode/encode pattern, single source of truth); **schema majors with unknown-major quarantine** |
 | Audit | **per-artifact content-hash chain (tamper-evident at write time); model/prompt/skill semver+sha stamped in every envelope and artifact**; FieldChangeEvents append-only; case-file export = regulator-facing record (3-yr MCOB floor; life-of-mortgage + 6 yrs; FCA-retrievable ≤ 2 days) |
 | Human gate | approvals plane; one approval kind per gate id (§5) |
 | Watcher | **firm-level schedule (one 5-min pass over the firm's caseload, pre-LLM no-change fast path — not per-case polls)** + artifact/attachment SSE when live |
@@ -141,7 +141,7 @@ Per-case metering via usage plane; pricing = per-completed-case over a seat floo
 
 | # | Slug | Scope | Depends |
 |---|---|---|---|
-| M1 | `mesh-m1-contracts-audit-spine` | `src/crm/agentContracts/` zod schemas (directive envelope w/ nonce+versions+budget, per-agent artifact kinds, typed failures, `lm/case/` event-log entry schema), the artifact-canonical fold (event log → F01 stores as derived cache, applied-watermark idempotent, converge test), content-hash chain, gate registry module (G1–G10 as data), per-firm config schema. Extends F01; folds the surviving iteration-1 review findings (bus loudness, atomic resolve) into the new fold layer. | F01 |
+| M1 | `mesh-m1-contracts-audit-spine` | `src/crm/agentContracts/` typed contracts, house decode pattern (directive envelope w/ nonce+versions+budget, per-agent artifact kinds, typed failures, `lm/case/` event-log entry schema), the artifact-canonical fold (event log → F01 stores as derived cache, applied-watermark idempotent, converge test), content-hash chain, gate registry module (G1–G10 as data), per-firm config schema. Extends F01; folds the surviving iteration-1 review findings (bus loudness, atomic resolve) into the new fold layer. | F01 |
 | M2 | `mesh-m2-watcher-onboarding` | A2 watcher (firm-level schedule skill, trigger matrix, breaker, budgets, supervision metrics) + A1 onboarding + micro-portal v1 (hosted upload+tracker, hardened links) + **thin surface strand v1: Today/needs-you queue + gate approval cards** (gates without UI are dead letters). | M1 |
 | M3 | `mesh-m3-docintel` | A3 with quote-locator rejection filter, injection doctrine, red-team corpus gate; DPIA artifact. | M1 |
 | M4 | `mesh-m4-sourcing-adapters` | Adapter framework + `mse` adapter (API-intercept, canary) + `mortgage-brain` adapter (LB4) behind firm config; coverage statements; ToS matrix. | M1 |
