@@ -15,7 +15,7 @@
 import { getAuthEnvironmentKey } from '@/lib/authEnvironment';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { registerDocumentsBus } from './_bus';
+import { registerDocumentsBus, signalStoreHydrated } from './_bus';
 import type {
   ChecklistStatus,
   ClientId,
@@ -23,7 +23,6 @@ import type {
   DocChecklistItem,
   DocInsight,
   DocumentId,
-  FactFindSectionKey,
 } from './domain/types';
 import { CRM_SCHEMA_VERSION } from './domain/types';
 
@@ -53,8 +52,7 @@ export interface CrmDocumentsState {
   upsertChecklistItems: (items: DocChecklistItem[]) => void;
   flipInsightConflict: (
     docId: DocumentId,
-    section: FactFindSectionKey,
-    fieldKey: string,
+    insightLabel: string,
     conflict: boolean
   ) => void;
   resetForTests: () => void;
@@ -183,17 +181,22 @@ export const useCrmDocumentsStore = create<CrmDocumentsState>()(
           return { checklistByOwner: nextByOwner };
         }),
 
-      flipInsightConflict: (docId, section, fieldKey, conflict) =>
+      flipInsightConflict: (docId, insightLabel, conflict) =>
         set((state) => {
           const prev = state.documentsById[docId];
           if (!prev) return state;
+          let mutated = false;
           const nextInsights = prev.insights.map((ins) => {
-            const looksLikeTarget =
-              ins.label.toLowerCase().includes(fieldKey.toLowerCase()) ||
-              ins.label.toLowerCase().includes(section.toLowerCase());
-            if (!looksLikeTarget) return ins;
+            // Exact match on id OR exact match on label. Substring matching
+            // silently flipped the wrong insight when docs shared vocabulary.
+            if (ins.id !== insightLabel && ins.label !== insightLabel) {
+              return ins;
+            }
+            if (ins.conflict === conflict) return ins;
+            mutated = true;
             return { ...ins, conflict };
           });
+          if (!mutated) return state;
           return {
             documentsById: {
               ...state.documentsById,
@@ -225,19 +228,21 @@ export const useCrmDocumentsStore = create<CrmDocumentsState>()(
         documentsById: state.documentsById,
         checklistByOwner: state.checklistByOwner,
       }),
+      onRehydrateStorage: () => () => signalStoreHydrated('documents'),
     }
   )
 );
+signalStoreHydrated('documents');
 
 export function getCrmDocumentsStore(): typeof useCrmDocumentsStore {
   return useCrmDocumentsStore;
 }
 
 registerDocumentsBus({
-  flipInsightConflict: (docId, section, fieldKey, conflict) =>
+  flipInsightConflict: (docId, insightLabel, conflict) =>
     useCrmDocumentsStore
       .getState()
-      .flipInsightConflict(docId, section, fieldKey, conflict),
+      .flipInsightConflict(docId, insightLabel, conflict),
 });
 
 if (typeof queueMicrotask === 'function') {

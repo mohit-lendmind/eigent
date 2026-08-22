@@ -141,17 +141,42 @@ export function importCaseFile(
   const ws = getCrmWorkstreamStore();
 
   const collisions: string[] = [];
+  const clientsState = clients.getState();
+  const casesState = cases.getState();
+  const docsState = docs.getState();
+  const wsState = ws.getState();
   for (const cl of bundle.records.clients) {
-    if (clients.getState().clientsById[cl.id]) collisions.push(cl.id);
+    if (clientsState.clientsById[cl.id]) collisions.push(cl.id);
   }
-  if (cases.getState().casesById[bundle.records.case.id]) {
+  if (casesState.casesById[bundle.records.case.id]) {
     collisions.push(bundle.records.case.id);
   }
   for (const d of bundle.records.documents) {
-    if (docs.getState().documentsById[d.id]) collisions.push(d.id);
+    if (docsState.documentsById[d.id]) collisions.push(d.id);
   }
   for (const c of bundle.records.conflicts) {
-    if (cases.getState().conflictsById[c.id]) collisions.push(c.id);
+    if (casesState.conflictsById[c.id]) collisions.push(c.id);
+  }
+  for (const w of bundle.records.worklist) {
+    if (wsState.worklistItems[w.id]) collisions.push(w.id);
+  }
+  const existingEventIds = new Set(wsState.fieldChangeEvents.map((e) => e.id));
+  for (const e of bundle.records.fieldChangeEvents) {
+    if (existingEventIds.has(e.id)) collisions.push(e.id);
+  }
+  const existingStreamIds = new Set<string>();
+  for (const arr of Object.values(wsState.streamByCase)) {
+    for (const e of arr) existingStreamIds.add(e.id);
+  }
+  for (const e of bundle.records.stream) {
+    if (existingStreamIds.has(e.id)) collisions.push(e.id);
+  }
+  const existingActivityIds = new Set<string>();
+  for (const arr of Object.values(wsState.activityByCase)) {
+    for (const e of arr) existingActivityIds.add(e.id);
+  }
+  for (const e of bundle.records.activity) {
+    if (existingActivityIds.has(e.id)) collisions.push(e.id);
   }
   if (collisions.length > 0) {
     return { ok: false, reason: 'id_collision', ids: collisions };

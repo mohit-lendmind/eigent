@@ -133,8 +133,7 @@ const tomProfile: ApplicantProfile = {
       'netProfitY2',
       'Net profit Y2',
       {
-        t: 'number',
-        v: NaN,
+        t: 'missing',
       },
       undefined,
       { flag: true }

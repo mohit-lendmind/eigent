@@ -13,18 +13,21 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import { getAuthEnvironmentKey } from '@/lib/authEnvironment';
-import { computeSectionCompleteness, getCrmCasesStore } from './casesStore';
+import { registerHydrationSignal } from './_bus';
+import {
+  computeCaseCompleteness,
+  getCrmCasesStore,
+  recomputeApplicantCompleteness,
+} from './casesStore';
 import {
   _internalCreatePlaceholderClient,
   getCrmClientsStore,
 } from './clientsStore';
 import { getCrmDocumentsStore } from './documentsStore';
-import { requiredKeysForSection } from './domain/factFindSchema';
 import { newCrmId } from './domain/ids';
 import type {
   ActivityEvent,
   ActivityId,
-  Applicant,
   CaseId,
   ClientId,
   DocumentId,
@@ -202,30 +205,14 @@ export function crmIntegrityRepair(): RepairReport {
     for (const cid of touchedCases) {
       const c = nextCases[cid];
       if (!c) continue;
-      const applicants: Applicant[] = c.applicants.map((a) => {
-        const nextProfile = { ...a.profile };
-        for (const [sec, sectionValue] of Object.entries(a.profile)) {
-          if (!sectionValue) continue;
-          const keys = requiredKeysForSection(
-            'employed',
-            sec as never
-          ) as readonly string[];
-          (nextProfile as Record<string, unknown>)[sec] = {
-            ...sectionValue,
-            completeness: computeSectionCompleteness(sectionValue, keys),
-          };
-        }
-        return { ...a, profile: nextProfile };
-      });
-      const completeness =
-        applicants.length === 0
-          ? 0
-          : applicants.reduce((s, x) => s + x.completeness, 0) /
-            applicants.length;
+      // Reuse the store's own applicant-completeness math (which picks the
+      // employed vs self-employed key set per applicant), then recompute the
+      // case rollup from the recomputed applicant values.
+      const applicants = c.applicants.map(recomputeApplicantCompleteness);
       nextCases[cid] = {
         ...c,
         applicants,
-        completeness,
+        completeness: computeCaseCompleteness(applicants),
       };
       report.recomputedCases.push(cid);
     }
@@ -267,19 +254,66 @@ export function getLastRepairReport(): RepairReport | null {
   return getCrmWorkstreamStore().getState().getLastRepairReport();
 }
 
-// Post-hydration barrier: wait a microtask for all four stores to hydrate,
-// then run the single ordered repair pass.
-let barrierScheduled = false;
-export function scheduleIntegrityRepair(): void {
-  if (barrierScheduled) return;
-  barrierScheduled = true;
+// Post-hydration barrier: each store signals when it has hydrated (either via
+// persist onRehydrateStorage, or synchronously if hydration already completed
+// when the module was imported). When all four have signalled, run exactly one
+// ordered repair pass. Multiple signals from the same store coalesce.
+type StoreKey = 'clients' | 'cases' | 'documents' | 'workstream';
+const HYDRATED: Record<StoreKey, boolean> = {
+  clients: false,
+  cases: false,
+  documents: false,
+  workstream: false,
+};
+let repairRan = false;
+let repairScheduled = false;
+
+function tryFireRepair(): void {
+  if (repairRan) return;
+  for (const k of Object.keys(HYDRATED) as StoreKey[]) {
+    if (!HYDRATED[k]) return;
+  }
+  if (repairScheduled) return;
+  repairScheduled = true;
+  const fire = () => {
+    if (repairRan) return;
+    repairRan = true;
+    try {
+      crmIntegrityRepair();
+    } catch (err) {
+      console.warn('[integrity] Repair pass threw:', err);
+    }
+  };
   if (typeof queueMicrotask === 'function') {
-    queueMicrotask(() => {
-      try {
-        crmIntegrityRepair();
-      } catch (err) {
-        console.warn('[integrity] Repair pass threw:', err);
-      }
-    });
+    queueMicrotask(fire);
+  } else {
+    fire();
   }
 }
+
+export function notifyStoreHydrated(store: StoreKey): void {
+  HYDRATED[store] = true;
+  tryFireRepair();
+}
+
+// Barrel-level side effect: schedule the repair pass. Every store also calls
+// notifyStoreHydrated on its own hydration event; when all four have signalled
+// the pass runs. In test envs (jsdom) persist hydrates synchronously — the
+// module-level hydration probes below cover that case immediately.
+export function scheduleIntegrityRepair(): void {
+  // Idempotent: no-op after the four-store barrier has already fired.
+  tryFireRepair();
+}
+
+// Test-only: reset the internal hydration barrier and repair-ran latch so the
+// suite can drive multiple repair passes in one process. NOT re-exported.
+export function _resetIntegrityBarrierForTests(): void {
+  for (const k of Object.keys(HYDRATED) as StoreKey[]) HYDRATED[k] = false;
+  repairRan = false;
+  repairScheduled = false;
+}
+
+// Wire the hydration bus at module load — every store signals through this
+// registration, and the barrier fires the single ordered repair pass when the
+// last of the four has signalled (documented barrel side-effect).
+registerHydrationSignal(notifyStoreHydrated);

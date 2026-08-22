@@ -15,7 +15,12 @@
 import { getAuthEnvironmentKey } from '@/lib/authEnvironment';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { getCasesReadBus, getWorkstreamBus } from './_bus';
+import {
+  assertBusWired,
+  getCasesReadBus,
+  getWorkstreamBus,
+  signalStoreHydrated,
+} from './_bus';
 import { newCrmId } from './domain/ids';
 import type { CaseId, Client, ClientId, Placeholder } from './domain/types';
 import { CRM_SCHEMA_VERSION } from './domain/types';
@@ -23,11 +28,13 @@ import { CRM_SCHEMA_VERSION } from './domain/types';
 export const CRM_CLIENTS_PERSIST_VERSION = 1;
 export const CRM_CLIENTS_STORE_KEY = 'crm-clients-store';
 
-type ClientRefusal = {
-  ok: false;
-  reason: 'referenced_by_case';
-  caseIds: CaseId[];
-};
+type ClientRefusal =
+  | {
+      ok: false;
+      reason: 'referenced_by_case';
+      caseIds: CaseId[];
+    }
+  | { ok: false; reason: 'bus_unwired' };
 
 export interface CrmClientsState {
   storageEnvironmentKey: string;
@@ -55,9 +62,11 @@ const environmentMatches = (
 // removeClient consults casesStore via the read-side bus registered by
 // casesStore at module init. FR-014 permits this cross-store read
 // (spec Trade-off #4); the bus keeps the static import graph one-directional.
-function findCaseIdsReferencing(clientId: ClientId): CaseId[] {
+// If the bus isn't wired at dispatch time, removeClient MUST fail closed —
+// deleting a client without checking references would corrupt case invariants.
+function findCaseIdsReferencing(clientId: ClientId): CaseId[] | null {
   const bus = getCasesReadBus();
-  if (!bus) return [];
+  if (!bus) return null;
   return bus.caseIdsReferencingClient(clientId);
 }
 
@@ -99,6 +108,12 @@ export const useCrmClientsStore = create<CrmClientsState>()(
 
       removeClient: (id) => {
         const refs = findCaseIdsReferencing(id);
+        if (refs === null) {
+          // Bus unwired — fail closed to keep case invariants safe. In dev
+          // this also throws via assertBusWired to surface the wiring error.
+          assertBusWired(getCasesReadBus(), 'cases-read');
+          return { ok: false, reason: 'bus_unwired' };
+        }
         if (refs.length > 0) {
           const bus = getWorkstreamBus();
           if (bus) {
@@ -169,9 +184,14 @@ export const useCrmClientsStore = create<CrmClientsState>()(
         storageEnvironmentKey: state.storageEnvironmentKey,
         clientsById: state.clientsById,
       }),
+      onRehydrateStorage: () => () => signalStoreHydrated('clients'),
     }
   )
 );
+// Sync-hydration path: persist's onRehydrateStorage may not fire in envs
+// where hydration completes before the callback subscribes. Signal now too —
+// signalStoreHydrated coalesces duplicates.
+signalStoreHydrated('clients');
 
 export function getCrmClientsStore(): typeof useCrmClientsStore {
   return useCrmClientsStore;

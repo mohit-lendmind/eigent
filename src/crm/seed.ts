@@ -12,14 +12,20 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { getCrmCasesStore } from './casesStore';
+import {
+  computeCaseCompleteness,
+  getCrmCasesStore,
+  recomputeApplicantCompleteness,
+} from './casesStore';
 import { getCrmClientsStore } from './clientsStore';
 import { getCrmDocumentsStore } from './documentsStore';
 import { newCrmId } from './domain/ids';
 import {
   CRM_SCHEMA_VERSION,
   type ActivityEvent,
+  type CaseId,
   type FieldChangeEvent,
+  type StreamEntry,
 } from './domain/types';
 import { goldenPathBundle } from './fixtures/goldenPath';
 import { getCrmWorkstreamStore } from './workstreamStore';
@@ -39,7 +45,8 @@ function anyStoreNonEmpty(): boolean {
 
 function isDevGate(): boolean {
   try {
-    // Vite exposes DEV; if not present, allow (test environments).
+    // Vite exposes DEV. Fail CLOSED when import.meta.env is unavailable —
+    // seed data must not leak into prod builds where the env probe fails.
 
     const meta = import.meta as any;
     if (meta && meta.env && typeof meta.env.DEV === 'boolean') {
@@ -48,7 +55,7 @@ function isDevGate(): boolean {
   } catch {
     // fall through
   }
-  return true;
+  return false;
 }
 
 export interface SeedOptions {
@@ -65,10 +72,12 @@ export function seedCrmGoldenPath(opts: SeedOptions = {}): void {
   const docsStore = getCrmDocumentsStore();
   const wsStore = getCrmWorkstreamStore();
 
-  // Single setState per store — no per-record loops that would emit multiple
-  // intermediate states to any subscribing consumer.
   const now = Date.now();
 
+  // ONE setState per store. Precompute case completeness here (rather than
+  // rely on a follow-up upsertCases pass) so subscribers observe exactly one
+  // transition per store.
+  const backRefs = new Map<string, Set<CaseId>>();
   clientsStore.setState((state) => {
     const next = { ...state.clientsById };
     for (const c of goldenPathBundle.clients) {
@@ -77,32 +86,47 @@ export function seedCrmGoldenPath(opts: SeedOptions = {}): void {
     return { clientsById: next };
   });
 
-  casesStore.setState((state) => {
-    const nextCases = { ...state.casesById };
-    for (const c of goldenPathBundle.cases) {
-      nextCases[c.id] = { ...c, schemaVersion: CRM_SCHEMA_VERSION };
+  const stampedCases: Record<CaseId, (typeof goldenPathBundle.cases)[number]> =
+    {};
+  for (const c of goldenPathBundle.cases) {
+    const applicants = c.applicants.map(recomputeApplicantCompleteness);
+    stampedCases[c.id] = {
+      ...c,
+      schemaVersion: CRM_SCHEMA_VERSION,
+      updated: now,
+      applicants,
+      completeness: computeCaseCompleteness(applicants),
+    };
+    for (const a of applicants) {
+      const bucket = backRefs.get(a.clientId) ?? new Set();
+      bucket.add(c.id);
+      backRefs.set(a.clientId, bucket);
     }
+  }
+
+  casesStore.setState((state) => {
+    const nextCases = { ...state.casesById, ...stampedCases };
     const nextConflicts = { ...state.conflictsById };
     for (const r of goldenPathBundle.conflicts) {
       nextConflicts[r.id] = { ...r, schemaVersion: CRM_SCHEMA_VERSION };
     }
-    const nextCriteria: Record<string, typeof goldenPathBundle.criteria> = {
+    const nextCriteria: typeof state.criteriaByCase = {
       ...state.criteriaByCase,
     };
     for (const check of goldenPathBundle.criteria) {
-      (nextCriteria[check.caseId] ??= []).push({
-        ...check,
-        schemaVersion: CRM_SCHEMA_VERSION,
-      });
+      const arr = nextCriteria[check.caseId] ?? [];
+      const merged = new Map(arr.map((x) => [x.id, x]));
+      merged.set(check.id, { ...check, schemaVersion: CRM_SCHEMA_VERSION });
+      nextCriteria[check.caseId] = [...merged.values()];
     }
-    const nextProducts: Record<string, typeof goldenPathBundle.products> = {
+    const nextProducts: typeof state.productsByCase = {
       ...state.productsByCase,
     };
     for (const p of goldenPathBundle.products) {
-      (nextProducts[p.caseId] ??= []).push({
-        ...p,
-        schemaVersion: CRM_SCHEMA_VERSION,
-      });
+      const arr = nextProducts[p.caseId] ?? [];
+      const merged = new Map(arr.map((x) => [x.id, x]));
+      merged.set(p.id, { ...p, schemaVersion: CRM_SCHEMA_VERSION });
+      nextProducts[p.caseId] = [...merged.values()];
     }
     const nextCompliance = { ...state.complianceByCase };
     for (const rec of goldenPathBundle.compliance) {
@@ -120,18 +144,27 @@ export function seedCrmGoldenPath(opts: SeedOptions = {}): void {
     };
   });
 
-  // Fix up completeness now that the raw cases are in place. Doing this via
-  // upsertCases would produce a second setState per case — the direct setState
-  // above keeps the subscriber-visible transition to exactly one.
-  casesStore.setState((state) => {
-    const nextCases = { ...state.casesById };
-    for (const [cid, c] of Object.entries(nextCases)) {
-      // The upsertCases path recomputes; we call it as the single write path
-      // to avoid duplicating the completeness math here. But to stay atomic we
-      // just mark schemaVersion — the microtask below will nudge.
-      nextCases[cid] = { ...c, updated: now };
+  // Merge client back-refs into ONE setState after the cases land.
+  clientsStore.setState((state) => {
+    const next = { ...state.clientsById };
+    let mutated = false;
+    for (const [clientId, caseIds] of backRefs) {
+      const client = next[clientId];
+      if (!client) continue;
+      const existing = new Set(client.cases);
+      let added = false;
+      for (const cid of caseIds) {
+        if (!existing.has(cid)) {
+          existing.add(cid);
+          added = true;
+        }
+      }
+      if (added) {
+        next[clientId] = { ...client, cases: [...existing] };
+        mutated = true;
+      }
     }
-    return { casesById: nextCases };
+    return mutated ? { clientsById: next } : state;
   });
 
   docsStore.setState((state) => {
@@ -159,13 +192,12 @@ export function seedCrmGoldenPath(opts: SeedOptions = {}): void {
     for (const w of goldenPathBundle.worklist) {
       nextWorklist[w.id] = { ...w, schemaVersion: CRM_SCHEMA_VERSION };
     }
-    const nextStream = { ...state.streamByCase };
+    const nextStream: Record<CaseId, StreamEntry[]> = { ...state.streamByCase };
     for (const [cid, entries] of Object.entries(goldenPathBundle.stream)) {
-      const stamped = entries.map((e) => ({
+      nextStream[cid] = entries.map((e) => ({
         ...e,
         schemaVersion: CRM_SCHEMA_VERSION,
       }));
-      nextStream[cid] = stamped;
     }
     const nextRetention = [...state.retentionEntries];
     for (const r of goldenPathBundle.retention) {
@@ -205,7 +237,6 @@ export function seedCrmGoldenPath(opts: SeedOptions = {}): void {
       }
     }
 
-    // Note a seed activity per case that received applicants.
     const nextActivity = { ...state.activityByCase };
     for (const c of goldenPathBundle.cases) {
       const arr = nextActivity[c.id] ?? [];
@@ -229,24 +260,4 @@ export function seedCrmGoldenPath(opts: SeedOptions = {}): void {
       activityByCase: nextActivity,
     };
   });
-
-  // Trigger completeness recompute so the applicants + case rollups reflect
-  // the seeded fixture data. This mimics upsertCases without re-emitting the
-  // whole cases record (still one further setState — subscribers observe two
-  // transitions total on cases, both fully-populated).
-  casesStore.getState().upsertCases(goldenPathBundle.cases);
-
-  // Keep client back-refs for the pipeline clients too.
-  for (const c of goldenPathBundle.cases) {
-    for (const a of c.applicants) {
-      clientsStore.getState().noteClientCase(a.clientId, c.id);
-    }
-  }
-}
-
-export function clearAllCrmStateInternal(): void {
-  getCrmClientsStore().getState().resetForTests();
-  getCrmCasesStore().getState().resetForTests();
-  getCrmDocumentsStore().getState().resetForTests();
-  getCrmWorkstreamStore().getState().resetForTests();
 }

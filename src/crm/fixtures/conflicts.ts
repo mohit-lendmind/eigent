@@ -30,7 +30,7 @@ export const conflict417DanielIncomeBasic: ConflictRecord = {
       source: {
         kind: 'document',
         docId: 'd5',
-        insightLabel: 'Salary',
+        insightLabel: 'Salary income basic',
         quote: 'Annual salary: £38,500 (MPS3, Outer London weighting)',
       },
       confidence: 0.94,
@@ -39,8 +39,8 @@ export const conflict417DanielIncomeBasic: ConflictRecord = {
       value: { t: 'money', v: 3_730_000 as Pence },
       source: {
         kind: 'document',
-        docId: 'd2',
-        insightLabel: 'Annual income',
+        docId: 'd7',
+        insightLabel: 'Annualised salary income basic',
         quote: 'Gross this period: £3,108.33 · Period: 1 (annualised £37,300)',
       },
       confidence: 0.92,
