@@ -15,18 +15,18 @@ description: "Task list — mesh-m2-watcher-onboarding (M2)"
 ## Format: `[ID] [P?] [Story] Description`
 
 ## Phase 1: Setup + baseline
-- [ ] T001 Capture green baseline on lendmind-crm: `pnpm type-check && pnpm lint && pnpm check:i18n && pnpm check:vitest-baseline` — record for SC-006
-- [ ] T002 [P] Create `src/crm/agents/` and `src/crm/ui/` trees + `resources/lm-skills/{lm-onboarding,lm-watcher}/` folders (empty, license-header ready)
+- [x] T001 Capture green baseline on lendmind-crm: `pnpm type-check && pnpm lint && pnpm check:i18n && pnpm check:vitest-baseline` — record for SC-006
+- [x] T002 [P] Create `src/crm/agents/` and `src/crm/ui/` trees + `resources/lm-skills/{lm-onboarding,lm-watcher}/` folders (empty, license-header ready)
 
 ## Phase 2: Invocation plumbing (P1 — blocks all stories)
-- [ ] T003 Additive `FirmConfig` fields (`fxUsdPerGbpMicro?`, `fxEffectiveDate?`, `coordinatorProjectId?`) + defaults in agentContracts/firmConfig (additive optional; M1 frozen fields untouched); barrel export (FR-004)
-- [ ] T004 Author `src/crm/agents/dispatch.ts` per contracts/dispatch.d.ts — publish envelope as application/json artifact (non-`aion-` name), submit referencing it, map command_id↔directiveIdentity; fire-and-forget (FR-001/002)
-- [ ] T005 Author `src/crm/agents/caseProject.ts` — ensureCaseProject (writes aionProjectId via M1 outbox case-upsert), firmCoordinatorProject (FR-003)
-- [ ] T006 Author `src/crm/agents/budget.ts` — static FX convert (bigint), stamp rate+effectiveDate per SpendRecord, breaker 12/case/hr, realistic pass default (FR-004)
-- [ ] T007 Author `src/crm/agents/firmIndex.ts` per contracts/firmIndex.d.ts — publishCasePointer (per-case artifact), readFirmIndex (latest-per-caseId) (FR-010, T3)
-- [ ] T008 Author `src/crm/agents/skillDeploy.ts` + `resources/lm-skills/lm-onboarding/SKILL.md` + `lm-watcher/SKILL.md` — deploy via putAionSkill (PascalCase doc) (FR-005)
-- [ ] T009 **Proof gate:** `test/unit/crm/edgeReadsIndex.test.ts` — prove an edge run can fetch the firm index artifact + read a case log head (readAionArtifact is desktop-only, so the skill fetches via its own tool); if unprovable, record in blocked.md and stop P2 watcher (FR-006, engineer ship-blocker)
-- [ ] T010 [P] Tests: `dispatch.test.ts` (round-trip: envelope→artifact→command→folded lm/case entry), `budget.test.ts` (FX bigint + stamp + breaker), `firmIndex.test.ts` (concurrent pointers don't lose a case)
+- [x] T003 Additive `FirmConfig` fields (`fxUsdPerGbpMicro?`, `fxEffectiveDate?`, `coordinatorProjectId?`) + defaults in agentContracts/firmConfig (additive optional; M1 frozen fields untouched); barrel export (FR-004)
+- [x] T004 Author `src/crm/agents/dispatch.ts` per contracts/dispatch.d.ts — publish envelope as application/json artifact (non-`aion-` name), submit referencing it, map command_id↔directiveIdentity; fire-and-forget (FR-001/002)
+- [x] T005 Author `src/crm/agents/caseProject.ts` — ensureCaseProject (writes aionProjectId via M1 outbox case-upsert), firmCoordinatorProject (FR-003)
+- [x] T006 Author `src/crm/agents/budget.ts` — static FX convert (bigint), stamp rate+effectiveDate per SpendRecord, breaker 12/case/hr, realistic pass default (FR-004)
+- [x] T007 Author `src/crm/agents/firmIndex.ts` per contracts/firmIndex.d.ts — publishCasePointer (per-case artifact), readFirmIndex (latest-per-caseId) (FR-010, T3)
+- [x] T008 Author `src/crm/agents/skillDeploy.ts` + `resources/lm-skills/lm-onboarding/SKILL.md` + `lm-watcher/SKILL.md` — deploy via putAionSkill (PascalCase doc) (FR-005)
+- [x] T009 **Proof gate:** `test/unit/crm/edgeReadsIndex.test.ts` — prove an edge run can fetch the firm index artifact + read a case log head (readAionArtifact is desktop-only, so the skill fetches via its own tool); if unprovable, record in blocked.md and stop P2 watcher (FR-006, engineer ship-blocker) — **PASSED, watcher not descoped**
+- [x] T010 [P] Tests: `dispatch.test.ts` (round-trip: envelope→artifact→command→folded lm/case entry), `budget.test.ts` (FX bigint + stamp + breaker), `firmIndex.test.ts` (concurrent pointers don't lose a case)
 
 ## Phase 3: US1 — onboarding + G1 (P1 story)
 - [ ] T011 [US1] Author `src/crm/agents/onboarding.ts` + the lm-onboarding skill body — build checklist per case type, draft welcome+doc-request with disclosure refs from firm config, write lm/case entries + lm.onboarding.request artifact (FR-007/009)

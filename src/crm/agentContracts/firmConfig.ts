@@ -36,7 +36,23 @@ export interface FirmConfig extends Record<string, unknown> {
   quietHours: { start: string; end: string; timezone: string } | null;
   breaker: { maxInvocationsPerCaseHour: number };
   budgets: { watcherPassMicroGbp: number; caseMicroGbp: number };
+  // M2 additive (all optional — a config predating M2 keeps decoding). The FX
+  // rate is a static firm-config number, not a live feed: watcher spend is
+  // reported in USD by the edge and converted to GBP against THIS rate, stamped
+  // with its effective date on every SpendRecord so a later rate change never
+  // silently rewrites past spend.
+  fxUsdPerGbpMicro?: number;
+  fxEffectiveDate?: string;
+  // The firm's watcher coordinator Project, once minted. Absent until the first
+  // watcher wiring; firmCoordinatorProject creates and records it.
+  coordinatorProjectId?: string;
 }
+
+// USD-per-GBP in micro units (1 GBP = 1.27 USD → 1_270_000). Static default;
+// a firm overrides it in lm/config.json. Never zero — a zero rate would make
+// every GBP conversion divide by zero.
+export const FX_USD_PER_GBP_MICRO_DEFAULT = 1_270_000;
+export const FX_EFFECTIVE_DATE_DEFAULT = '2026-01-01';
 
 export const FIRM_CONFIG_DEFAULTS: Readonly<Partial<FirmConfig>> = {
   adapters: { sourcing: 'mse' },
@@ -48,6 +64,8 @@ export const FIRM_CONFIG_DEFAULTS: Readonly<Partial<FirmConfig>> = {
   quietHours: null,
   breaker: { maxInvocationsPerCaseHour: 12 },
   budgets: { watcherPassMicroGbp: 20_000, caseMicroGbp: 15_000_000 },
+  fxUsdPerGbpMicro: FX_USD_PER_GBP_MICRO_DEFAULT,
+  fxEffectiveDate: FX_EFFECTIVE_DATE_DEFAULT,
 };
 
 function stringArray(value: unknown): string[] {
@@ -137,5 +155,20 @@ export function decodeFirmConfig(value: unknown): FirmConfig {
       watcherPassMicroGbp: numberOr(budgetsRaw.watcherPassMicroGbp, 20_000),
       caseMicroGbp: numberOr(budgetsRaw.caseMicroGbp, 15_000_000),
     },
+    // A non-positive rate is treated as absent: it would divide GBP by zero.
+    fxUsdPerGbpMicro:
+      typeof object.fxUsdPerGbpMicro === 'number' &&
+      Number.isFinite(object.fxUsdPerGbpMicro) &&
+      object.fxUsdPerGbpMicro > 0
+        ? object.fxUsdPerGbpMicro
+        : FX_USD_PER_GBP_MICRO_DEFAULT,
+    fxEffectiveDate:
+      typeof object.fxEffectiveDate === 'string'
+        ? object.fxEffectiveDate
+        : FX_EFFECTIVE_DATE_DEFAULT,
+    coordinatorProjectId:
+      typeof object.coordinatorProjectId === 'string'
+        ? object.coordinatorProjectId
+        : undefined,
   } as FirmConfig;
 }
