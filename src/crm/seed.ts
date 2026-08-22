@@ -27,7 +27,9 @@ import {
   type FieldChangeEvent,
   type StreamEntry,
 } from './domain/types';
+import { c417Log } from './fixtures/caselog/c417Log';
 import { goldenPathBundle } from './fixtures/goldenPath';
+import { foldEntries } from './fold/caseLogFold';
 import { getCrmWorkstreamStore } from './workstreamStore';
 
 function anyStoreNonEmpty(): boolean {
@@ -61,9 +63,17 @@ function isDevGate(): boolean {
 export interface SeedOptions {
   force?: boolean;
   ignoreDevGate?: boolean;
+  // Route case c417 through the artifact-canonical fold after the upsert seed,
+  // so its audit spine (watermark, chain head, freshness=live) is populated
+  // from the golden log rather than left empty. The fold is deterministic and
+  // converges on the same c417 projection the upsert path produced — the seed
+  // and the fold agree, which is the cross-check this option exists to enable.
+  // Async because the fold hashes via WebCrypto; the plain (non-fold) path
+  // stays fully synchronous and completes before the returned promise settles.
+  throughFold?: boolean;
 }
 
-export function seedCrmGoldenPath(opts: SeedOptions = {}): void {
+export async function seedCrmGoldenPath(opts: SeedOptions = {}): Promise<void> {
   if (!opts.ignoreDevGate && !isDevGate()) return;
   if (!opts.force && anyStoreNonEmpty()) return;
 
@@ -260,4 +270,8 @@ export function seedCrmGoldenPath(opts: SeedOptions = {}): void {
       activityByCase: nextActivity,
     };
   });
+
+  if (opts.throughFold) {
+    await foldEntries('c417', await c417Log());
+  }
 }
