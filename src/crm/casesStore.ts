@@ -16,9 +16,11 @@ import { getAuthEnvironmentKey } from '@/lib/authEnvironment';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
-  getDocumentsBus,
+  dispatchDocuments,
+  dispatchWorkstream,
   getWorkstreamBus,
   registerCasesReadBus,
+  signalStoreHydrated,
 } from './_bus';
 import { getCrmClientsStore } from './clientsStore';
 import {
@@ -35,7 +37,6 @@ import type {
   ComplianceRecord,
   ConflictId,
   ConflictRecord,
-  ConflictValue,
   CriterionCheck,
   FactFindField,
   FactFindSection,
@@ -166,10 +167,12 @@ function isFieldValueNonEmpty(v: FieldValue): boolean {
       return Number.isFinite(v.v);
     case 'toggle':
       return typeof v.v === 'boolean';
+    case 'missing':
+      return false;
   }
 }
 
-function categoryForApplicant(
+export function categoryForApplicant(
   applicant: Applicant
 ): 'employed' | 'self-employed' {
   const emp = applicant.profile.employment;
@@ -187,7 +190,9 @@ function categoryForApplicant(
   return 'employed';
 }
 
-function recomputeApplicantCompleteness(applicant: Applicant): Applicant {
+export function recomputeApplicantCompleteness(
+  applicant: Applicant
+): Applicant {
   const category = categoryForApplicant(applicant);
   const nextProfile: Applicant['profile'] = {};
   for (const [sec, value] of Object.entries(applicant.profile) as Array<
@@ -269,12 +274,11 @@ function upsertApplicantInCase(
 
 // Dispatch to downstream stores via the synchronous side-bus (registered by
 // workstream/documents at import time). One-directional per FR-014.
+// Missing wiring is loud (dev throws, prod logs + queues) — never silent.
 function emitFieldChangeEvent(
   event: Omit<FieldChangeEvent, 'id' | 'schemaVersion'>
 ): void {
-  const bus = getWorkstreamBus();
-  if (!bus) return;
-  bus.appendFieldChangeEvent(event);
+  dispatchWorkstream((bus) => bus.appendFieldChangeEvent(event));
 }
 
 function noteCaseActivity(
@@ -284,18 +288,18 @@ function noteCaseActivity(
   detail?: string,
   actor?: string
 ): void {
-  const bus = getWorkstreamBus();
-  if (!bus) return;
-  bus.noteActivity(caseId, {
-    id: newCrmId('activity'),
-    caseId,
-    kind,
-    title,
-    detail,
-    when: Date.now(),
-    actor,
-    schemaVersion: CRM_SCHEMA_VERSION,
-  });
+  dispatchWorkstream((bus) =>
+    bus.noteActivity(caseId, {
+      id: newCrmId('activity'),
+      caseId,
+      kind,
+      title,
+      detail,
+      when: Date.now(),
+      actor,
+      schemaVersion: CRM_SCHEMA_VERSION,
+    })
+  );
 }
 
 export const useCrmCasesStore = create<CrmCasesState>()(
@@ -303,30 +307,54 @@ export const useCrmCasesStore = create<CrmCasesState>()(
     (set, get) => ({
       ...emptyState(),
 
-      upsertCases: (cases) =>
-        set((state) => {
-          if (cases.length === 0) return state;
-          const next = { ...state.casesById };
-          for (const c of cases) {
-            next[c.id] = {
-              ...c,
-              schemaVersion: CRM_SCHEMA_VERSION,
-              applicants: c.applicants.map(recomputeApplicantCompleteness),
-              completeness: computeCaseCompleteness(
-                c.applicants.map(recomputeApplicantCompleteness)
-              ),
-            };
+      upsertCases: (cases) => {
+        if (cases.length === 0) return;
+        // Compute new cases + back-refs FIRST, then commit both stores in
+        // exactly one setState each. Only the cases being upserted are
+        // walked — O(upserted) not O(all-cases).
+        const backRefsByClient = new Map<ClientId, Set<CaseId>>();
+        const stampedById: Record<CaseId, Case> = {};
+        for (const c of cases) {
+          const applicants = c.applicants.map(recomputeApplicantCompleteness);
+          stampedById[c.id] = {
+            ...c,
+            schemaVersion: CRM_SCHEMA_VERSION,
+            applicants,
+            completeness: computeCaseCompleteness(applicants),
+          };
+          for (const a of applicants) {
+            const bucket = backRefsByClient.get(a.clientId) ?? new Set();
+            bucket.add(c.id);
+            backRefsByClient.set(a.clientId, bucket);
           }
-          // Cross-store note: keep client back-refs in sync (read+write on
-          // clientsStore is legal from cases → clients, FR-014).
-          const clientsStore = getCrmClientsStore();
-          for (const c of Object.values(next)) {
-            for (const a of c.applicants) {
-              clientsStore.getState().noteClientCase(a.clientId, c.id);
+        }
+        set((state) => ({
+          casesById: { ...state.casesById, ...stampedById },
+        }));
+        // Batch client back-refs into ONE setState (cases → clients, FR-014).
+        const clientsStore = getCrmClientsStore();
+        clientsStore.setState((state) => {
+          const next = { ...state.clientsById };
+          let mutated = false;
+          for (const [clientId, caseIds] of backRefsByClient) {
+            const client = next[clientId];
+            if (!client) continue;
+            const existing = new Set(client.cases);
+            let added = false;
+            for (const cid of caseIds) {
+              if (!existing.has(cid)) {
+                existing.add(cid);
+                added = true;
+              }
+            }
+            if (added) {
+              next[clientId] = { ...client, cases: [...existing] };
+              mutated = true;
             }
           }
-          return { casesById: next };
-        }),
+          return mutated ? { clientsById: next } : state;
+        });
+      },
 
       upsertConflictRecords: (records) =>
         set((state) => {
@@ -525,18 +553,18 @@ export const useCrmCasesStore = create<CrmCasesState>()(
       },
 
       resolveConflict: (conflictId, opts) => {
+        // ---- Precompute EVERYTHING before any commit (spec: atomic). ----
         const s = get();
         const record = s.conflictsById[conflictId];
         if (!record) return;
-        if (record.resolvedAt) return; // idempotent
 
-        const nowTs = Date.now();
         const chosenValue = opts.chosenValue;
         if (chosenValue.t === 'money' && typeof chosenValue.v !== 'number') {
           throw new Error(
             '[casesStore] resolveConflict money must be Pence (number).'
           );
         }
+
         const priorField = findConflictField(
           s.casesById[record.caseId],
           record.clientId,
@@ -546,126 +574,172 @@ export const useCrmCasesStore = create<CrmCasesState>()(
         const priorValue: FieldValue | null = priorField?.value ?? null;
         const priorSrc: Src | null = priorField?.src ?? null;
 
-        set((state) => {
-          const existing = state.casesById[record.caseId];
-          if (!existing) return state;
-          const updatedCase = upsertApplicantInCase(
-            existing,
-            record.clientId,
-            (a) =>
-              applyFieldUpdate(a, record.section, record.fieldKey, (p) => ({
-                k: record.fieldKey,
-                label: p?.label ?? record.fieldKey,
-                value: chosenValue,
-                src: 'det',
-                hint: p?.hint,
-                flag: undefined,
-                conflictId: undefined,
-                mono: p?.mono,
-                confirmedAt: nowTs,
-                confirmedBy: opts.resolvedBy,
-                origin: p?.origin,
-              }))
+        // Resumability: instead of an early-return on record.resolvedAt, derive
+        // remaining side-effects from observable state so a retry finishes an
+        // incomplete run rather than no-oping.
+        const wsBus = getWorkstreamBus();
+        const linkedWl = wsBus
+          ? wsBus.findWorklistItemByConflict(record.id)
+          : null;
+
+        const currentField = priorField;
+        const fieldStillConflicted =
+          currentField?.conflictId === record.id ||
+          !fieldValuesEqual(
+            currentField?.value ?? { t: 'missing' },
+            chosenValue
           );
-          const nextConflict: ConflictRecord = {
-            ...record,
-            resolvedAt: nowTs,
-            resolvedBy: opts.resolvedBy,
-            resolution: {
-              chosenValue,
-              method: opts.method,
-              reasoning: opts.reasoning,
-            },
-          };
-          return {
-            casesById: {
-              ...state.casesById,
-              [record.caseId]: updatedCase,
-            },
-            conflictsById: {
-              ...state.conflictsById,
-              [record.id]: nextConflict,
-            },
-          };
-        });
 
-        // Emit the audit event (single event per resolution).
-        emitFieldChangeEvent({
-          caseId: record.caseId,
-          clientId: record.clientId,
-          section: record.section,
-          fieldKey: record.fieldKey,
-          priorValue,
-          newValue: chosenValue,
-          priorSrc,
-          newSrc: 'det',
-          changedAt: nowTs,
-          changedBy: opts.resolvedBy,
-          reason: 'conflict-resolution',
-          conflictId: record.id,
-        });
+        // Doc-sourced insights that may still be marked conflict:true.
+        const docSources = record.values.filter(
+          (v) => v.source.kind === 'document' && v.source.docId
+        );
 
-        // Documents store: flip the linked insight from conflict:true → false.
-        const documentsBus = getDocumentsBus();
-        const insightDocId = findConflictSourceDocId(record.values);
-        if (documentsBus && insightDocId) {
-          documentsBus.flipInsightConflict(
-            insightDocId,
-            record.section,
-            record.fieldKey,
-            false
+        // Compute stream-entry presence by probing the workstream store via
+        // the bus (no static import of workstreamStore — preserves FR-014).
+        const streamAlreadyPushed = wsBus
+          ? wsBus.hasStreamEntryForConflict(
+              record.caseId,
+              'Conflict resolved',
+              linkedWl?.id
+            )
+          : false;
+
+        const eventAlreadyEmitted = wsBus
+          ? wsBus.hasFieldChangeEventForConflict(record.id)
+          : false;
+
+        const notChosen = record.values.filter(
+          (v) => !fieldValuesEqual(v.value, chosenValue)
+        );
+        const nowTs = Date.now();
+        const stampedResolvedAt = record.resolvedAt ?? nowTs;
+        const stampedResolvedBy = record.resolvedBy ?? opts.resolvedBy;
+
+        // ---- Commit the cases + conflicts mutation in one setState. ----
+        if (fieldStillConflicted || !record.resolvedAt) {
+          set((state) => {
+            const existing = state.casesById[record.caseId];
+            if (!existing) return state;
+            const updatedCase = fieldStillConflicted
+              ? upsertApplicantInCase(existing, record.clientId, (a) =>
+                  applyFieldUpdate(a, record.section, record.fieldKey, (p) => ({
+                    k: record.fieldKey,
+                    label: p?.label ?? record.fieldKey,
+                    value: chosenValue,
+                    src: 'det',
+                    hint: p?.hint,
+                    flag: undefined,
+                    conflictId: undefined,
+                    mono: p?.mono,
+                    confirmedAt: stampedResolvedAt,
+                    confirmedBy: stampedResolvedBy,
+                    origin: p?.origin,
+                  }))
+                )
+              : existing;
+            const nextConflict: ConflictRecord = {
+              ...record,
+              resolvedAt: stampedResolvedAt,
+              resolvedBy: stampedResolvedBy,
+              resolution: {
+                chosenValue,
+                method: opts.method,
+                reasoning: opts.reasoning ?? record.resolution?.reasoning,
+              },
+            };
+            return {
+              casesById: {
+                ...state.casesById,
+                [record.caseId]: updatedCase,
+              },
+              conflictsById: {
+                ...state.conflictsById,
+                [record.id]: nextConflict,
+              },
+            };
+          });
+        }
+
+        // ---- Downstream dispatches (each guarded by observable-state check). ----
+        if (!eventAlreadyEmitted) {
+          emitFieldChangeEvent({
+            caseId: record.caseId,
+            clientId: record.clientId,
+            section: record.section,
+            fieldKey: record.fieldKey,
+            priorValue,
+            newValue: chosenValue,
+            priorSrc,
+            newSrc: 'det',
+            changedAt: stampedResolvedAt,
+            changedBy: stampedResolvedBy,
+            reason: 'conflict-resolution',
+            conflictId: record.id,
+          });
+        }
+
+        // Flip EVERY doc-sourced insight (both sides of the disagreement) from
+        // conflict:true → false, matching by the exact insightLabel carried on
+        // the ConflictRecord value (not by label substring).
+        for (const v of docSources) {
+          if (!v.source.docId) continue;
+          const label = v.source.insightLabel;
+          if (!label) continue;
+          dispatchDocuments((bus) =>
+            bus.flipInsightConflict(v.source.docId!, label, false)
           );
         }
 
         // Workstream: resolve the linked worklist item + push a done-kind
         // stream entry with the full reasoning trace.
-        const wsBus = getWorkstreamBus();
-        if (wsBus) {
-          const linked = wsBus.findWorklistItemByConflict(record.id);
-          if (linked && linked.status === 'open') {
-            wsBus.resolveWorklistItem(linked.id, {
+        if (linkedWl && linkedWl.status === 'open') {
+          dispatchWorkstream((bus) =>
+            bus.resolveWorklistItem(linkedWl.id, {
               resolution: {
                 method: opts.method,
                 reasoning: opts.reasoning,
                 chosenValue,
               },
-              resolvedBy: opts.resolvedBy,
-            });
-          }
-          const notChosen = record.values.filter(
-            (v) => !fieldValuesEqual(v.value, chosenValue)
+              resolvedBy: stampedResolvedBy,
+            })
           );
-          wsBus.pushStreamEntry(record.caseId, {
-            caseId: record.caseId,
-            kind: 'done',
-            iconTone: 'status-success',
-            when: nowTs,
-            timestamp: nowTs,
-            title: 'Conflict resolved',
-            body: opts.reasoning,
-            linkedWorklistId: linked?.id,
-            trace: {
-              claim: `Field ${record.section}.${record.fieldKey} set from resolved conflict`,
-              subject: record.fieldKey,
-              working: record.values.map(
-                (v, i) =>
-                  `${i + 1}. Considered ${describeFieldValue(v.value)} from ${v.source.kind}`
-              ),
-              evidence: record.values.map((v) => ({
-                kind: 'document' as const,
-                label: v.source.insightLabel ?? 'Source',
-                source: v.source.docId,
-                quote: v.source.quote,
-              })),
-              alternatives: notChosen.map((n) => ({
-                option: describeFieldValue(n.value),
-                reason: `Not chosen: ${n.source.insightLabel ?? n.source.kind}`,
-                rejected: true,
-              })),
-              confidence: 1,
-              calibration: opts.reasoning,
-            },
-          });
+        }
+
+        if (!streamAlreadyPushed) {
+          dispatchWorkstream((bus) =>
+            bus.pushStreamEntry(record.caseId, {
+              caseId: record.caseId,
+              kind: 'done',
+              iconTone: 'status-success',
+              when: stampedResolvedAt,
+              timestamp: stampedResolvedAt,
+              title: 'Conflict resolved',
+              body: opts.reasoning,
+              linkedWorklistId: linkedWl?.id,
+              trace: {
+                claim: `Field ${record.section}.${record.fieldKey} set from resolved conflict`,
+                subject: record.fieldKey,
+                working: record.values.map(
+                  (v, i) =>
+                    `${i + 1}. Considered ${describeFieldValue(v.value)} from ${v.source.kind}`
+                ),
+                evidence: record.values.map((v) => ({
+                  kind: 'document' as const,
+                  label: v.source.insightLabel ?? 'Source',
+                  source: v.source.docId,
+                  quote: v.source.quote,
+                })),
+                alternatives: notChosen.map((n) => ({
+                  option: describeFieldValue(n.value),
+                  reason: `Not chosen: ${n.source.insightLabel ?? n.source.kind}`,
+                  rejected: true,
+                })),
+                confidence: 1,
+                calibration: opts.reasoning,
+              },
+            })
+          );
         }
       },
 
@@ -698,9 +772,11 @@ export const useCrmCasesStore = create<CrmCasesState>()(
         productsByCase: state.productsByCase,
         complianceByCase: state.complianceByCase,
       }),
+      onRehydrateStorage: () => () => signalStoreHydrated('cases'),
     }
   )
 );
+signalStoreHydrated('cases');
 
 export function getCrmCasesStore(): typeof useCrmCasesStore {
   return useCrmCasesStore;
@@ -766,6 +842,26 @@ function shapeRepairConflicts(
       );
       continue;
     }
+    // Validate the value.source shape on every entry — a garbled source means
+    // downstream (documents flip, stream evidence) will silently target the
+    // wrong artefact.
+    const validValues = r.values.every(
+      (v) =>
+        v &&
+        typeof v === 'object' &&
+        v.value &&
+        typeof v.value === 'object' &&
+        typeof (v.value as { t?: unknown }).t === 'string' &&
+        v.source &&
+        typeof v.source === 'object' &&
+        typeof (v.source as { kind?: unknown }).kind === 'string'
+    );
+    if (!validValues) {
+      console.warn(
+        `[casesStore] Dropping conflict with invalid value.source shape at id=${id}.`
+      );
+      continue;
+    }
     out[id] = { ...r, schemaVersion: CRM_SCHEMA_VERSION };
   }
   return out;
@@ -782,13 +878,6 @@ function findConflictField(
   return a ? findFactFindField(a, section, fieldKey) : undefined;
 }
 
-function findConflictSourceDocId(values: ConflictValue[]): string | undefined {
-  for (const v of values) {
-    if (v.source.kind === 'document' && v.source.docId) return v.source.docId;
-  }
-  return undefined;
-}
-
 function describeFieldValue(v: FieldValue): string {
   switch (v.t) {
     case 'money':
@@ -801,10 +890,13 @@ function describeFieldValue(v: FieldValue): string {
       return String(v.v);
     case 'toggle':
       return v.v ? 'yes' : 'no';
+    case 'missing':
+      return '—';
   }
 }
 
 function fieldValuesEqual(a: FieldValue, b: FieldValue): boolean {
   if (a.t !== b.t) return false;
-  return a.v === b.v;
+  if (a.t === 'missing') return true;
+  return (a as { v: unknown }).v === (b as { v: unknown }).v;
 }

@@ -101,10 +101,16 @@ const environmentMatches = (
   state: Partial<CrmWorkstreamState> | undefined
 ): boolean => state?.storageEnvironmentKey === getAuthEnvironmentKey();
 
+function isTruncationMarker(entry: StreamEntry): boolean {
+  return typeof entry.truncatedCount === 'number' && entry.truncatedCount > 0;
+}
+
 function isEvictableStreamEntry(
   entry: StreamEntry,
   worklist: Record<WorklistId, WorklistItem>
 ): boolean {
+  // Markers must NEVER be evicted (they exist to prove eviction happened).
+  if (isTruncationMarker(entry)) return false;
   // Unresolved conflict/approval entries are NEVER evicted (spec FR-030).
   if (entry.kind === 'conflict' || entry.kind === 'approval') {
     const linked = entry.linkedWorklistId
@@ -130,36 +136,78 @@ function isEvictableStreamEntry(
 function enforceStreamCap(
   entries: StreamEntry[],
   worklist: Record<WorklistId, WorklistItem>
-): { next: StreamEntry[]; marker?: StreamEntry } {
+): { next: StreamEntry[] } {
   if (entries.length <= STREAM_ENTRIES_PER_CASE_CAP) return { next: entries };
-  const eligibleIdx = entries
-    .map((e, i) => ({ e, i }))
-    .filter(({ e }) => isEvictableStreamEntry(e, worklist));
-  if (eligibleIdx.length === 0) {
-    return { next: entries };
+  const overflow = entries.length - STREAM_ENTRIES_PER_CASE_CAP;
+  const next = [...entries];
+  // Find an existing marker to coalesce into (avoid creating many markers).
+  let markerIndex = next.findIndex(isTruncationMarker);
+  let evicted = 0;
+  let firstEvictedWhen: number | undefined;
+  for (let step = 0; step < overflow; step += 1) {
+    let oldestIdx = -1;
+    let oldestWhen = Infinity;
+    for (let i = 0; i < next.length; i += 1) {
+      const e = next[i];
+      if (!isEvictableStreamEntry(e, worklist)) continue;
+      if (e.when < oldestWhen) {
+        oldestWhen = e.when;
+        oldestIdx = i;
+      }
+    }
+    if (oldestIdx < 0) break; // no more evictable entries → persist over-cap.
+    const dropped = next[oldestIdx];
+    if (firstEvictedWhen === undefined || dropped.when < firstEvictedWhen) {
+      firstEvictedWhen = dropped.when;
+    }
+    next.splice(oldestIdx, 1);
+    if (markerIndex > oldestIdx) markerIndex -= 1;
+    evicted += 1;
   }
-  eligibleIdx.sort((a, b) => a.e.when - b.e.when);
-  const dropIndex = eligibleIdx[0].i;
-  const dropped = entries[dropIndex];
-  const marker: StreamEntry = {
-    id: newCrmId('stream_trunc'),
-    caseId: dropped.caseId,
-    kind: 'done',
-    iconTone: 'muted',
-    when: dropped.when,
-    timestamp: dropped.when,
-    title: 'Older activity truncated',
-    body: '1 older entry evicted at cap.',
-    truncatedBefore: dropped.when,
-    truncatedCount: 1,
-    schemaVersion: CRM_SCHEMA_VERSION,
-  };
-  const next = [
-    ...entries.slice(0, dropIndex),
-    marker,
-    ...entries.slice(dropIndex + 1),
-  ];
-  return { next, marker };
+  if (evicted === 0) return { next: entries };
+  if (markerIndex >= 0) {
+    const existing = next[markerIndex];
+    const nextCount = (existing.truncatedCount ?? 0) + evicted;
+    const nextBefore =
+      firstEvictedWhen !== undefined &&
+      firstEvictedWhen > (existing.truncatedBefore ?? 0)
+        ? firstEvictedWhen
+        : (existing.truncatedBefore ?? firstEvictedWhen);
+    next[markerIndex] = {
+      ...existing,
+      truncatedCount: nextCount,
+      truncatedBefore: nextBefore,
+      body: `${nextCount} older entries evicted at cap.`,
+    };
+  } else {
+    const marker: StreamEntry = {
+      id: newCrmId('stream_trunc'),
+      caseId: next[0]?.caseId ?? entries[0].caseId,
+      kind: 'done',
+      iconTone: 'muted',
+      when: firstEvictedWhen ?? 0,
+      timestamp: firstEvictedWhen ?? 0,
+      title: 'Older activity truncated',
+      body: `${evicted} older entries evicted at cap.`,
+      truncatedBefore: firstEvictedWhen,
+      truncatedCount: evicted,
+      schemaVersion: CRM_SCHEMA_VERSION,
+    };
+    next.unshift(marker);
+  }
+  return { next };
+}
+
+// Cap the persisted stream using the same evictability predicate as the push
+// path. If nothing is evictable, persist over-cap rather than silently drop
+// protected entries (FR-030: never-evict is a hard invariant).
+function capStreamForPersist(
+  arr: StreamEntry[],
+  worklist: Record<WorklistId, WorklistItem>
+): StreamEntry[] {
+  if (arr.length <= STREAM_ENTRIES_PER_CASE_CAP) return arr;
+  const { next } = enforceStreamCap(arr, worklist);
+  return next;
 }
 
 export const useCrmWorkstreamStore = create<CrmWorkstreamState>()(
@@ -338,19 +386,19 @@ export const useCrmWorkstreamStore = create<CrmWorkstreamState>()(
             },
           };
         }
-        // Prune persisted stream entries to the cap.
+        // Prune persisted stream entries to the cap, respecting never-evict
+        // rules — unresolved conflict/approval + markers cannot be dropped.
         const streamByCase = state.streamByCase ?? {};
         const cappedStream: Record<CaseId, StreamEntry[]> = {};
+        const worklist = state.worklistItems ?? {};
         for (const [cid, arr] of Object.entries(streamByCase)) {
           if (!Array.isArray(arr)) continue;
-          cappedStream[cid] = arr.slice(
-            Math.max(0, arr.length - STREAM_ENTRIES_PER_CASE_CAP)
-          );
+          cappedStream[cid] = capStreamForPersist(arr, worklist);
         }
         return {
           ...state,
           storageEnvironmentKey: getAuthEnvironmentKey(),
-          worklistItems: state.worklistItems ?? {},
+          worklistItems: worklist,
           streamByCase: cappedStream,
           activityByCase: state.activityByCase ?? {},
           retentionEntries: Array.isArray(state.retentionEntries)
@@ -363,12 +411,11 @@ export const useCrmWorkstreamStore = create<CrmWorkstreamState>()(
         } as CrmWorkstreamState;
       },
       partialize: (state) => {
-        // Cap persisted stream size again on write.
+        // Cap persisted stream size again on write, using the same never-evict
+        // predicate as the push path.
         const stream: Record<CaseId, StreamEntry[]> = {};
         for (const [cid, arr] of Object.entries(state.streamByCase)) {
-          stream[cid] = arr.slice(
-            Math.max(0, arr.length - STREAM_ENTRIES_PER_CASE_CAP)
-          );
+          stream[cid] = capStreamForPersist(arr, state.worklistItems);
         }
         return {
           storageEnvironmentKey: state.storageEnvironmentKey,
@@ -377,7 +424,7 @@ export const useCrmWorkstreamStore = create<CrmWorkstreamState>()(
           activityByCase: state.activityByCase,
           retentionEntries: state.retentionEntries,
           fieldChangeEvents: state.fieldChangeEvents,
-          lastRepairReport: state.lastRepairReport,
+          // lastRepairReport is diagnostic, not durable — kept out of persist.
         };
       },
     }
@@ -413,6 +460,22 @@ registerWorkstreamBus({
       }
     }
     return null;
+  },
+  hasFieldChangeEventForConflict: (conflictId) => {
+    return useCrmWorkstreamStore
+      .getState()
+      .fieldChangeEvents.some(
+        (e) => e.conflictId === conflictId && e.reason === 'conflict-resolution'
+      );
+  },
+  hasStreamEntryForConflict: (caseId, title, linkedWorklistId) => {
+    const arr = useCrmWorkstreamStore.getState().streamByCase[caseId] ?? [];
+    return arr.some(
+      (e) =>
+        e.kind === 'done' &&
+        e.title === title &&
+        e.linkedWorklistId === linkedWorklistId
+    );
   },
 });
 

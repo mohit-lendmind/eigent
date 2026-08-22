@@ -44,13 +44,18 @@ export interface Origin {
 
 // FR-004: fact-find field value is a discriminated union keyed by `t`.
 // Money is its own variant; display strings never round-trip through storage.
+// `missing` is the explicit "known-absent" variant — det/syn epistemology says
+// a field can be known-empty (missing) distinct from present-with-value.
+// JSON round-tripping NaN silently coerces to null, so numeric absence must be
+// modelled by a variant, not a sentinel value.
 export type FieldValue =
   | { t: 'text'; v: string }
   | { t: 'select'; v: string; options?: readonly string[] }
   | { t: 'date'; v: string }
   | { t: 'number'; v: number }
   | { t: 'money'; v: Pence }
-  | { t: 'toggle'; v: boolean };
+  | { t: 'toggle'; v: boolean }
+  | { t: 'missing' };
 
 export type Src = 'det' | 'syn';
 

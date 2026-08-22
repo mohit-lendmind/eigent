@@ -61,7 +61,7 @@ describe('Journey A — seed and read golden path', () => {
     expect(Object.keys(useCrmCasesStore.getState().casesById).length).toBe(8);
     expect(
       Object.keys(useCrmDocumentsStore.getState().documentsById).length
-    ).toBe(6);
+    ).toBe(7);
     expect(
       Object.keys(useCrmWorkstreamStore.getState().worklistItems).length
     ).toBe(6);
