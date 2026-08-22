@@ -29,10 +29,10 @@ description: "Task list — mesh-m2-watcher-onboarding (M2)"
 - [x] T010 [P] Tests: `dispatch.test.ts` (round-trip: envelope→artifact→command→folded lm/case entry), `budget.test.ts` (FX bigint + stamp + breaker), `firmIndex.test.ts` (concurrent pointers don't lose a case)
 
 ## Phase 3: US1 — onboarding + G1 (P1 story)
-- [ ] T011 [US1] Author `src/crm/agents/onboarding.ts` + the lm-onboarding skill body — build checklist per case type, draft welcome+doc-request with disclosure refs from firm config, write lm/case entries + lm.onboarding.request artifact (FR-007/009)
-- [ ] T012 [US1] Wire G1 gate: approval_required on the send; mirror into fold/eventLogStore for the queue (FR-008)
-- [ ] T013 [P] [US1] `test/unit/crm/onboarding.test.ts` — Journey 1: checklist built, draft has disclosure, G1 raised, approve logs manual send, fold ingests, chain verifies (SC-001)
-- [ ] T014 [P] [US1] `e2e/lm-onboarding.eval.ts` — recorded eval: draft scored for disclosure present + no unapproved product claims
+- [x] T011 [US1] Author `src/crm/agents/onboarding.ts` + the lm-onboarding skill body — build checklist per case type, draft welcome+doc-request with disclosure refs from firm config, write lm/case entries + lm.onboarding.request artifact (FR-007/009)
+- [x] T012 [US1] Wire G1 gate: approval_required on the send; mirror into fold/eventLogStore for the queue (FR-008)
+- [x] T013 [P] [US1] `test/unit/crm/onboarding.test.ts` — Journey 1: checklist built, draft has disclosure, G1 raised, approve logs manual send, fold ingests, chain verifies (SC-001)
+- [x] T014 [P] [US1] `e2e/lm-onboarding.eval.ts` — recorded eval: draft scored for disclosure present + no unapproved product claims
 
 ## Phase 4: US2 — watcher (P2 story)
 - [ ] T015 [US2] Author `src/crm/agents/watcher.ts` + lm-watcher skill body — coordinator project + `*/5` schedule (Idempotency-Key on create); entry run reads firmIndex + log heads, pre-LLM fast-path skip unchanged (FR-010/011)
