@@ -15,7 +15,7 @@
 import { getAuthEnvironmentKey } from '@/lib/authEnvironment';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { registerWorkstreamBus } from './_bus';
+import { dispatchEventLog, registerWorkstreamBus } from './_bus';
 import { newCrmId } from './domain/ids';
 import type {
   ActivityEvent,
@@ -225,12 +225,14 @@ export const useCrmWorkstreamStore = create<CrmWorkstreamState>()(
           return { worklistItems: next };
         }),
 
-      resolveWorklistItem: (id, opts) =>
+      resolveWorklistItem: (id, opts) => {
+        const nowTs = Date.now();
+        let resolvedCaseId: CaseId | null = null;
         set((state) => {
           const prev = state.worklistItems[id];
           if (!prev) return state;
           if (prev.status === 'resolved') return state; // idempotent
-          const nowTs = Date.now();
+          resolvedCaseId = prev.caseId;
           return {
             worklistItems: {
               ...state.worklistItems,
@@ -243,7 +245,40 @@ export const useCrmWorkstreamStore = create<CrmWorkstreamState>()(
               },
             },
           };
-        }),
+        });
+        // FR-018: a desktop worklist resolve queues upstream (only on an actual
+        // resolve — an idempotent no-op enqueues nothing).
+        if (resolvedCaseId) {
+          const caseId: CaseId = resolvedCaseId;
+          dispatchEventLog((bus) =>
+            bus.enqueueOutbox({
+              kind: 'lm.caselog/1',
+              caseId,
+              firmId: 'lendmind',
+              at: nowTs,
+              actor: { kind: 'adviser', id: opts.resolvedBy },
+              event: {
+                type: 'worklist-resolve',
+                payload: {
+                  id,
+                  resolution: opts.resolution,
+                  resolvedBy: opts.resolvedBy,
+                },
+              },
+              origin: {
+                artifactId: `outbox/${caseId}/worklist-resolve/${id}`,
+                runId: '',
+              },
+              versions: {
+                model: '',
+                promptSha: '',
+                skillSemver: '',
+                skillSha: '',
+              },
+            })
+          );
+        }
+      },
 
       pushStreamEntry: (caseIdArg, entry) =>
         set((state) => {

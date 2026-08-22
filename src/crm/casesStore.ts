@@ -17,6 +17,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
   dispatchDocuments,
+  dispatchEventLog,
   dispatchWorkstream,
   getWorkstreamBus,
   registerCasesReadBus,
@@ -52,6 +53,10 @@ import { CRM_SCHEMA_VERSION } from './domain/types';
 
 export const CRM_CASES_PERSIST_VERSION = 1;
 export const CRM_CASES_STORE_KEY = 'crm-cases-store';
+
+// Outbox candidates need a firmId; a case without stamped ownership falls back
+// to the house firm so a desktop edit is never dropped for want of one.
+const FALLBACK_FIRM_ID = 'lendmind';
 
 export interface CrmCasesState {
   storageEnvironmentKey: string;
@@ -438,9 +443,13 @@ export const useCrmCasesStore = create<CrmCasesState>()(
         const nowTs = Date.now();
         let priorValue: FieldValue | null = null;
         let priorSrc: Src | null = null;
+        let didWrite = false;
+        let firmId = FALLBACK_FIRM_ID;
         set((state) => {
           const existing = state.casesById[caseId];
           if (!existing) return state;
+          didWrite = true;
+          firmId = existing.ownership?.firmId ?? FALLBACK_FIRM_ID;
           const updated = upsertApplicantInCase(existing, clientId, (a) => {
             const prev = findFactFindField(a, section, fieldKey);
             if (prev) {
@@ -479,6 +488,32 @@ export const useCrmCasesStore = create<CrmCasesState>()(
           changedBy: opts.changedBy,
           reason,
         });
+        // FR-018: a desktop field edit durably queues for the canonical log.
+        if (didWrite) {
+          dispatchEventLog((bus) =>
+            bus.enqueueOutbox({
+              kind: 'lm.caselog/1',
+              caseId,
+              firmId,
+              at: nowTs,
+              actor: { kind: 'adviser', id: opts.changedBy },
+              event: {
+                type: 'field-change',
+                payload: { clientId, section, fieldKey, value: newValue, src },
+              },
+              origin: {
+                artifactId: `outbox/${caseId}/field-change/${clientId}/${section}/${fieldKey}`,
+                runId: '',
+              },
+              versions: {
+                model: '',
+                promptSha: '',
+                skillSemver: '',
+                skillSha: '',
+              },
+            })
+          );
+        }
       },
 
       confirmSynthesizedField: (caseId, clientId, section, fieldKey, opts) => {

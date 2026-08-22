@@ -99,11 +99,11 @@ description: "Task list for feature implementation — mesh-m1-contracts-audit-s
 
 **Independent Test**: edit → outbox 1 → restart survives → flush (mocked) → simulated echo folds → settled once, no state change.
 
-- [ ] T033 [US3] Extend `src/crm/_bus.ts` with `EventLogSideBus` (`enqueueOutbox`) + register/get pair; loud unwired dispatch (throw dev / console.error + queue prod per FR-020); wire registration via barrel side-effect import in `src/crm/index.ts`
-- [ ] T034 [US3] Author `src/crm/fold/outbox.ts` — `recordLocalEvent` (LWW kinds only per `OUTBOX_LWW_KINDS`; synchronous typed quota refusal + OUTBOX_QUOTA item; settleHash computed at enqueue), `flushOutbox` (serialized drain, `createAttachment` carrier, retry per problem retryable/5xx, no Idempotency-Key on this route — CAS dedupe), settle-by-hash on fold (exactly once; duplicate echo no-op; out-of-position non-LWW echo → one-time refold-from-zero backstop per T1) (FR-018/19)
-- [ ] T035 [US3] Wire outbox enqueue into the three LWW store write paths (`setFactFindField`, `setChecklistStatus`, `resolveWorklistItem`) via the bus — no static store→fold imports (verified by T025's lint + invariant tests)
-- [ ] T036 [P] [US3] Author `test/unit/crm/outboxSettle.test.ts` — Journey 3 verbatim: enqueue on edit; restart survival; env-key wipe survival (source vs derived split); flush with mocked transport; echo settles exactly once (no state change, `toBe` on second echo); quota refusal path; unwired-bus loudness (SC-004)
-- [ ] T037 [P] [US3] Author `test/unit/crm/outboxRefoldBackstop.test.ts` — non-LWW echo out of position triggers exactly one refold and converges (T1 backstop)
+- [x] T033 [US3] Extend `src/crm/_bus.ts` with `EventLogSideBus` (`enqueueOutbox`) + register/get pair; loud unwired dispatch (throw dev / console.error + queue prod per FR-020); wire registration via barrel side-effect import in `src/crm/index.ts`
+- [x] T034 [US3] Author `src/crm/fold/outbox.ts` — `recordLocalEvent` (LWW kinds only per `OUTBOX_LWW_KINDS`; synchronous typed quota refusal + OUTBOX_QUOTA item; settleHash computed at enqueue), `flushOutbox` (serialized drain, `createAttachment` carrier, retry per problem retryable/5xx, no Idempotency-Key on this route — CAS dedupe), settle-by-hash on fold (exactly once; duplicate echo no-op; out-of-position non-LWW echo → one-time refold-from-zero backstop per T1) (FR-018/19)
+- [x] T035 [US3] Wire outbox enqueue into the three LWW store write paths (`setFactFindField`, `setChecklistStatus`, `resolveWorklistItem`) via the bus — no static store→fold imports (verified by T025's lint + invariant tests)
+- [x] T036 [P] [US3] Author `test/unit/crm/outboxSettle.test.ts` — Journey 3 verbatim: enqueue on edit; restart survival; env-key wipe survival (source vs derived split); flush with mocked transport; echo settles exactly once (no state change, `toBe` on second echo); quota refusal path; unwired-bus loudness (SC-004)
+- [x] T037 [P] [US3] Author `test/unit/crm/outboxRefoldBackstop.test.ts` — non-LWW echo out of position triggers exactly one refold and converges (T1 backstop)
 
 **Checkpoint**: all three stories independently green.
 

@@ -114,4 +114,17 @@ export {
   verifyChain,
 } from './hashChain';
 
+// Importing the outbox module for its side effect wires the event-log side-bus
+// so desktop store writes can enqueue without a static store→fold import.
+export {
+  OUTBOX_LWW_KINDS,
+  OUTBOX_MAX_UNSETTLED,
+  configureOutboxCarrier,
+  flushOutbox,
+  recordLocalEvent,
+  type LocalEventCandidate,
+  type LocalEventRefusal,
+  type OutboxCarrier,
+} from './fold/outbox';
+
 export * from './agentContracts';

@@ -73,6 +73,7 @@ import {
   QUARANTINE_PREVIEW_MAX_BYTES,
   getCrmEventLogStore,
 } from './eventLogStore';
+import { settleOutboxForEntries } from './outbox';
 
 // The contracts version this build folds at. A stored version below this
 // triggers a one-time refold-from-zero per case (T4) so entries quarantined by
@@ -287,6 +288,10 @@ async function drain(
 
   // A newly-raised halt gets exactly one deduplicated worklist item.
   if (halt && haltChanged) raiseHaltItem(caseId, halt);
+
+  // Settle any outbox record whose canonical echo just folded (exactly once).
+  if (appliedEntries.length)
+    await settleOutboxForEntries(caseId, appliedEntries);
 
   return {
     caseId,

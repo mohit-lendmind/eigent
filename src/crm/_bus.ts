@@ -23,6 +23,7 @@
 // In dev/test it throws (surfaces the missing registration in tests). In prod
 // it console.errors + queues so the dispatch replays once the bus registers.
 
+import type { CaseLogEntry } from './agentContracts/caseLog';
 import type {
   ActivityEvent,
   CaseId,
@@ -74,12 +75,23 @@ export interface DocumentsSideBus {
 export type WorklistItemResolveResult =
   'resolved' | 'already-resolved' | 'unknown';
 
+// A desktop-originated case write hands the fold-layer outbox a candidate entry
+// (the entry minus its writer-assigned chain fields — the fold owns seq/hash).
+// The store never imports the fold directly (FR-018 seam); it dispatches here.
+export interface EventLogSideBus {
+  enqueueOutbox: (
+    candidate: Omit<CaseLogEntry, 'seq' | 'prevHash' | 'hash'>
+  ) => void;
+}
+
 let workstreamBus: WorkstreamSideBus | null = null;
 let documentsBus: DocumentsSideBus | null = null;
+let eventLogBus: EventLogSideBus | null = null;
 
 type QueuedCall = () => void;
 const queuedWorkstream: QueuedCall[] = [];
 const queuedDocuments: QueuedCall[] = [];
+const queuedEventLog: QueuedCall[] = [];
 
 function isDevLike(): boolean {
   try {
@@ -106,7 +118,7 @@ function isDevLike(): boolean {
 
 export function assertBusWired(
   bus: unknown,
-  name: 'workstream' | 'documents' | 'cases-read'
+  name: 'workstream' | 'documents' | 'cases-read' | 'eventlog'
 ): asserts bus {
   if (bus) return;
   const msg = `[crm/_bus] ${name} bus not wired at dispatch time`;
@@ -126,12 +138,22 @@ export function registerDocumentsBus(bus: DocumentsSideBus): void {
   for (const call of drain) call();
 }
 
+export function registerEventLogBus(bus: EventLogSideBus): void {
+  eventLogBus = bus;
+  const drain = queuedEventLog.splice(0);
+  for (const call of drain) call();
+}
+
 export function getWorkstreamBus(): WorkstreamSideBus | null {
   return workstreamBus;
 }
 
 export function getDocumentsBus(): DocumentsSideBus | null {
   return documentsBus;
+}
+
+export function getEventLogBus(): EventLogSideBus | null {
+  return eventLogBus;
 }
 
 // Dispatch helper: in prod, when a bus is not yet wired, queue the call and
@@ -166,6 +188,23 @@ export function dispatchDocuments(call: (bus: DocumentsSideBus) => void): void {
   console.error('[crm/_bus] documents dispatch queued (bus not wired yet)');
   queuedDocuments.push(() => {
     if (documentsBus) call(documentsBus);
+  });
+}
+
+// FR-020: an unwired outbox bus must be loud — never a silent no-op. A dropped
+// dispatch here is a lost adviser edit, so dev/test throws and prod queues.
+export function dispatchEventLog(call: (bus: EventLogSideBus) => void): void {
+  if (eventLogBus) {
+    call(eventLogBus);
+    return;
+  }
+  if (isDevLike()) {
+    assertBusWired(eventLogBus, 'eventlog');
+    return;
+  }
+  console.error('[crm/_bus] eventlog dispatch queued (bus not wired yet)');
+  queuedEventLog.push(() => {
+    if (eventLogBus) call(eventLogBus);
   });
 }
 
@@ -211,9 +250,11 @@ export function getCasesReadBus(): CasesReadBus | null {
 export function _resetBusesForTests(): void {
   workstreamBus = null;
   documentsBus = null;
+  eventLogBus = null;
   casesReadBus = null;
   hydrationSignal = null;
   queuedWorkstream.length = 0;
   queuedDocuments.length = 0;
+  queuedEventLog.length = 0;
   seenSignals.length = 0;
 }

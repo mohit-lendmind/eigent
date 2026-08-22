@@ -15,8 +15,13 @@
 import { getAuthEnvironmentKey } from '@/lib/authEnvironment';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { registerDocumentsBus, signalStoreHydrated } from './_bus';
+import {
+  dispatchEventLog,
+  registerDocumentsBus,
+  signalStoreHydrated,
+} from './_bus';
 import type {
+  CaseId,
   ChecklistStatus,
   ClientId,
   CrmDocument,
@@ -47,7 +52,16 @@ export interface CrmDocumentsState {
     owner: ChecklistOwner,
     itemKey: string,
     status: ChecklistStatus,
-    opts?: { note?: string; label?: string }
+    opts?: {
+      note?: string;
+      label?: string;
+      // A desktop edit made inside a case context supplies these so the flip
+      // durably queues for the canonical log (FR-018); absent them, it is a
+      // local-only checklist edit and nothing is enqueued.
+      caseId?: CaseId;
+      firmId?: string;
+      changedBy?: string;
+    }
   ) => void;
   upsertChecklistItems: (items: DocChecklistItem[]) => void;
   flipInsightConflict: (
@@ -135,11 +149,11 @@ export const useCrmDocumentsStore = create<CrmDocumentsState>()(
           };
         }),
 
-      setChecklistStatus: (owner, itemKey, status, opts) =>
+      setChecklistStatus: (owner, itemKey, status, opts) => {
+        const nowTs = Date.now();
         set((state) => {
           const prev = state.checklistByOwner[owner] ?? [];
           const idx = prev.findIndex((i) => i.itemKey === itemKey);
-          const nowTs = Date.now();
           const nextItem: DocChecklistItem =
             idx >= 0
               ? {
@@ -166,7 +180,35 @@ export const useCrmDocumentsStore = create<CrmDocumentsState>()(
               [owner]: nextArr,
             },
           };
-        }),
+        });
+        // FR-018: a checklist flip made in a case context queues upstream.
+        if (opts?.caseId) {
+          const caseId = opts.caseId;
+          dispatchEventLog((bus) =>
+            bus.enqueueOutbox({
+              kind: 'lm.caselog/1',
+              caseId,
+              firmId: opts.firmId ?? 'lendmind',
+              at: nowTs,
+              actor: { kind: 'adviser', id: opts.changedBy ?? 'adviser' },
+              event: {
+                type: 'checklist-status',
+                payload: { owner, itemKey, status, label: opts.label },
+              },
+              origin: {
+                artifactId: `outbox/${caseId}/checklist-status/${owner}/${itemKey}`,
+                runId: '',
+              },
+              versions: {
+                model: '',
+                promptSha: '',
+                skillSemver: '',
+                skillSha: '',
+              },
+            })
+          );
+        }
+      },
 
       upsertChecklistItems: (items) =>
         set((state) => {
