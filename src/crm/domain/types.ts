@@ -182,7 +182,17 @@ export interface Client {
   origin?: Origin;
 }
 
-export type DocumentStatus = 'PROCESSING' | 'COMPLETED' | 'REJECTED';
+export type DocumentStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'REJECTED';
+
+// FR-004: where in the source document a quote was found, so a det fact can
+// deep-link to the exact highlighted span in the preview (US1.4). Page is
+// 1-based; the char offsets index the born-digital text layer when present.
+export interface DocLocator {
+  page: number;
+  line?: number;
+  charStart?: number;
+  charEnd?: number;
+}
 
 export interface DocInsight {
   id: InsightId;
@@ -193,6 +203,15 @@ export interface DocInsight {
   flag?: true;
   conflict?: boolean;
   sourceQuote?: string;
+  // FR-004: the located quote span for the source quote (det facts only).
+  locator?: DocLocator;
+  // FR-004: the trust spine on an insight. Unverified defaults to `syn` — a fact
+  // is `det` ONLY when its quote deterministically substring-matches an
+  // independent born-digital text layer (classifySrc). The write path
+  // (extractionApply) always sets this explicitly; the historic `?? 'det'`
+  // convenience default is never relied on for a docintel-authored field, so an
+  // unverified/vision-only extraction can never silently enter as `det`.
+  src?: Src;
   origin?: Origin;
 }
 

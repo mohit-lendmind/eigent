@@ -5,15 +5,15 @@ description: "Tasks — mesh-m3-docintel (M3)"
 Additive under src/crm/agents, src/crm/ui, resources/lm-skills/lm-docintel, test/unit/crm, docs; named mods: src/crm/domain/types.ts (DocInsight +locator, flip src default — additive), the M2 thin surface for the vault tab. src/api/aion/v1/** + M1/M2 contracts frozen. Branch feature/mesh-m3-docintel from lendmind-crm; PR to lendmind-crm. Synthetic fixtures only — no real PII.
 
 ## P1 — ingest + skill + guardrails
-- [ ] T001 Baseline gates green on lendmind-crm (record)
-- [ ] T002 DocInsight +locator field; flip `src ?? 'det'` → unverified defaults to `syn` (FR-004); additive, no schema bump
-- [ ] T003 Ingest seam: FileAttachment → uploadAttachment(projectId) → artifact_id → directive.inputs.artifacts[] → submitCommand (FR-001)
-- [ ] T004 lm-docintel skill scaffold (no send path) + closed `lm.docintel.extraction/1` schema per contracts (FR-002/009)
-- [ ] T005 Side-car apply: extraction → case-log field-change/document-upsert/checklist-status entries w/ origin.artifactId (never feed extraction kind to fold) (FR-002)
-- [ ] T006 derivedId() pure fn(documentId,contentHash,fieldKey); re-process idempotent (FR-003)
-- [ ] T007 Write-path red-team harness (fixture bytes + stubbed model): assert no false-det, no attribution-leak, no conflict-suppression, no outbound — hard CI gate (FR-009)
-- [ ] T008 docs/dpia-docintel.md (Art 6(1)(b), processor+inference location, Art 9, Art 13(2)(f), Art 22, per-docType retention) (FR-010/014)
-- [ ] T009 [P] Tests: ingest round-trip → folded entry; idempotent re-process; classifySrc det/syn
+- [x] T001 Baseline gates green on lendmind-crm (record)
+- [x] T002 DocInsight +locator field; flip `src ?? 'det'` → unverified defaults to `syn` (FR-004); additive, no schema bump
+- [x] T003 Ingest seam: FileAttachment → uploadAttachment(projectId) → artifact_id → directive.inputs.artifacts[] → submitCommand (FR-001)
+- [x] T004 lm-docintel skill scaffold (no send path) + closed `lm.docintel.extraction/1` schema per contracts (FR-002/009)
+- [x] T005 Side-car apply: extraction → case-log field-change/document-upsert/checklist-status entries w/ origin.artifactId (never feed extraction kind to fold) (FR-002)
+- [x] T006 derivedId() pure fn(documentId,contentHash,fieldKey); re-process idempotent (FR-003)
+- [x] T007 Write-path red-team harness (fixture bytes + stubbed model): assert no false-det, no attribution-leak, no conflict-suppression, no outbound — hard CI gate (FR-009)
+- [x] T008 docs/dpia-docintel.md (Art 6(1)(b), processor+inference location, Art 9, Art 13(2)(f), Art 22, per-docType retention) (FR-010/014)
+- [x] T009 [P] Tests: ingest round-trip → folded entry; idempotent re-process; classifySrc det/syn
 
 ## P2 — classify + extract + attribute (G2)
 - [ ] T010 Classification (payslip/P60/passport/contract/statement/gift/accounts); out-of-scope ⇒ quarantine (FR-005)
