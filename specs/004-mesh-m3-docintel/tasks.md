@@ -22,10 +22,10 @@ Additive under src/crm/agents, src/crm/ui, resources/lm-skills/lm-docintel, test
 - [x] T013 [P] Tests: extract det with verified quote (c417 payslips); vision-only ⇒ syn; G2 fires on ambiguous; special-category flagged
 
 ## P3 — conflict (G3) + checklist + G9
-- [ ] T014 conflicts.ts: deterministic Pence recompute at 1% materiality ⇒ conflict-upsert + G3 + stream (never LLM) (FR-007)
-- [ ] T015 Checklist reconcile (received/partial) from extraction (FR-005)
-- [ ] T016 incomeGate.ts: G9 blocks recommendation until income det-verified; syn income never satisfies; surfaces blocking field (FR-008)
-- [ ] T017 [P] Tests: d7 £38,500/£37,300 fires G3 deterministically; resolution logged; refold byte-identical (SC-002/004); G9 blocks on syn income
+- [x] T014 conflicts.ts: deterministic Pence recompute at 1% materiality ⇒ conflict-upsert + G3 + stream (never LLM) (FR-007)
+- [x] T015 Checklist reconcile (received/partial) from extraction (FR-005)
+- [x] T016 incomeGate.ts: G9 blocks recommendation until income det-verified; syn income never satisfies; surfaces blocking field (FR-008)
+- [x] T017 [P] Tests: d7 £38,500/£37,300 fires G3 deterministically; resolution logged; refold byte-identical (SC-002/004); G9 blocks on syn income
 
 ## P4 — doc vault surface + polish
 - [ ] T018 DocVault.tsx + DocCard QUEUED→PROCESSING→COMPLETED; upload dropzone (reuse InputBox/attachments); vault tab on the M2 surface (FR-011)
