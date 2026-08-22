@@ -5,16 +5,16 @@ description: "Tasks — mesh-m4-connectors (M4)"
 Additive under src/crm/connectors, src/crm/agents, src/crm/ui, resources/lm-skills/lm-sourcing, test/unit/crm, e2e; named mods: src/crm/agentContracts (additive sourcing payload types), the M2 thin surface for the results tab, FirmConfig.adapters (verified). aion client + M1/M2 contracts frozen. Branch feature/mesh-m4-connectors from lendmind-crm; PR to lendmind-crm. MSE verified for real; licensed=verified:false scaffold.
 
 ## P1 — framework + harness + guardrails
-- [ ] T001 Baseline gates green (record)
-- [ ] T002 SourcingAdapter interface + registry (carries derived `verified`) per contracts (FR-001)
-- [ ] T003 Record/replay harness: capture tool_result SSE {tool,args,result}; pure extract() in vitest (FR-003)
-- [ ] T004 Snapshot writer: folded-summary case-log entry + full-set attachment (never inline) (FR-004)
-- [ ] T005 Dedicated sourcing-snapshot payload decoder (require coverage/ratesAsAt/products/verified) (FR-005)
-- [ ] T006 Derived `verified` from VerificationRef + `assertClaimable(snapshot)` choke-point in the writer/fold (FR-006)
-- [ ] T007 Coverage typed enum + wholeOfMarket bool + lint gate rejecting the literal phrase unless flag true (FR-008)
-- [ ] T008 surfaceClass:"adviser-only" tag + CI test: no client-facing component can decode/embed a sourcing snapshot (FR-007)
-- [ ] T009 Local sourcing serialized per desktop; stamp adviser id on every automated action (FR-010)
-- [ ] T010 [P] Tests: payload decoder rejects missing fields; assertClaimable blocks unverified/evidence-less; coverage lint gate; no-client-embed
+- [x] T001 Baseline gates green (record)
+- [x] T002 SourcingAdapter interface + registry (carries derived `verified`) per contracts (FR-001)
+- [x] T003 Record/replay harness: capture tool_result SSE {tool,args,result}; pure extract() in vitest (FR-003)
+- [x] T004 Snapshot writer: folded-summary case-log entry + full-set attachment (never inline) (FR-004)
+- [x] T005 Dedicated sourcing-snapshot payload decoder (require coverage/ratesAsAt/products/verified) (FR-005)
+- [x] T006 Derived `verified` from VerificationRef + `assertClaimable(snapshot)` choke-point in the writer/fold (FR-006)
+- [x] T007 Coverage typed enum + wholeOfMarket bool + lint gate rejecting the literal phrase unless flag true (FR-008)
+- [x] T008 surfaceClass:"adviser-only" tag + CI test: no client-facing component can decode/embed a sourcing snapshot (FR-007)
+- [x] T009 Local sourcing serialized per desktop; stamp adviser id on every automated action (FR-010)
+- [x] T010 [P] Tests: payload decoder rejects missing fields; assertClaimable blocks unverified/evidence-less; coverage lint gate; no-client-embed
 
 ## P2 — MSE adapter (verified)
 - [ ] T011 adapters/mse.ts: isolated, console-fetch JSON, buildQuery plan + pure extract; coverage "MSE Best Buys (Podium) — not whole of market" (FR-002)
