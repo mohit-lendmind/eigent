@@ -1,0 +1,458 @@
+{
+  "feature": "mesh-m2-watcher-onboarding",
+  "spec": "specs/003-mesh-m2-watcher-onboarding/spec.md",
+  "plan": "specs/003-mesh-m2-watcher-onboarding/plan.md",
+  "tasks_md": "specs/003-mesh-m2-watcher-onboarding/tasks.md",
+  "base_branch": "lendmind-crm",
+  "feature_branch": "feature/mesh-m2-watcher-onboarding",
+  "depends_on_milestone": "M1 (merged 51adee3a)",
+  "mvp_after": "T025",
+  "phases": [
+    {
+      "name": "Phase 1 \u2014 Setup + baseline",
+      "tasks": [
+        {
+          "id": "T001",
+          "title": "Green baseline",
+          "acceptance": "Done when all gates pass on lendmind-crm and the output is recorded.",
+          "files": [
+            "package.json"
+          ],
+          "depends_on": [],
+          "size": "xs"
+        },
+        {
+          "id": "T002",
+          "title": "Create trees",
+          "acceptance": "Done when src/crm/agents, src/crm/ui, resources/lm-skills/{lm-onboarding,lm-watcher} exist.",
+          "files": [
+            "src/crm/agents/",
+            "src/crm/ui/",
+            "resources/lm-skills/"
+          ],
+          "depends_on": [
+            "T001"
+          ],
+          "size": "xs"
+        }
+      ]
+    },
+    {
+      "name": "Phase 2 \u2014 Invocation plumbing",
+      "tasks": [
+        {
+          "id": "T003",
+          "title": "FirmConfig FX fields",
+          "acceptance": "Done when fxUsdPerGbpMicro?/fxEffectiveDate?/coordinatorProjectId? decode with defaults; M1 frozen fields untouched; type-check green.",
+          "files": [
+            "src/crm/agentContracts/firmConfig.ts",
+            "src/crm/agentContracts/index.ts"
+          ],
+          "depends_on": [
+            "T002"
+          ],
+          "size": "xs"
+        },
+        {
+          "id": "T004",
+          "title": "dispatch.ts",
+          "acceptance": "Done when dispatchDirective publishes an application/json non-aion- artifact, submits referencing it, returns ids, and does not await the run.",
+          "files": [
+            "src/crm/agents/dispatch.ts"
+          ],
+          "depends_on": [
+            "T003"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T005",
+          "title": "caseProject.ts",
+          "acceptance": "Done when ensureCaseProject mints/returns aionProjectId via M1 outbox and firmCoordinatorProject resolves.",
+          "files": [
+            "src/crm/agents/caseProject.ts"
+          ],
+          "depends_on": [
+            "T003"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T006",
+          "title": "budget.ts",
+          "acceptance": "Done when USD\u2192GBP is bigint, rate+date stamped per SpendRecord, breaker enforced, default realistic.",
+          "files": [
+            "src/crm/agents/budget.ts"
+          ],
+          "depends_on": [
+            "T003"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T007",
+          "title": "firmIndex.ts",
+          "acceptance": "Done when publishCasePointer writes a per-case artifact and readFirmIndex returns latest-per-caseId; concurrent pointers lose no case.",
+          "files": [
+            "src/crm/agents/firmIndex.ts"
+          ],
+          "depends_on": [
+            "T003"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T008",
+          "title": "skillDeploy + skill folders",
+          "acceptance": "Done when both SKILL.md author cleanly and deployLendmindSkills PUTs them (changed/ignored_fields handled).",
+          "files": [
+            "src/crm/agents/skillDeploy.ts",
+            "resources/lm-skills/lm-onboarding/SKILL.md",
+            "resources/lm-skills/lm-watcher/SKILL.md"
+          ],
+          "depends_on": [
+            "T002"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T009",
+          "title": "Edge-reads-index proof gate",
+          "acceptance": "Done when a test proves an edge run can fetch the firm index artifact + read a case log head; else blocked.md records it and the watcher is descoped.",
+          "files": [
+            "test/unit/crm/edgeReadsIndex.test.ts"
+          ],
+          "depends_on": [
+            "T007",
+            "T008"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T010",
+          "title": "Plumbing tests",
+          "acceptance": "Done when dispatch round-trip, budget FX/breaker, and firmIndex concurrency tests pass.",
+          "files": [
+            "test/unit/crm/dispatch.test.ts",
+            "test/unit/crm/budget.test.ts",
+            "test/unit/crm/firmIndex.test.ts"
+          ],
+          "depends_on": [
+            "T004",
+            "T006",
+            "T007"
+          ],
+          "size": "m"
+        }
+      ]
+    },
+    {
+      "name": "Phase 3 \u2014 US1 onboarding",
+      "tasks": [
+        {
+          "id": "T011",
+          "title": "onboarding.ts + skill",
+          "acceptance": "Done when a new case yields a checklist + a disclosure-embedded draft written as lm/case entries + an onboarding artifact the fold ingests.",
+          "files": [
+            "src/crm/agents/onboarding.ts",
+            "resources/lm-skills/lm-onboarding/SKILL.md"
+          ],
+          "depends_on": [
+            "T004",
+            "T005",
+            "T009"
+          ],
+          "size": "l"
+        },
+        {
+          "id": "T012",
+          "title": "G1 gate + mirror",
+          "acceptance": "Done when the send raises approval_required and the pending gate is mirrored into the fold/eventLogStore for the queue.",
+          "files": [
+            "src/crm/agents/onboarding.ts",
+            "src/crm/fold/eventLogStore.ts"
+          ],
+          "depends_on": [
+            "T011"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T013",
+          "title": "onboarding test",
+          "acceptance": "Done when Journey 1 passes: checklist, disclosure, G1, approve-logs-send, fold ingests, chain verifies.",
+          "files": [
+            "test/unit/crm/onboarding.test.ts"
+          ],
+          "depends_on": [
+            "T012"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T014",
+          "title": "onboarding eval",
+          "acceptance": "Done when the recorded eval scores disclosure-present + no unapproved product claims.",
+          "files": [
+            "e2e/lm-onboarding.eval.ts"
+          ],
+          "depends_on": [
+            "T011"
+          ],
+          "size": "s"
+        }
+      ]
+    },
+    {
+      "name": "Phase 4 \u2014 US2 watcher",
+      "tasks": [
+        {
+          "id": "T015",
+          "title": "watcher.ts + schedule",
+          "acceptance": "Done when the coordinator project + */5 schedule exist and the entry run reads firmIndex + log heads and skips unchanged cases.",
+          "files": [
+            "src/crm/agents/watcher.ts",
+            "resources/lm-skills/lm-watcher/SKILL.md"
+          ],
+          "depends_on": [
+            "T007",
+            "T009"
+          ],
+          "size": "l"
+        },
+        {
+          "id": "T016",
+          "title": "dispatch-ready decisions",
+          "acceptance": "Done when the watcher writes lm.watcher.decision with the frozen payload + passId + worklist items, propose-only.",
+          "files": [
+            "src/crm/agents/watcher.ts"
+          ],
+          "depends_on": [
+            "T015"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T017",
+          "title": "real triggers + supervision",
+          "acceptance": "Done when fixed-rate radar + stalled-case chase fire and each pass records a stamped SpendRecord + breaker metrics.",
+          "files": [
+            "src/crm/agents/watcher.ts",
+            "src/crm/agents/budget.ts"
+          ],
+          "depends_on": [
+            "T016",
+            "T006"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T018",
+          "title": "watcher test",
+          "acceptance": "Done when Journey 2 passes: fast-path skip, \u22652 triggers, dispatch-ready decisions w/ passId, spend stamped, breaker respected.",
+          "files": [
+            "test/unit/crm/watcherPass.test.ts"
+          ],
+          "depends_on": [
+            "T017"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T019",
+          "title": "dispatch-seam test",
+          "acceptance": "Done when a spike consumes decision.directive and would dispatch \u2014 proving M3 additive.",
+          "files": [
+            "test/unit/crm/dispatchSeam.test.ts"
+          ],
+          "depends_on": [
+            "T016"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T020",
+          "title": "watcher eval",
+          "acceptance": "Done when a recorded pass over c417/c392 yields the expected decisions.",
+          "files": [
+            "e2e/lm-watcher.eval.ts"
+          ],
+          "depends_on": [
+            "T017"
+          ],
+          "size": "s"
+        }
+      ]
+    },
+    {
+      "name": "Phase 5 \u2014 US3 thin surface",
+      "tasks": [
+        {
+          "id": "T021",
+          "title": "/crm route + shell + rail + nav",
+          "acceptance": "Done when /crm mounts with CrmLayout + TacticalRail inside the guard and is reachable from a visible nav entry.",
+          "files": [
+            "src/routers/index.tsx",
+            "src/crm/ui/CrmLayout.tsx",
+            "src/crm/ui/TacticalRail.tsx"
+          ],
+          "depends_on": [
+            "T003"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T022",
+          "title": "CRM tones + primitives + stories",
+          "acceptance": "Done when CrmTone + stage ramp render with verified light+dark contrast; primitives have stories; mono font loaded in preview.",
+          "files": [
+            "src/crm/ui/tones.ts",
+            "src/crm/ui/primitives/",
+            "src/stories/crm/"
+          ],
+          "depends_on": [
+            "T021"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T023",
+          "title": "queueModel.ts",
+          "acceptance": "Done when selectTodayQueue is fold-sourced, gates pinned + SLA\u2192tier\u2192age sorted, freshness per row, selectQueueDegraded works; approvals mirrored.",
+          "files": [
+            "src/crm/ui/queueModel.ts"
+          ],
+          "depends_on": [
+            "T012",
+            "T003"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T024",
+          "title": "GateCard.tsx",
+          "acceptance": "Done when the card renders from GATE_REGISTRY (tier/SLA shown, batch inert), G1 shows full draft+edit+provenance, and subscribeOpenGate is the only live sub.",
+          "files": [
+            "src/crm/ui/GateCard.tsx"
+          ],
+          "depends_on": [
+            "T023"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T025",
+          "title": "TodayQueue.tsx",
+          "acceptance": "Done when the screen renders stat strip + rows + all four empty states + degraded banner + aria-live timers.",
+          "files": [
+            "src/crm/ui/TodayQueue.tsx"
+          ],
+          "depends_on": [
+            "T024"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T026",
+          "title": "crm i18n \u00d711",
+          "acceptance": "Done when crm.json exists in all 11 locales, registered, and check:i18n passes.",
+          "files": [
+            "src/i18n/locales/"
+          ],
+          "depends_on": [
+            "T021"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T027",
+          "title": "queue test",
+          "acceptance": "Done when Journey 3 passes: two sources merged, gates pinned+SLA-sorted, one live sub, degraded banner, empty states.",
+          "files": [
+            "test/unit/crm/queueModel.test.ts"
+          ],
+          "depends_on": [
+            "T025"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T028",
+          "title": "gateCard test",
+          "acceptance": "Done when the card renders from registry alone, G1 shows draft+provenance, approve returns edited draft.",
+          "files": [
+            "test/unit/crm/gateCard.test.ts"
+          ],
+          "depends_on": [
+            "T024"
+          ],
+          "size": "s"
+        }
+      ]
+    },
+    {
+      "name": "Phase 6 \u2014 Polish",
+      "tasks": [
+        {
+          "id": "T029",
+          "title": "convergence-with-agents test",
+          "acceptance": "Done when kill-the-laptop converges byte-identical with agent-written entries and export v2 verifies.",
+          "files": [
+            "test/unit/crm/convergenceWithAgents.test.ts"
+          ],
+          "depends_on": [
+            "T012",
+            "T016"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T030",
+          "title": "contract freeze test",
+          "acceptance": "Done when runtime satisfies specs/003/contracts/*.d.ts via assignability assertions.",
+          "files": [
+            "test/unit/crm/m2ContractFreeze.test.ts"
+          ],
+          "depends_on": [
+            "T024",
+            "T016",
+            "T007"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T031",
+          "title": "demo + one-pager + metrics",
+          "acceptance": "Done when demo-mesh-m2.mjs runs the first-open journey unattended <5min, the one-pager is checked in, and leading metrics are wired.",
+          "files": [
+            "scripts/demo-mesh-m2.mjs",
+            "docs/compliance-one-pager.md"
+          ],
+          "depends_on": [
+            "T025",
+            "T018"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T032",
+          "title": "full gate run + PR",
+          "acceptance": "Done when every gate is green, baseline unmoved, dark contrast verified, and the PR into lendmind-crm carries the per-FR checklist.",
+          "files": [
+            "package.json"
+          ],
+          "depends_on": [
+            "T027",
+            "T028",
+            "T013",
+            "T018",
+            "T029",
+            "T030",
+            "T031"
+          ],
+          "size": "xs"
+        }
+      ]
+    }
+  ]
+}
