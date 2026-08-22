@@ -1,0 +1,333 @@
+{
+  "feature": "mesh-m3-docintel",
+  "spec": "specs/004-mesh-m3-docintel/spec.md",
+  "plan": "specs/004-mesh-m3-docintel/plan.md",
+  "tasks_md": "specs/004-mesh-m3-docintel/tasks.md",
+  "base_branch": "lendmind-crm",
+  "feature_branch": "feature/mesh-m3-docintel",
+  "depends_on": "M2 merged (dispatch seam; vault surface). Develops against frozen M2 contracts.",
+  "decisions": [
+    "connector-access",
+    "data-residency"
+  ],
+  "build_constraint": "synthetic/redacted fixtures only; real PII gated",
+  "phases": [
+    {
+      "name": "P1 ingest+skill+guardrails",
+      "tasks": [
+        {
+          "id": "T001",
+          "title": "baseline",
+          "acceptance": "gates green recorded",
+          "files": [
+            "package.json"
+          ],
+          "depends_on": [],
+          "size": "xs"
+        },
+        {
+          "id": "T002",
+          "title": "DocInsight +locator, flip src default",
+          "acceptance": "unverified defaults to syn; additive; type-check green",
+          "files": [
+            "src/crm/domain/types.ts"
+          ],
+          "depends_on": [
+            "T001"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T003",
+          "title": "ingest seam",
+          "acceptance": "FileAttachment\u2192uploadAttachment\u2192directive.inputs.artifacts\u2192submitCommand works on a fixture",
+          "files": [
+            "src/crm/agents/docIngest.ts"
+          ],
+          "depends_on": [
+            "T001"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T004",
+          "title": "lm-docintel skill + closed schema",
+          "acceptance": "skill has no send path; extraction decodes to the closed schema",
+          "files": [
+            "resources/lm-skills/lm-docintel/SKILL.md",
+            "src/crm/agentContracts/index.ts"
+          ],
+          "depends_on": [
+            "T002"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T005",
+          "title": "side-car apply",
+          "acceptance": "extraction\u2192case-log field-change/document-upsert/checklist entries w/ origin.artifactId; extraction kind never folded",
+          "files": [
+            "src/crm/agents/extractionApply.ts"
+          ],
+          "depends_on": [
+            "T004"
+          ],
+          "size": "l"
+        },
+        {
+          "id": "T006",
+          "title": "idempotent ids",
+          "acceptance": "derivedId pure fn(documentId,contentHash,fieldKey); re-process no dupes",
+          "files": [
+            "src/crm/agents/extractionApply.ts"
+          ],
+          "depends_on": [
+            "T005"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T007",
+          "title": "write-path red-team harness",
+          "acceptance": "fixture+stub asserts no false-det/attribution-leak/suppression/outbound; hard CI gate",
+          "files": [
+            "test/unit/crm/redteamWrite.test.ts"
+          ],
+          "depends_on": [
+            "T005"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T008",
+          "title": "DPIA doc",
+          "acceptance": "names basis/processor/inference-location/Art9/retention",
+          "files": [
+            "docs/dpia-docintel.md"
+          ],
+          "depends_on": [
+            "T001"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T009",
+          "title": "P1 tests",
+          "acceptance": "ingest round-trip folds; idempotent re-process; classifySrc det/syn",
+          "files": [
+            "test/unit/crm/docintelIngest.test.ts"
+          ],
+          "depends_on": [
+            "T003",
+            "T006"
+          ],
+          "size": "m"
+        }
+      ]
+    },
+    {
+      "name": "P2 classify+extract+attribute",
+      "tasks": [
+        {
+          "id": "T010",
+          "title": "classification",
+          "acceptance": "7 docTypes; out-of-scope quarantined",
+          "files": [
+            "src/crm/agents/docintel.ts"
+          ],
+          "depends_on": [
+            "T004"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T011",
+          "title": "coded quote-locator",
+          "acceptance": "substring match vs born-digital text \u21d2 det, else/vision-only \u21d2 syn",
+          "files": [
+            "src/crm/agents/extractionApply.ts"
+          ],
+          "depends_on": [
+            "T006"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T012",
+          "title": "attribution G2 + special-category",
+          "acceptance": "deterministic cluster; <0.85/joint \u21d2 G2; Art9 flagged",
+          "files": [
+            "src/crm/agents/attribution.ts"
+          ],
+          "depends_on": [
+            "T010"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T013",
+          "title": "P2 tests",
+          "acceptance": "c417 payslips det w/ quote; vision-only syn; G2 on ambiguous; special-category flagged",
+          "files": [
+            "test/unit/crm/docintelExtract.test.ts"
+          ],
+          "depends_on": [
+            "T011",
+            "T012"
+          ],
+          "size": "m"
+        }
+      ]
+    },
+    {
+      "name": "P3 conflict+checklist+G9",
+      "tasks": [
+        {
+          "id": "T014",
+          "title": "deterministic conflict G3",
+          "acceptance": "1% Pence recompute (not LLM) \u21d2 conflict-upsert+G3+stream",
+          "files": [
+            "src/crm/agents/conflicts.ts"
+          ],
+          "depends_on": [
+            "T011"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T015",
+          "title": "checklist reconcile",
+          "acceptance": "received/partial from extraction",
+          "files": [
+            "src/crm/agents/docintel.ts"
+          ],
+          "depends_on": [
+            "T010"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T016",
+          "title": "G9 income gate",
+          "acceptance": "blocks until income det; syn never satisfies; surfaces field",
+          "files": [
+            "src/crm/agents/incomeGate.ts"
+          ],
+          "depends_on": [
+            "T014"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T017",
+          "title": "P3 tests",
+          "acceptance": "d7 fires G3 deterministically; resolution logged; refold byte-identical; G9 blocks on syn",
+          "files": [
+            "test/unit/crm/docintelConflict.test.ts"
+          ],
+          "depends_on": [
+            "T014",
+            "T016"
+          ],
+          "size": "m"
+        }
+      ]
+    },
+    {
+      "name": "P4 vault+polish",
+      "tasks": [
+        {
+          "id": "T018",
+          "title": "DocVault + DocCard",
+          "acceptance": "state machine + dropzone; vault tab on M2 surface",
+          "files": [
+            "src/crm/ui/DocVault.tsx"
+          ],
+          "depends_on": [
+            "T013"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T019",
+          "title": "provenance UI",
+          "acceptance": "det deep-links to highlighted span; syn non-color+confidence+confirm; collapse unmapped",
+          "files": [
+            "src/crm/ui/DocVault.tsx"
+          ],
+          "depends_on": [
+            "T018"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T020",
+          "title": "gate cards + a11y + i18n",
+          "acceptance": "G2/G3/G9 cards decidable w/o opening; typed errors; aria-live; crm keys \u00d711",
+          "files": [
+            "src/crm/ui/DocVault.tsx",
+            "src/i18n/locales/"
+          ],
+          "depends_on": [
+            "T019"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T021",
+          "title": "P4 UI tests",
+          "acceptance": "state machine, deep-link, syn non-color, cards, stories",
+          "files": [
+            "test/unit/crm/docVault.test.ts",
+            "src/stories/crm/"
+          ],
+          "depends_on": [
+            "T020"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T022",
+          "title": "precision + nightly eval",
+          "acceptance": "per-field precision harness + e2e/lm-docintel.eval.ts scaffold",
+          "files": [
+            "e2e/lm-docintel.eval.ts"
+          ],
+          "depends_on": [
+            "T013"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T023",
+          "title": "convergence + freeze tests",
+          "acceptance": "kill-the-laptop byte-identical w/ docintel entries; contract-freeze vs specs/004",
+          "files": [
+            "test/unit/crm/convergenceDocintel.test.ts",
+            "test/unit/crm/m3ContractFreeze.test.ts"
+          ],
+          "depends_on": [
+            "T017",
+            "T004"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T024",
+          "title": "demo + gates + PR",
+          "acceptance": "demo runs; all gates green; PR into lendmind-crm w/ per-FR checklist",
+          "files": [
+            "scripts/demo-mesh-m3.mjs"
+          ],
+          "depends_on": [
+            "T017",
+            "T021",
+            "T007",
+            "T023"
+          ],
+          "size": "m"
+        }
+      ]
+    }
+  ]
+}

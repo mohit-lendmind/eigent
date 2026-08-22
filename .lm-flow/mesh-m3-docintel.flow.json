@@ -1,0 +1,19 @@
+{
+  "slug": "mesh-m3-docintel",
+  "architecture": ".lm-flow/architecture/mesh-m3-docintel.md",
+  "personas": ".lm-flow/personas/mesh-m3-docintel/",
+  "spec": "specs/004-mesh-m3-docintel/spec.md",
+  "plan": "specs/004-mesh-m3-docintel/plan.md",
+  "tasks_md": "specs/004-mesh-m3-docintel/tasks.md",
+  "task_graph": ".lm-flow/tasks/mesh-m3-docintel.json",
+  "contracts_freeze": "specs/004-mesh-m3-docintel/contracts/",
+  "github": { "milestone": 4, "issues": null, "deviation": "issues DISABLED; tasks.md-as-queue" },
+  "base_branch": "lendmind-crm",
+  "feature_branch": "feature/mesh-m3-docintel",
+  "depends_on": "M2 merged (dispatch seam + vault surface); develops against frozen M2 contracts",
+  "decisions": ["connector-access", "data-residency"],
+  "build_constraint": "synthetic/redacted fixtures ONLY; real PII gated on inference-location + IDTA; real ≥50-doc corpus owner = design-partner #1 (deferred founder inputs)",
+  "status": "PLANNED — launch-ready, waiting on M2 merge",
+  "planned_at": "2026-08-22",
+  "tasks": { "total": 24, "phases": 4 }
+}
