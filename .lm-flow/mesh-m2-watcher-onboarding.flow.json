@@ -1,0 +1,17 @@
+{
+  "slug": "mesh-m2-watcher-onboarding",
+  "architecture": ".lm-flow/architecture/mesh-m2-watcher-onboarding.md",
+  "personas": ".lm-flow/personas/mesh-m2-watcher-onboarding/",
+  "spec": "specs/003-mesh-m2-watcher-onboarding/spec.md",
+  "plan": "specs/003-mesh-m2-watcher-onboarding/plan.md",
+  "tasks_md": "specs/003-mesh-m2-watcher-onboarding/tasks.md",
+  "task_graph": ".lm-flow/tasks/mesh-m2-watcher-onboarding.json",
+  "contracts_freeze": "specs/003-mesh-m2-watcher-onboarding/contracts/",
+  "github": { "milestone": 3, "issues": null, "deviation": "issues DISABLED; tasks.md-as-queue fallback (same as F01/M1)" },
+  "base_branch": "lendmind-crm",
+  "feature_branch": "feature/mesh-m2-watcher-onboarding",
+  "depends_on": "M1 (merged 51adee3a)",
+  "deferred_decision": "M4 connector target (Mortgage Brain vs 27Tec vs Mortgage Magic vs MSE) — founder input, not an M2 input",
+  "planned_at": "2026-08-22",
+  "tasks": { "total": 32, "phases": 6, "proof_gate": "T009 edge-reads-index" }
+}
