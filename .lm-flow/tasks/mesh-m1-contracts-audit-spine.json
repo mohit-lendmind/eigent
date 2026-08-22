@@ -1,0 +1,589 @@
+{
+  "feature": "mesh-m1-contracts-audit-spine",
+  "spec": "specs/002-mesh-m1-contracts-audit-spine/spec.md",
+  "plan": "specs/002-mesh-m1-contracts-audit-spine/plan.md",
+  "tasks_md": "specs/002-mesh-m1-contracts-audit-spine/tasks.md",
+  "base_branch": "lendmind-crm",
+  "feature_branch": "feature/mesh-m1-contracts-audit-spine",
+  "m2_unblocks_after": "T029",
+  "phases": [
+    {
+      "name": "Phase 1 \u2014 Setup (P0 gate: review fixes)",
+      "tasks": [
+        {
+          "id": "T001",
+          "title": "Merge fix/crm-review-iter1 into feature branch",
+          "acceptance": "Done when the fix commit is merged cleanly and npx vitest run src/crm test/unit/crm reports 108/108.",
+          "files": [
+            "src/crm/*",
+            "test/unit/crm/*"
+          ],
+          "depends_on": [],
+          "size": "s"
+        },
+        {
+          "id": "T002",
+          "title": "Regression tests: integrity findings 1/6",
+          "acceptance": "Done when tests prove repair runs after hydration via barrel import and c392 self-employed completeness recomputes; fail on revert.",
+          "files": [
+            "test/unit/crm/reviewRegression.integrity.test.ts"
+          ],
+          "depends_on": [
+            "T001"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T003",
+          "title": "Regression tests: atomicity findings 2/10",
+          "acceptance": "Done when injected mid-operation failure + retry finishes side-effects; upsert touches only upserted cases with one clientsStore setState.",
+          "files": [
+            "test/unit/crm/reviewRegression.atomicity.test.ts"
+          ],
+          "depends_on": [
+            "T001"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T004",
+          "title": "Regression tests: stream cap findings 4/5",
+          "acceptance": "Done when 50-past-cap yields length==cap, one coalesced marker, full eviction accounting; persist never drops protected entries.",
+          "files": [
+            "test/unit/crm/reviewRegression.stream.test.ts"
+          ],
+          "depends_on": [
+            "T001"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T005",
+          "title": "Regression tests: bus/fixture findings 3/7/8",
+          "acceptance": "Done when unwired dispatch is observably loud, removeClient fails closed, d7 evidence + {t:'missing'} round-trip assertions pass.",
+          "files": [
+            "test/unit/crm/reviewRegression.bus.test.ts"
+          ],
+          "depends_on": [
+            "T001"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T006",
+          "title": "Gate run + baseline capture",
+          "acceptance": "Done when type-check, lint, i18n, vitest-baseline, electron-access all green and output recorded in the PR body draft.",
+          "files": [
+            "package.json"
+          ],
+          "depends_on": [
+            "T002",
+            "T003",
+            "T004",
+            "T005"
+          ],
+          "size": "xs"
+        }
+      ]
+    },
+    {
+      "name": "Phase 2 \u2014 Foundational (contracts package)",
+      "tasks": [
+        {
+          "id": "T007",
+          "title": "agentContracts/errors.ts",
+          "acceptance": "Done when ContractDecodeError carries field/reason/\u2264200-char snippet and is thrown by all decoders.",
+          "files": [
+            "src/crm/agentContracts/errors.ts"
+          ],
+          "depends_on": [
+            "T006"
+          ],
+          "size": "xs"
+        },
+        {
+          "id": "T008",
+          "title": "envelope.ts decode/encode/identity",
+          "acceptance": "Done when decode round-trips golden fixtures, rejects missing required strings naming the field, and directiveIdentity is stable under key reordering.",
+          "files": [
+            "src/crm/agentContracts/envelope.ts"
+          ],
+          "depends_on": [
+            "T007"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T009",
+          "title": "caseLog.ts entry + event union",
+          "acceptance": "Done when all 13 union members (incl. reserved chain-anchor) decode, unknown event type decodes open-set for quarantine routing.",
+          "files": [
+            "src/crm/agentContracts/caseLog.ts"
+          ],
+          "depends_on": [
+            "T007"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T010",
+          "title": "artifactKinds.ts + classifyKind",
+          "acceptance": "Done when every known family/major classifies known, majors above KNOWN_MAJORS route quarantine:true, FailureArtifact decodes.",
+          "files": [
+            "src/crm/agentContracts/artifactKinds.ts"
+          ],
+          "depends_on": [
+            "T007"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T011",
+          "title": "gates.ts G1\u2013G10 registry",
+          "acceptance": "Done when GATE_REGISTRY matches spec-v2 \u00a75 exactly (approver/regulated/batchable/autoDisarmFlags/basis/tier/slaMinutes) and delegableGates never returns G5/G9.",
+          "files": [
+            "src/crm/agentContracts/gates.ts"
+          ],
+          "depends_on": [
+            "T007"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T012",
+          "title": "firmConfig.ts decode + defaults",
+          "acceptance": "Done when decode fills documented defaults (breaker 12, budgets 20000/15000000) and rejects missing firmId.",
+          "files": [
+            "src/crm/agentContracts/firmConfig.ts"
+          ],
+          "depends_on": [
+            "T007"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T013",
+          "title": "reasonCodes.ts table",
+          "acceptance": "Done when the 6 codes format mono titles '[CODE] caseId param' and params types compile.",
+          "files": [
+            "src/crm/agentContracts/reasonCodes.ts"
+          ],
+          "depends_on": [
+            "T007"
+          ],
+          "size": "xs"
+        },
+        {
+          "id": "T014",
+          "title": "hashChain.ts + barrel canonicalise export",
+          "acceptance": "Done when sha256HexCanonical/computeEntryHash/settleHashOf/verifyChain satisfy contracts/caseLog.d.ts and canonicalise is exported from src/crm/index.ts.",
+          "files": [
+            "src/crm/hashChain.ts",
+            "src/crm/index.ts"
+          ],
+          "depends_on": [
+            "T007"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T015",
+          "title": "WebCrypto canary in test/setup.ts",
+          "acceptance": "Done when suite setup asserts crypto.subtle digests 32 bytes and fails loudly when absent.",
+          "files": [
+            "test/setup.ts"
+          ],
+          "depends_on": [
+            "T006"
+          ],
+          "size": "xs"
+        },
+        {
+          "id": "T016",
+          "title": "agentContracts barrel + crm barrel exports",
+          "acceptance": "Done when src/crm/index.ts re-exports the package and existing consumers are untouched (type-check green).",
+          "files": [
+            "src/crm/agentContracts/index.ts",
+            "src/crm/index.ts"
+          ],
+          "depends_on": [
+            "T008",
+            "T009",
+            "T010",
+            "T011",
+            "T012",
+            "T013",
+            "T014"
+          ],
+          "size": "xs"
+        },
+        {
+          "id": "T017",
+          "title": "Golden caselog fixtures + chain builder + negatives + manifest",
+          "acceptance": "Done when c417Log has \u226540 chained entries covering every union member with valid computed hashes, negatives cover the 5 failure modes, manifest drives iteration.",
+          "files": [
+            "src/crm/fixtures/caselog/c417Log.ts",
+            "src/crm/fixtures/caselog/buildChain.ts",
+            "src/crm/fixtures/caselog/negatives.ts",
+            "src/crm/fixtures/caselog/manifest.ts"
+          ],
+          "depends_on": [
+            "T009",
+            "T014"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T018",
+          "title": "Contract decode/encode test suite",
+          "acceptance": "Done when all five colocated test files pass over manifest fixtures: round-trips, named-field decode errors, quarantine-not-throw.",
+          "files": [
+            "src/crm/agentContracts/envelope.test.ts",
+            "src/crm/agentContracts/caseLog.test.ts",
+            "src/crm/agentContracts/artifactKinds.test.ts",
+            "src/crm/agentContracts/gates.test.ts",
+            "src/crm/agentContracts/firmConfig.test.ts"
+          ],
+          "depends_on": [
+            "T016",
+            "T017"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T019",
+          "title": "hashChain tests",
+          "acceptance": "Done when golden chain verifies, any single-byte tamper yields exact brokenAtSeq, settleHash matches candidate\u2194echo, key-order independent.",
+          "files": [
+            "src/crm/hashChain.test.ts"
+          ],
+          "depends_on": [
+            "T014",
+            "T017"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T020",
+          "title": "Contract freeze assignability test",
+          "acceptance": "Done when runtime exports satisfy specs/002-*/contracts/*.d.ts via type-level assertions; breaking drift fails compile.",
+          "files": [
+            "test/unit/crm/contractFreeze.test.ts"
+          ],
+          "depends_on": [
+            "T016"
+          ],
+          "size": "s"
+        }
+      ]
+    },
+    {
+      "name": "Phase 3 \u2014 US1: the fold (MVP; M2 unblocks at merge)",
+      "tasks": [
+        {
+          "id": "T021",
+          "title": "Additive domain changes",
+          "acceptance": "Done when Case.aionProjectId?, ActivityEvent.origin?, WorklistItem.reasonCode?/reasonParams?, id prefixes compile with no schema bump and 108 tests stay green.",
+          "files": [
+            "src/crm/domain/types.ts",
+            "src/crm/domain/ids.ts"
+          ],
+          "depends_on": [
+            "T006"
+          ],
+          "size": "xs"
+        },
+        {
+          "id": "T022",
+          "title": "eventLogStore (5th persisted store)",
+          "acceptance": "Done when the store passes the house persist checklist, pendingByCase is excluded from partialize, and CRM_LS_KEYS/clearAllCrmState include the new key (reset.test.ts green).",
+          "files": [
+            "src/crm/fold/eventLogStore.ts",
+            "src/crm/caseFile.ts"
+          ],
+          "depends_on": [
+            "T021",
+            "T016"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T023",
+          "title": "caseLogFold (serialized ordered idempotent apply)",
+          "acceptance": "Done when per-case drain admits one fold at a time, replay returns same reference, chain verified per entry, halt/quarantine/anomaly paths raise deduplicated items via reasonCodes, refold triggers on contractsVersion+quarantine (T4).",
+          "files": [
+            "src/crm/fold/caseLogFold.ts"
+          ],
+          "depends_on": [
+            "T022",
+            "T013"
+          ],
+          "size": "l"
+        },
+        {
+          "id": "T024",
+          "title": "foldSource (open/live/refresh triggers + freshness)",
+          "acceptance": "Done when refreshCaseLog pages fully then folds, live source attaches/detaches via subscribeAionArtifacts, content_truncated raises ENTRY_TOO_LARGE, freshness reflects never/live/stale/failed/no-project.",
+          "files": [
+            "src/crm/fold/foldSource.ts"
+          ],
+          "depends_on": [
+            "T023"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T025",
+          "title": "Lint + invariant guard: stores may not import fold",
+          "acceptance": "Done when eslint no-restricted-imports bans store\u2192fold/* and crossStoreImports.test.ts pins it.",
+          "files": [
+            "eslint.config.js",
+            "test/unit/crm/crossStoreImports.test.ts"
+          ],
+          "depends_on": [
+            "T022"
+          ],
+          "size": "xs"
+        },
+        {
+          "id": "T026",
+          "title": "Convergence tests",
+          "acceptance": "Done when batch\u2261incremental byte-identical, replay pinned with toBe, and the open-vs-live race applies exactly once.",
+          "files": [
+            "test/unit/crm/convergence.test.ts"
+          ],
+          "depends_on": [
+            "T024"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T027",
+          "title": "killTheLaptop test (Journey 1)",
+          "acceptance": "Done when wipe\u2192refold deep-equals S1, watermark==head, <500ms on 1000-entry synthetic log, env-key variant converges.",
+          "files": [
+            "test/unit/crm/killTheLaptop.test.ts"
+          ],
+          "depends_on": [
+            "T024"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T028",
+          "title": "Fold loudness tests (negatives)",
+          "acceptance": "Done when every negative fixture produces its exact observable (one deduped item per code, halt-this-case-only, cumulative counts, refold-on-upgrade reinserts).",
+          "files": [
+            "test/unit/crm/foldLoudness.test.ts"
+          ],
+          "depends_on": [
+            "T024"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T029",
+          "title": "Persist round-trip extension to 5th store",
+          "acceptance": "Done when quarantine/tombstones/everCount/outbox survive JSON round-trip and pendingByCase does not persist.",
+          "files": [
+            "test/unit/crm/persist.roundtrip.test.ts"
+          ],
+          "depends_on": [
+            "T022"
+          ],
+          "size": "s"
+        }
+      ]
+    },
+    {
+      "name": "Phase 4 \u2014 US2: tamper-evident export",
+      "tasks": [
+        {
+          "id": "T030",
+          "title": "caseFile export v2 + dual-version import",
+          "acceptance": "Done when v2 envelope carries chainHead/chainVerified/manifest/gatePolicySnapshot/versionsStamp and records; import accepts v1 (null integrity) and v2 (verified before trusted).",
+          "files": [
+            "src/crm/caseFile.ts"
+          ],
+          "depends_on": [
+            "T023",
+            "T011",
+            "T022"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T031",
+          "title": "tamperExport test (Journey 2)",
+          "acceptance": "Done when clean export verifies, tampered refold yields chainVerified:false + exact brokenAtSeq + distinct CHAIN_BREAK item + halt-this-case-only, and the any-byte property sweep passes.",
+          "files": [
+            "test/unit/crm/tamperExport.test.ts"
+          ],
+          "depends_on": [
+            "T030"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T032",
+          "title": "Dual-version import tests",
+          "acceptance": "Done when v1 imports with integrity null, v2 round-trips byte-equal, existing export integration expectations stay green.",
+          "files": [
+            "test/unit/crm/export.dualVersion.test.ts",
+            "test/unit/crm/export.integration.test.ts"
+          ],
+          "depends_on": [
+            "T030"
+          ],
+          "size": "s"
+        }
+      ]
+    },
+    {
+      "name": "Phase 5 \u2014 US3: outbox round-trip",
+      "tasks": [
+        {
+          "id": "T033",
+          "title": "EventLogSideBus (loud) + barrel side-effect wiring",
+          "acceptance": "Done when unwired dispatch throws in dev / errors+queues in prod, and importing only the barrel wires the bus.",
+          "files": [
+            "src/crm/_bus.ts",
+            "src/crm/index.ts"
+          ],
+          "depends_on": [
+            "T016"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T034",
+          "title": "outbox.ts record/flush/settle",
+          "acceptance": "Done when recordLocalEvent enforces LWW kinds + synchronous quota refusal, flush drains serialized via createAttachment with retryable-rule retries, settle-by-hash is exactly-once with duplicate no-op and non-LWW out-of-position one-time refold (T1).",
+          "files": [
+            "src/crm/fold/outbox.ts"
+          ],
+          "depends_on": [
+            "T033",
+            "T014",
+            "T022"
+          ],
+          "size": "l"
+        },
+        {
+          "id": "T035",
+          "title": "Wire LWW store write paths through the bus",
+          "acceptance": "Done when setFactFindField/setChecklistStatus/resolveWorklistItem enqueue via bus, with zero static store\u2192fold imports (T025 lint green).",
+          "files": [
+            "src/crm/casesStore.ts",
+            "src/crm/documentsStore.ts",
+            "src/crm/workstreamStore.ts"
+          ],
+          "depends_on": [
+            "T034"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T036",
+          "title": "outboxSettle test (Journey 3)",
+          "acceptance": "Done when enqueue/restart-survival/env-wipe-survival/flush/settle-exactly-once/quota-refusal/unwired-loudness all pass.",
+          "files": [
+            "test/unit/crm/outboxSettle.test.ts"
+          ],
+          "depends_on": [
+            "T035"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T037",
+          "title": "Refold backstop test",
+          "acceptance": "Done when a non-LWW out-of-position echo triggers exactly one refold and converges.",
+          "files": [
+            "test/unit/crm/outboxRefoldBackstop.test.ts"
+          ],
+          "depends_on": [
+            "T035"
+          ],
+          "size": "s"
+        }
+      ]
+    },
+    {
+      "name": "Phase 6 \u2014 Polish & cross-cutting",
+      "tasks": [
+        {
+          "id": "T038",
+          "title": "Scripted compliance demo",
+          "acceptance": "Done when scripts/demo-mesh-m1.mjs runs unattended <5min from clean checkout, prints the 5-step evidence, writes test-results/demo-mesh-m1/.",
+          "files": [
+            "scripts/demo-mesh-m1.mjs"
+          ],
+          "depends_on": [
+            "T031"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T039",
+          "title": "Seed-through-fold cross-check",
+          "acceptance": "Done when seedCrmGoldenPath({throughFold:true}) produces state deep-equal to direct seeding.",
+          "files": [
+            "src/crm/seed.ts"
+          ],
+          "depends_on": [
+            "T024"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T040",
+          "title": "M2 rendering-contract spike test",
+          "acceptance": "Done when a barrel-only import renders an approval-card model from GATE_REGISTRY and a case-health strip from the six selectors.",
+          "files": [
+            "test/unit/crm/renderingContract.test.ts"
+          ],
+          "depends_on": [
+            "T024",
+            "T011"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T041",
+          "title": "Full gate run",
+          "acceptance": "Done when type-check/lint/i18n/vitest-baseline/electron-access + full CRM suite all green, baseline unmoved.",
+          "files": [
+            "package.json"
+          ],
+          "depends_on": [
+            "T026",
+            "T027",
+            "T028",
+            "T029",
+            "T031",
+            "T032",
+            "T036",
+            "T037",
+            "T038",
+            "T039",
+            "T040"
+          ],
+          "size": "xs"
+        },
+        {
+          "id": "T042",
+          "title": "PR body update",
+          "acceptance": "Done when Gates section, per-FR checklist, review-fixes-with-regression-tests table, and demo transcript excerpt are in the PR body.",
+          "files": [
+            "specs/002-mesh-m1-contracts-audit-spine/tasks.md"
+          ],
+          "depends_on": [
+            "T041"
+          ],
+          "size": "xs"
+        }
+      ]
+    }
+  ]
+}
