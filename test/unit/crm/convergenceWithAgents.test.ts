@@ -33,11 +33,14 @@ import {
   type FirmConfig,
 } from '@/crm/agentContracts';
 import { resetCaseProjectCaches } from '@/crm/agents/caseProject';
+import { encodeJsonAttachment } from '@/crm/agents/codec';
 import { configureAgentEdge } from '@/crm/agents/edge';
+import { publishCasePointer } from '@/crm/agents/firmIndex';
 import {
   approveOnboardingSend,
   beginOnboarding,
 } from '@/crm/agents/onboarding';
+import { resetWatcherState, runWatcherPass } from '@/crm/agents/watcher';
 import { canonicalise, exportCaseFileV2 } from '@/crm/caseFile';
 import { getCrmCasesStore } from '@/crm/casesStore';
 import { getCrmClientsStore } from '@/crm/clientsStore';
@@ -51,6 +54,8 @@ import { FakeEdge } from './fakeEdge';
 const CASE = 'c1';
 const GOLDEN_CASE = 'c417';
 const FIRM = 'firm-alpha';
+const DAY = 24 * 60 * 60 * 1000;
+const WATCHER_NOW = Date.UTC(2026, 5, 1, 9, 0, 0);
 
 function firmConfig(): FirmConfig {
   return decodeFirmConfig({
@@ -71,6 +76,8 @@ async function readChain(
   const entries: CaseLogEntry[] = [];
   for (const artifact of list.artifacts) {
     if (!artifact.name.startsWith(prefix)) continue;
+    // A watcher case project also holds the non-chain facts.json seed.
+    if (artifact.name.endsWith('/facts.json')) continue;
     const access = await edge.getArtifact(projectId, artifact.artifact_id, {
       inline: true,
     });
@@ -140,6 +147,39 @@ async function authorAgentChain(
   return readChain(edge, started.gate.projectId, caseId);
 }
 
+// Author a real WATCHER-written chain: seed a case whose fixed-rate deal ends in
+// 30 days, run one pass, and the watcher proposes a G7 stage transition —
+// activity + worklist-upsert + gate-raise onto the case log. Returns the case
+// chain read back from the edge, ordered by seq.
+async function authorWatcherChain(
+  edge: FakeEdge,
+  caseId: string
+): Promise<CaseLogEntry[]> {
+  const projectId = `proj_case_${caseId}`;
+  edge.seedProject(projectId);
+  await edge.uploadAttachment(projectId, {
+    name: `lm/case/${caseId}/facts.json`,
+    media_type: 'application/json',
+    data_base64: encodeJsonAttachment({
+      fixedRateEndAt: WATCHER_NOW + 30 * DAY,
+    }),
+  });
+  await publishCasePointer({
+    caseId,
+    firmId: FIRM,
+    aionProjectId: projectId,
+    stage: 'application',
+    logHeadSeq: '5',
+    updatedAt: 1,
+  });
+  const report = await runWatcherPass(FIRM, {
+    now: WATCHER_NOW,
+    firmConfig: firmConfig(),
+  });
+  expect(report.decided).toBe(1);
+  return readChain(edge, projectId, caseId);
+}
+
 describe('convergence with agents — kill-the-laptop on agent-written entries (SC-004)', () => {
   beforeEach(() => {
     resetCaseProjectCaches();
@@ -173,6 +213,37 @@ describe('convergence with agents — kill-the-laptop on agent-written entries (
     const s2 = foldSnapshot();
 
     expect(s2).toBe(s1);
+    expect(selectCaseWatermark(CASE)).toBe(chain[chain.length - 1].seq);
+  });
+
+  it('a watcher-raised G7 proposal survives wipe+refold byte-for-byte (finding 2)', async () => {
+    resetWatcherState();
+    const edge = new FakeEdge();
+    configureAgentEdge(edge);
+    const chain = await authorWatcherChain(edge, CASE);
+    // activity + worklist-upsert + gate-raise — the watcher's propose-only write.
+    expect(chain).toHaveLength(3);
+
+    await foldEntries(CASE, chain);
+    const s1 = foldSnapshot();
+    const g7 = getCrmEventLogStore().getState().openGates[`G7_${CASE}`];
+    expect(g7?.gateId).toBe('G7');
+    expect(g7?.status).toBe('open');
+
+    // Wipe every store to the floor: the mirrorOpenGate side-write the pass made
+    // is gone, so only the chain can bring the card back.
+    clearAllCrmState();
+    expect(getCrmEventLogStore().getState().openGates).toEqual({});
+
+    await foldEntries(CASE, chain);
+    const s2 = foldSnapshot();
+    expect(s2).toBe(s1);
+
+    // The open G7 is reconstructed from the chain's gate-raise entry alone — the
+    // finding-2 proof that a watcher gate is chain-sourced, not a lost side-write.
+    const g7Refold = getCrmEventLogStore().getState().openGates[`G7_${CASE}`];
+    expect(g7Refold?.gateId).toBe('G7');
+    expect(g7Refold?.status).toBe('open');
     expect(selectCaseWatermark(CASE)).toBe(chain[chain.length - 1].seq);
   });
 

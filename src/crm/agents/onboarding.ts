@@ -40,7 +40,7 @@ import { appendCaseLog } from './caseLogWrite';
 import { ensureCaseProject } from './caseProject';
 import { encodeJsonAttachment } from './codec';
 import { getAgentEdge } from './edge';
-import { publishCasePointer } from './firmIndex';
+import { publishCasePointer, readCasePointer } from './firmIndex';
 
 // A desktop-issued append has no server run to point back to. The origin.runId
 // field is required (non-empty by contract), so a stable sentinel names the
@@ -283,6 +283,9 @@ export async function beginOnboarding(
     title: gateById('G1').name,
     draftFull: draft.full,
     disclosureRef: draft.disclosureRefs[0],
+    // Carry EVERY disclosure the draft cites so the card's provenance shows the
+    // full set the adviser is signing off, not just the first (finding 9).
+    disclosureRefs: [...draft.disclosureRefs],
     reasons: [
       'Regulated onboarding communication — MCOB 4.4A requires adviser sign-off before send.',
       `Requests ${checklist.length} documents to open the case.`,
@@ -320,6 +323,9 @@ export async function beginOnboarding(
   // Republish the case pointer so the watcher pass and the firm's Today queue
   // see the new log head immediately — a stale pointer hides the case from
   // every scan until the next unrelated write (finding 11).
+  // A brand-new onboarding case genuinely starts at fact-find, so this is the
+  // real initial stage — not a hardcoded reset (finding 8; contrast the
+  // approve/deny republishes below, which PRESERVE the case's current stage).
   await publishCasePointer({
     caseId: input.caseId,
     firmId: input.firmId,
@@ -422,11 +428,15 @@ export async function approveOnboardingSend(
     .resolveMirroredGate(input.gateInstanceId, 'allow', now, { edited });
 
   // Refresh the pointer so the log head the watcher reads reflects the approval.
+  // Preserve the case's CURRENT stage — a G1 approval does not move the case, so
+  // reusing the published stage avoids silently rewinding an advanced case to
+  // fact-find (finding 8). Fall back to fact-find only if no pointer exists yet.
+  const currentPointer = await readCasePointer(input.firmId, input.caseId);
   await publishCasePointer({
     caseId: input.caseId,
     firmId: input.firmId,
     aionProjectId: input.projectId,
-    stage: 'FACT_FIND',
+    stage: currentPointer?.stage ?? 'FACT_FIND',
     logHeadSeq: write.headSeq,
     updatedAt: now,
   });
@@ -512,11 +522,15 @@ export async function denyOnboardingSend(
     .getState()
     .resolveMirroredGate(input.gateInstanceId, 'deny', now);
 
+  // Preserve the case's CURRENT stage on republish — a G1 rejection does not
+  // move the case, so it must not rewind an advanced case to fact-find
+  // (finding 8). Fall back to fact-find only if no pointer exists yet.
+  const currentPointer = await readCasePointer(input.firmId, input.caseId);
   await publishCasePointer({
     caseId: input.caseId,
     firmId: input.firmId,
     aionProjectId: input.projectId,
-    stage: 'FACT_FIND',
+    stage: currentPointer?.stage ?? 'FACT_FIND',
     logHeadSeq: write.headSeq,
     updatedAt: now,
   });

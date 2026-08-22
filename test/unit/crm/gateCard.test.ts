@@ -28,6 +28,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 afterEach(cleanup);
 
+// The react-i18next mock (test/setup.ts) returns the key for unmapped keys, so
+// every localised string is asserted by its `crm.gate.*` key — proving the card
+// routes through t() rather than a hardcoded English literal (finding 7).
 describe('GateCard — renders from the registry, approves the edited draft', () => {
   it('shows the gate name, tier, and SLA from the descriptor alone', () => {
     render(
@@ -37,7 +40,7 @@ describe('GateCard — renders from the registry, approves the edited draft', ()
       })
     );
     expect(screen.getByText(gateById('G7').name)).toBeInTheDocument();
-    expect(screen.getByText(/Tier 2/)).toBeInTheDocument();
+    expect(screen.getByText('crm.gate.tier-2')).toBeInTheDocument();
     expect(screen.getByText(/SLA 240m/)).toBeInTheDocument();
   });
 
@@ -45,7 +48,7 @@ describe('GateCard — renders from the registry, approves the edited draft', ()
     render(
       createElement(GateCard, { gate: gateById('G1'), onApprove: () => {} })
     );
-    const batch = screen.getByRole('button', { name: 'Batch' });
+    const batch = screen.getByRole('button', { name: 'crm.gate.batch' });
     expect(batch).toBeDisabled();
   });
 
@@ -67,19 +70,61 @@ describe('GateCard — renders from the registry, approves the edited draft', ()
     expect(screen.getByText(/IDD v3/)).toBeInTheDocument();
     expect(screen.getByText('New case reached onboarding')).toBeInTheDocument();
 
-    const textarea = screen.getByLabelText('Onboarding draft');
+    const textarea = screen.getByLabelText('crm.gate.draft-label');
     fireEvent.change(textarea, { target: { value: 'Dear client, edited' } });
     expect(onEdit).toHaveBeenCalledWith('Dear client, edited');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    fireEvent.click(screen.getByRole('button', { name: 'crm.gate.approve' }));
     expect(onApprove).toHaveBeenCalledWith('Dear client, edited');
   });
 
-  it('approves a non-draft gate with no edited draft', () => {
+  it('renders every disclosure ref a G1 draft cites, not just the first', () => {
+    render(
+      createElement(GateCard, {
+        gate: gateById('G1'),
+        draft: { full: 'Dear client', editable: true },
+        provenance: {
+          disclosureRefs: ['IDD-2026', 'ESIS-terms', 'fee-agreement-v3'],
+          reasons: ['New case reached onboarding'],
+        },
+        onApprove: () => {},
+      })
+    );
+    // All three refs must reach provenance (finding 9), not disclosureRefs[0].
+    expect(screen.getByText(/IDD-2026/)).toBeInTheDocument();
+    expect(screen.getByText(/ESIS-terms/)).toBeInTheDocument();
+    expect(screen.getByText(/fee-agreement-v3/)).toBeInTheDocument();
+  });
+
+  it('offers Acknowledge — not the G1 send controls — for a G7 gate (finding 1)', () => {
     const onApprove = vi.fn();
-    render(createElement(GateCard, { gate: gateById('G7'), onApprove }));
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
-    expect(onApprove).toHaveBeenCalledWith(undefined);
+    const onReject = vi.fn();
+    const onAcknowledge = vi.fn();
+    render(
+      createElement(GateCard, {
+        gate: gateById('G7'),
+        onApprove,
+        onReject,
+        onAcknowledge,
+      })
+    );
+
+    // A propose-only G7 card must NOT render the regulated send controls: an
+    // Approve/Reject here is exactly the mis-wiring that would let a watcher
+    // nudge be recorded as an onboarding send.
+    expect(
+      screen.queryByRole('button', { name: 'crm.gate.approve' })
+    ).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'crm.gate.reject' })
+    ).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'crm.gate.acknowledge' })
+    );
+    expect(onAcknowledge).toHaveBeenCalledTimes(1);
+    expect(onApprove).not.toHaveBeenCalled();
+    expect(onReject).not.toHaveBeenCalled();
   });
 });
 

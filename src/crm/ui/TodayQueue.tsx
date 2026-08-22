@@ -24,13 +24,14 @@ import { useTranslation } from 'react-i18next';
 import { useCrmEventLogStore } from '../fold/eventLogStore';
 import { useCrmWorkstreamStore } from '../workstreamStore';
 import {
+  acknowledgeGate,
   approveGate,
   bootstrapCrmSurface,
   descriptorForMirror,
   rejectGate,
   startOnboardingCase,
 } from './crmSurface';
-import { GateCard } from './GateCard';
+import { GateCard, subscribeOpenGate } from './GateCard';
 import { StatusPill } from './primitives/StatusPill';
 import {
   buildTodayQueue,
@@ -49,12 +50,7 @@ const FRESHNESS_TONE: Record<QueueRow['freshness'], CrmTone> = {
   stale: 'warning',
 };
 
-export interface TodayQueueProps {
-  /** The fold is still hydrating; show the loading state. */
-  loading?: boolean;
-}
-
-export function TodayQueue({ loading = false }: TodayQueueProps) {
+export function TodayQueue() {
   const { t } = useTranslation();
   const openGates = useCrmEventLogStore((s) => s.openGates);
   const freshness = useCrmEventLogStore((s) => s.freshness);
@@ -116,6 +112,31 @@ export function TodayQueue({ loading = false }: TodayQueueProps) {
     if (r.ok) setSelectedGateId(null);
     else setSurfaceError(r.error);
     setBusy(false);
+  }, [selectedGate]);
+
+  // Propose-only resolution for a G7 watcher card (finding 1): acknowledge,
+  // never a send. crmSurface.acknowledgeGate refuses a non-G7 mirror.
+  const handleAcknowledge = useCallback(async () => {
+    if (!selectedGate) return;
+    setBusy(true);
+    setSurfaceError(null);
+    const r = await acknowledgeGate(selectedGate, ADVISER_ID);
+    if (r.ok) setSelectedGateId(null);
+    else setSurfaceError(r.error);
+    setBusy(false);
+  }, [selectedGate]);
+
+  // FR-018 — the ONE live approval subscription. While a card is open it watches
+  // the persisted gate mirror; when the mirror flips to resolved (this desktop or
+  // another), the open card is dismissed. Wiring this makes subscribeOpenGate a
+  // genuine live subscription rather than dead code (finding 4).
+  useEffect(() => {
+    if (selectedGate === undefined || selectedGate.status !== 'open') return;
+    return subscribeOpenGate(
+      selectedGate.projectId,
+      selectedGate.approvalId,
+      () => setSelectedGateId(null)
+    );
   }, [selectedGate]);
 
   const rows = useMemo(
@@ -205,10 +226,12 @@ export function TodayQueue({ loading = false }: TodayQueueProps) {
             }
             provenance={{
               disclosureRef: selectedGate.disclosureRef,
+              disclosureRefs: selectedGate.disclosureRefs,
               reasons: selectedGate.reasons,
             }}
             onApprove={(editedDraft) => void handleApprove(editedDraft)}
             onReject={() => void handleReject()}
+            onAcknowledge={() => void handleAcknowledge()}
           />
           <button
             type="button"
@@ -220,9 +243,7 @@ export function TodayQueue({ loading = false }: TodayQueueProps) {
         </div>
       )}
 
-      {loading ? (
-        <EmptyState message={t('crm.today.loading')} />
-      ) : rows.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState
           message={
             hasAnyState ? t('crm.today.all-clear') : t('crm.today.first-run')

@@ -38,10 +38,17 @@ describe('M2 surface wiring guard (findings 3 & 4)', () => {
     expect(today).toContain('startOnboardingCase');
     expect(today).toContain('approveGate');
     expect(today).toContain('rejectGate');
+    // Journey 2: a propose-only G7 watcher card resolves by acknowledgement, via
+    // its own controller entry point — never the G1 send path (finding 1).
+    expect(today).toContain('acknowledgeGate');
     // Gate rows open the card; the card's actions call back into the controller.
     expect(today).toContain('setSelectedGateId(row.id)');
     expect(today).toContain('onApprove=');
     expect(today).toContain('onReject=');
+    expect(today).toContain('onAcknowledge=');
+    // The one live approval subscription is genuinely wired, not dead code
+    // (finding 4): TodayQueue holds the subscription while a card is open.
+    expect(today).toContain('subscribeOpenGate');
   });
 
   it('the controller is the sole runtime caller of the agent journeys', () => {
@@ -50,6 +57,7 @@ describe('M2 surface wiring guard (findings 3 & 4)', () => {
       'beginOnboarding',
       'approveOnboardingSend',
       'denyOnboardingSend',
+      'acknowledgeWatcherProposal',
       'ensureWatcherSchedule',
       'deployLmSkills',
     ]) {

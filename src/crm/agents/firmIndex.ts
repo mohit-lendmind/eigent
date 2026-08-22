@@ -62,6 +62,39 @@ function decodeCaseIndexPointer(value: unknown): CaseIndexPointer | null {
   };
 }
 
+/**
+ * The current pointer for a single case (highest published version of its name),
+ * or null when none has been published yet. Lets a writer preserve the case's
+ * real stage on a re-publish rather than hardcoding a reset to FACT_FIND
+ * (finding 8). Read-only: listArtifacts + one inline getArtifact.
+ */
+export async function readCasePointer(
+  firmId: string,
+  caseId: string
+): Promise<CaseIndexPointer | null> {
+  const edge = await getAgentEdge();
+  const projectId = await firmCoordinatorProject(firmId);
+  const name = casePointerName(firmId, caseId);
+
+  const list = await edge.listArtifacts(projectId, { name });
+  let newest: { version: number; artifactId: string } | null = null;
+  for (const artifact of list.artifacts ?? []) {
+    if (artifact.name !== name) continue;
+    if (!newest || artifact.version > newest.version) {
+      newest = { version: artifact.version, artifactId: artifact.artifact_id };
+    }
+  }
+  if (!newest) return null;
+
+  const access = await edge.getArtifact(projectId, newest.artifactId, {
+    inline: true,
+  });
+  if (access.content_truncated === true || access.content === undefined) {
+    return null;
+  }
+  return decodeCaseIndexPointer(JSON.parse(access.content));
+}
+
 /** Publish (or refresh) one case's pointer. Append-only — mints a new version. */
 export async function publishCasePointer(p: CaseIndexPointer): Promise<void> {
   const edge = await getAgentEdge();

@@ -43,10 +43,11 @@ export interface FirmConfig extends Record<string, unknown> {
   // silently rewrites past spend.
   fxUsdPerGbpMicro?: number;
   fxEffectiveDate?: string;
-  // The firm's watcher coordinator Project, if a firm pins it in config. When
-  // absent, firmCoordinatorProject mints one on true first use and records the
-  // id in the durable firm store (src/crm/firmStore.ts) so later sessions reuse
-  // it — the running id lives there, not written back into this config artifact.
+  // Reserved: a firm-pinned watcher coordinator Project id. NOT consumed in M2 —
+  // firmCoordinatorProject (src/crm/agents/caseProject.ts) resolves the id solely
+  // from the durable firm store (src/crm/firmStore.ts), minting one on true first
+  // use, and never reads this field. Kept on the contract so a pinned id can be
+  // honoured in a later milestone without a config-shape change (finding 11).
   coordinatorProjectId?: string;
 }
 

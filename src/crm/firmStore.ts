@@ -26,20 +26,34 @@ import { persist } from 'zustand/middleware';
 export const CRM_FIRM_PERSIST_VERSION = 1;
 export const CRM_FIRM_STORE_KEY = 'crm-firm-store';
 
+// What the watcher remembers about a case between passes so an unchanged case is
+// skipped before any model spend. Persisted (finding 3): a module-level Map lost
+// this on every process restart or renderer reload, so a warm restart re-spent
+// on and re-proposed for cases that had not moved. Keyed by `${firmId}::${caseId}`.
+export interface WatcherLastSeen {
+  headSeq: string;
+  proposedKind?: string;
+}
+
 export interface CrmFirmState {
   storageEnvironmentKey: string;
   coordinatorProjectByFirm: Record<string, string>;
+  watcherLastSeenByCase: Record<string, WatcherLastSeen>;
   setCoordinatorProject: (firmId: string, projectId: string) => void;
   getCoordinatorProject: (firmId: string) => string | undefined;
+  setWatcherLastSeen: (key: string, seen: WatcherLastSeen) => void;
+  getWatcherLastSeen: (key: string) => WatcherLastSeen | undefined;
+  clearWatcherLastSeen: () => void;
   resetForTests: () => void;
 }
 
 const emptyState = (): Pick<
   CrmFirmState,
-  'storageEnvironmentKey' | 'coordinatorProjectByFirm'
+  'storageEnvironmentKey' | 'coordinatorProjectByFirm' | 'watcherLastSeenByCase'
 > => ({
   storageEnvironmentKey: getAuthEnvironmentKey(),
   coordinatorProjectByFirm: {},
+  watcherLastSeenByCase: {},
 });
 
 const environmentMatches = (
@@ -62,6 +76,15 @@ export const useCrmFirmStore = create<CrmFirmState>()(
               }
         ),
       getCoordinatorProject: (firmId) => get().coordinatorProjectByFirm[firmId],
+      setWatcherLastSeen: (key, seen) =>
+        set((state) => ({
+          watcherLastSeenByCase: {
+            ...state.watcherLastSeenByCase,
+            [key]: seen,
+          },
+        })),
+      getWatcherLastSeen: (key) => get().watcherLastSeenByCase[key],
+      clearWatcherLastSeen: () => set({ watcherLastSeenByCase: {} }),
       resetForTests: () => set(emptyState()),
     }),
     {
@@ -77,11 +100,13 @@ export const useCrmFirmStore = create<CrmFirmState>()(
           ...state,
           storageEnvironmentKey: getAuthEnvironmentKey(),
           coordinatorProjectByFirm: state.coordinatorProjectByFirm ?? {},
+          watcherLastSeenByCase: state.watcherLastSeenByCase ?? {},
         } as CrmFirmState;
       },
       partialize: (state) => ({
         storageEnvironmentKey: state.storageEnvironmentKey,
         coordinatorProjectByFirm: state.coordinatorProjectByFirm,
+        watcherLastSeenByCase: state.watcherLastSeenByCase,
       }),
     }
   )

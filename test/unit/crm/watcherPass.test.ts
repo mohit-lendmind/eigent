@@ -90,6 +90,31 @@ function firmConfig(overrides: Record<string, unknown> = {}): FirmConfig {
   return decodeFirmConfig({ firmId: FIRM, ...overrides });
 }
 
+// Every worklist-upsert id the watcher has written to a case's chain, in order.
+// The chain is the durable truth: two proposals that share an id collapse to one
+// open item on fold, whereas two distinct ids are a visible queue duplicate.
+async function worklistUpsertIds(
+  edge: FakeEdge,
+  caseId: string
+): Promise<string[]> {
+  const list = await edge.listArtifacts(caseProjectId(caseId), {});
+  const ids: string[] = [];
+  for (const artifact of list.artifacts) {
+    if (!artifact.name.startsWith(`lm/case/${caseId}/`)) continue;
+    if (artifact.name.endsWith('/facts.json')) continue;
+    const access = await edge.getArtifact(
+      caseProjectId(caseId),
+      artifact.artifact_id,
+      { inline: true }
+    );
+    const entry = decodeCaseLogEntry(JSON.parse(access.content!));
+    if (entry.event.type === 'worklist-upsert') {
+      ids.push(entry.event.payload.item.id);
+    }
+  }
+  return ids;
+}
+
 describe('watcher — Journey 2: scan, skip, propose-only (SC-002)', () => {
   beforeEach(() => {
     resetWatcherState();
@@ -147,7 +172,10 @@ describe('watcher — Journey 2: scan, skip, propose-only (SC-002)', () => {
     const payload = decision!.payload as Record<string, unknown>;
     expect(payload.passId).toBe(report.passId);
     expect(payload.kind).toBe('retention-open');
-    expect(payload.worklistItemId).toBe(`wl_${report.passId}_c417`);
+    // The worklist item is keyed by (caseId, kind), NOT the pass id, so a later
+    // pass upserts the SAME open item rather than minting a per-pass duplicate
+    // (finding 3). The pass id still names the decision artifact above.
+    expect(payload.worklistItemId).toBe('wl_watcher_c417_retention-open');
     // The M3 dispatch seam is deliberately empty in M2.
     expect(payload.directive).toBeUndefined();
 
@@ -324,6 +352,90 @@ describe('watcher — Journey 2: scan, skip, propose-only (SC-002)', () => {
     expect(report.skipped).toBe(0);
     expect(report.budgetRefusals).toBe(1);
     expect(report.spend.providerCalls).toBe(0);
+  });
+
+  it('persists last-seen across a restart so an unchanged case is not re-proposed (finding 3)', async () => {
+    const edge = new FakeEdge();
+    configureAgentEdge(edge);
+    await seedCase(edge, 'c417', { fixedRateEndAt: NOW + 30 * DAY }, '5');
+    const cfg = firmConfig();
+
+    const first = await runWatcherPass(FIRM, {
+      now: NOW,
+      firmConfig: cfg,
+      passId: 'pass_a',
+    });
+    expect(first.decided).toBe(1);
+
+    // Simulate a desktop restart: the in-memory project caches and the folded UI
+    // stores are gone, but the DURABLE firm store (persisted last-seen) survives.
+    // The old module-level Map was empty here and re-proposed a duplicate under a
+    // fresh per-pass id; the persisted last-seen now fast-path skips instead.
+    resetCaseProjectCaches();
+    useCrmEventLogStore.getState().resetForTests();
+
+    const second = await runWatcherPass(FIRM, {
+      now: NOW + 60_000,
+      firmConfig: cfg,
+      passId: 'pass_b',
+    });
+    expect(second.decided).toBe(0);
+    expect(second.skipped).toBe(1);
+    expect(second.spend.providerCalls).toBe(0);
+
+    // Only the first pass's single upsert exists — the restart produced none.
+    expect(await worklistUpsertIds(edge, 'c417')).toEqual([
+      'wl_watcher_c417_retention-open',
+    ]);
+  });
+
+  it('re-fires on a moved head but reuses the deterministic ids — no duplicate card or item (finding 3)', async () => {
+    const edge = new FakeEdge();
+    configureAgentEdge(edge);
+    await seedCase(edge, 'c417', { fixedRateEndAt: NOW + 30 * DAY }, '5');
+    const cfg = firmConfig();
+
+    const first = await runWatcherPass(FIRM, {
+      now: NOW,
+      firmConfig: cfg,
+      passId: 'pass_a',
+    });
+    expect(first.decided).toBe(1);
+
+    // The case log head advances, so the watcher legitimately re-evaluates and
+    // re-proposes on the next pass — under a DIFFERENT pass id from the first.
+    await publishCasePointer({
+      caseId: 'c417',
+      firmId: FIRM,
+      aionProjectId: caseProjectId('c417'),
+      stage: 'application',
+      logHeadSeq: '6',
+      updatedAt: 2,
+    });
+    const second = await runWatcherPass(FIRM, {
+      now: NOW + 60_000,
+      firmConfig: cfg,
+      passId: 'pass_b',
+    });
+    expect(second.decided).toBe(1);
+
+    // Two proposals across two passes, but BOTH worklist-upserts carry the SAME
+    // (case, kind) id, so a fold collapses them to ONE open item. Under the old
+    // per-pass ids these were wl_pass_a_c417 and wl_pass_b_c417 — two distinct
+    // open items, a visible queue duplicate.
+    const upserts = await worklistUpsertIds(edge, 'c417');
+    expect(upserts).toHaveLength(2);
+    expect(new Set(upserts)).toEqual(
+      new Set(['wl_watcher_c417_retention-open'])
+    );
+
+    // The G7 mirror is keyed by a deterministic instance id, so the second raise
+    // supersedes the first: exactly one open card for the case, never two.
+    const g7s = Object.values(useCrmEventLogStore.getState().openGates).filter(
+      (g) => g.gateId === 'G7' && g.caseId === 'c417'
+    );
+    expect(g7s).toHaveLength(1);
+    expect(g7s[0].id).toBe('G7_c417');
   });
 
   it('creates the every-5-minutes coordinator schedule exactly once', async () => {

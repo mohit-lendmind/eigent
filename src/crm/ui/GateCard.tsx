@@ -16,14 +16,18 @@
 // GateDescriptor (the frozen registry, see ../agentContracts/gates): the tier
 // and SLA are shown, and batching is INERT in M2 (a batchable gate says so but
 // the control is disabled). A G1 onboarding card additionally shows the full
-// draft with inline edit plus its provenance (disclosure ref + reasons), so the
-// adviser approves what they can actually read and change. `subscribeOpenGate`
-// is the ONE live approval subscription M2 holds — it watches the persisted
-// gate mirror and fires when the open card's approval resolves.
+// draft with inline edit plus its provenance (disclosure refs + reasons), so the
+// adviser approves what they can actually read and change. A non-G1 (G7 watcher)
+// card is propose-only: it offers Acknowledge, never the regulated send controls,
+// so a nudge can never be mis-approved as an onboarding send (finding 1). Every
+// visible string is a t() key so the card localises across the 11 locales
+// (finding 7). `subscribeOpenGate` is the ONE live approval subscription M2 holds
+// — it watches the persisted gate mirror and fires when the card's gate resolves.
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { GateDescriptor } from '../agentContracts/gates';
 import { useCrmEventLogStore } from '../fold/eventLogStore';
 import { StatusPill } from './primitives/StatusPill';
@@ -32,7 +36,13 @@ import { tierTone } from './tones';
 export interface GateCardProps {
   gate: GateDescriptor;
   draft?: { full: string; editable: true };
-  provenance?: { disclosureRef?: string; reasons: string[] };
+  provenance?: {
+    disclosureRef?: string;
+    /** Every disclosure ref the draft cites, so provenance shows the full set
+     * an adviser signs off — not just the first (finding 9). */
+    disclosureRefs?: string[];
+    reasons: string[];
+  };
   onApprove: (editedDraft?: string) => void;
   onEdit?: (next: string) => void;
   /**
@@ -41,12 +51,18 @@ export interface GateCardProps {
    * assignable; when unset the reject control is not rendered.
    */
   onReject?: () => void;
+  /**
+   * Acknowledge path for a propose-only (G7 watcher) gate. M2 dispatches
+   * nothing, so a non-G1 card resolves by acknowledgement rather than a send;
+   * when set on a non-G1 gate the card shows Acknowledge in place of the
+   * Approve/Reject send controls (finding 1). Optional to keep GateCardProps
+   * assignable.
+   */
+  onAcknowledge?: () => void;
 }
 
-function tierLabel(tier: 1 | 2 | 3): string {
-  if (tier === 1) return 'Tier 1 · veto-grade';
-  if (tier === 2) return 'Tier 2 · regulated';
-  return 'Tier 3 · operational';
+function tierLabelKey(tier: 1 | 2 | 3): string {
+  return `crm.gate.tier-${tier}`;
 }
 
 export function GateCard({
@@ -56,10 +72,15 @@ export function GateCard({
   onApprove,
   onEdit,
   onReject,
+  onAcknowledge,
 }: GateCardProps) {
+  const { t } = useTranslation();
   const [edited, setEdited] = useState(draft?.full ?? '');
   const isG1 = gate.id === 'G1';
   const showDraft = isG1 && draft !== undefined;
+  const disclosureRefs =
+    provenance?.disclosureRefs ??
+    (provenance?.disclosureRef !== undefined ? [provenance.disclosureRef] : []);
 
   return (
     <section
@@ -76,16 +97,19 @@ export function GateCard({
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <StatusPill tone={tierTone(gate.tier)} label={tierLabel(gate.tier)} />
+          <StatusPill
+            tone={tierTone(gate.tier)}
+            label={t(tierLabelKey(gate.tier))}
+          />
           <StatusPill tone="info" label={`SLA ${gate.slaMinutes}m`} />
         </div>
       </header>
 
       {provenance !== undefined && (
         <div className="flex flex-col gap-1 rounded-md bg-ds-bg-neutral-muted-default p-2">
-          {provenance.disclosureRef !== undefined && (
+          {disclosureRefs.length > 0 && (
             <span className="text-xs text-ds-text-neutral-default-default">
-              Disclosure: {provenance.disclosureRef}
+              {t('crm.gate.disclosure')} {disclosureRefs.join(', ')}
             </span>
           )}
           <ul className="list-disc pl-4 text-xs text-ds-text-neutral-default-default">
@@ -98,7 +122,7 @@ export function GateCard({
 
       {showDraft && (
         <Textarea
-          aria-label="Onboarding draft"
+          aria-label={t('crm.gate.draft-label')}
           value={edited}
           onChange={(e) => {
             setEdited(e.target.value);
@@ -109,29 +133,40 @@ export function GateCard({
 
       <footer className="flex items-center justify-between gap-2">
         <span className="text-xs text-ds-text-neutral-muted-default">
-          {gate.batchable ? 'Batchable (disabled in M2)' : 'Single approval'}
+          {gate.batchable
+            ? t('crm.gate.batchable')
+            : t('crm.gate.single-approval')}
         </span>
         <div className="flex items-center gap-2">
-          <Button
-            disabled
-            aria-disabled
-            title="Batch approval is not available in M2"
-          >
-            Batch
+          <Button disabled aria-disabled title={t('crm.gate.batch-title')}>
+            {t('crm.gate.batch')}
           </Button>
-          {onReject !== undefined && (
-            <Button
-              variant="secondary"
-              tone="error"
-              onClick={() => onReject()}
-              title="Reject this send"
-            >
-              Reject
-            </Button>
+          {isG1 ? (
+            <>
+              {onReject !== undefined && (
+                <Button
+                  variant="secondary"
+                  tone="error"
+                  onClick={() => onReject()}
+                  title={t('crm.gate.reject-title')}
+                >
+                  {t('crm.gate.reject')}
+                </Button>
+              )}
+              <Button onClick={() => onApprove(showDraft ? edited : undefined)}>
+                {t('crm.gate.approve')}
+              </Button>
+            </>
+          ) : (
+            onAcknowledge !== undefined && (
+              <Button
+                onClick={() => onAcknowledge()}
+                title={t('crm.gate.acknowledge-title')}
+              >
+                {t('crm.gate.acknowledge')}
+              </Button>
+            )
           )}
-          <Button onClick={() => onApprove(showDraft ? edited : undefined)}>
-            Approve
-          </Button>
         </div>
       </footer>
     </section>

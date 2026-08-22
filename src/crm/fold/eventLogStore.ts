@@ -108,7 +108,19 @@ export interface MirroredGate {
   approvalId: string;
   title: string;
   draftFull?: string;
+  /** Deprecated single ref; superseded by `disclosureRefs`. First of the set. */
   disclosureRef?: string;
+  /**
+   * Every disclosure reference the draft cites, so the card's provenance shows
+   * the full set an adviser is signing off — not just the first (finding 9).
+   */
+  disclosureRefs?: string[];
+  /**
+   * The open worklist item this gate proposes against, so a G7 watcher proposal
+   * can be resolved (acknowledged) by its OWN worklist item + gate ids rather
+   * than being mis-routed through the G1 send path (finding 1).
+   */
+  worklistItemId?: string;
   reasons: string[];
   raisedAt: number;
   status: 'open' | 'resolved';

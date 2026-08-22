@@ -40,6 +40,7 @@ import type {
   WorklistKind,
 } from '../domain/types';
 import { CRM_SCHEMA_VERSION } from '../domain/types';
+import { getCrmFirmStore } from '../firmStore';
 import { getCrmEventLogStore, type MirroredGate } from '../fold/eventLogStore';
 import {
   CaseBreaker,
@@ -107,13 +108,10 @@ interface TriggerHit {
   detail: string;
 }
 
-// What we remember about a case between passes so an unchanged case is skipped
-// before any model spend. Module-level and firm-scoped by key.
-interface LastSeen {
-  headSeq: string;
-  proposedKind?: WatcherDecisionKind;
-}
-const lastSeenByCase = new Map<string, LastSeen>();
+// The cross-pass fast-path memory (headSeq + last proposed kind per case) is
+// persisted in the durable firm store, not a module Map (finding 3): a process
+// restart or renderer reload used to wipe it, so a warm restart re-spent on and
+// re-proposed for cases that had not moved. See firmStore.watcherLastSeenByCase.
 
 // The per-case invocation breaker is a ROLLING-HOUR limit, so it must persist
 // across passes (a `*/5` cadence is 12 passes an hour): one breaker per firm,
@@ -134,8 +132,8 @@ function firmBreaker(firmId: string, maxPerHour: number): CaseBreaker {
 
 /** Drops the cross-pass fast-path memory + breakers (tests, or a firm re-seed). */
 export function resetWatcherState(): void {
-  lastSeenByCase.clear();
   breakersByFirm.clear();
+  getCrmFirmStore().getState().clearWatcherLastSeen();
 }
 
 export interface RunWatcherPassOptions {
@@ -264,12 +262,19 @@ function decisionArtifactName(passId: string, caseId: string): string {
   return `lm/watcher/${passId}/${caseId}.json`;
 }
 
-function worklistItemIdFor(passId: string, caseId: string): string {
-  return `wl_${passId}_${caseId}`;
+// Pass-INDEPENDENT ids (finding 3): a re-proposal of the same (case, kind) mints
+// the SAME worklist item + G7 mirror instance, so a worklist-upsert/gate-raise
+// supersedes rather than duplicates. A process restart or a moved log head can
+// therefore never spawn a second open item or a second card for one proposal.
+function watcherWorklistItemId(
+  caseId: string,
+  kind: WatcherDecisionKind
+): string {
+  return `wl_watcher_${caseId}_${kind}`;
 }
 
-function gateInstanceId(passId: string, caseId: string): string {
-  return `G7_${passId}_${caseId}`;
+function watcherGateInstanceId(caseId: string): string {
+  return `G7_${caseId}`;
 }
 
 async function writeDecision(
@@ -280,7 +285,7 @@ async function writeDecision(
   hit: TriggerHit,
   now: number
 ): Promise<void> {
-  const worklistItemId = worklistItemIdFor(passId, pointer.caseId);
+  const worklistItemId = watcherWorklistItemId(pointer.caseId, hit.kind);
 
   // The dispatch-ready decision record. `directive` is deliberately UNSET:
   // M2 is propose-only; M3 populates it and a consumer runs it, no rewrite here.
@@ -317,8 +322,10 @@ async function writeDecision(
     reasonParams: { passId, decisionKind: hit.kind },
     schemaVersion: CRM_SCHEMA_VERSION,
   };
+  // Deterministic activity id (finding 3): a re-proposal of the same (case,
+  // kind) supersedes the prior activity rather than stacking a duplicate.
   const activity: ActivityEvent = {
-    id: `act_watcher_${passId}_${pointer.caseId}`,
+    id: `act_watcher_${pointer.caseId}_${hit.kind}`,
     caseId: pointer.caseId,
     kind: 'ai-did',
     title: `Watcher proposal: ${hit.kind}`,
@@ -327,9 +334,35 @@ async function writeDecision(
     actor: 'lm-watcher',
     schemaVersion: CRM_SCHEMA_VERSION,
   };
+
+  // A regulatory-meaning transition is proposed behind G7. It is CHAIN-SOURCED:
+  // the gate-raise entry travels the case log (exactly as onboarding raises G1),
+  // so a wipe-then-refold reconstructs the Today-queue card byte-for-byte
+  // (finding 2). A bare mirrorOpenGate would be a side-write the fold loses. The
+  // mirror carries the proposal's worklist item id so the card can be resolved
+  // by its OWN ids, never the G1 send path (finding 1). Propose-only: the raise
+  // proposes the transition, it never resolves it.
+  const gate: MirroredGate | null = hit.raisesG7
+    ? {
+        id: watcherGateInstanceId(pointer.caseId),
+        gateId: 'G7',
+        caseId: pointer.caseId,
+        projectId: pointer.aionProjectId,
+        approvalId: `appr_${watcherGateInstanceId(pointer.caseId)}`,
+        title: gateById('G7').name,
+        worklistItemId,
+        reasons: [hit.reason.claim, ...hit.reason.working],
+        raisedAt: now,
+        status: 'open',
+      }
+    : null;
+
   const events: CaseLogEvent[] = [
     { type: 'activity', payload: { activity } },
     { type: 'worklist-upsert', payload: { item: worklistItem } },
+    ...(gate
+      ? [{ type: 'gate-raise', payload: { gate } } as CaseLogEvent]
+      : []),
   ];
   await appendCaseLog(edge, pointer.aionProjectId, {
     caseId: pointer.caseId,
@@ -342,22 +375,7 @@ async function writeDecision(
     at: now,
   });
 
-  // A regulatory-meaning transition is proposed behind G7, mirrored for the
-  // queue. Propose-only: mirroring raises the card, it never resolves it.
-  if (hit.raisesG7) {
-    const gate: MirroredGate = {
-      id: gateInstanceId(passId, pointer.caseId),
-      gateId: 'G7',
-      caseId: pointer.caseId,
-      projectId: pointer.aionProjectId,
-      approvalId: `appr_${gateInstanceId(passId, pointer.caseId)}`,
-      title: gateById('G7').name,
-      reasons: [hit.reason.claim, ...hit.reason.working],
-      raisedAt: now,
-      status: 'open',
-    };
-    getCrmEventLogStore().getState().mirrorOpenGate(gate);
-  }
+  if (gate) getCrmEventLogStore().getState().mirrorOpenGate(gate);
 }
 
 /**
@@ -385,6 +403,7 @@ export async function runWatcherPass(
     cfg.fxUsdPerGbpMicro ?? FIRM_CONFIG_DEFAULTS.fxUsdPerGbpMicro!
   );
 
+  const firmStore = getCrmFirmStore();
   const indexReadStats = { skipped: 0 };
   const pointers = await readFirmIndex(firmId, indexReadStats);
 
@@ -398,7 +417,7 @@ export async function runWatcherPass(
   for (const pointer of pointers) {
     scanned += 1;
     const key = lastSeenKey(firmId, pointer.caseId);
-    const prev = lastSeenByCase.get(key);
+    const prev = firmStore.getState().getWatcherLastSeen(key);
     const headChanged = !prev || prev.headSeq !== pointer.logHeadSeq;
 
     const caseFacts = facts(
@@ -414,7 +433,7 @@ export async function runWatcherPass(
     // log head has not moved. Either way, no model tokens are spent.
     if (!hit || (!headChanged && prev?.proposedKind === hit.kind)) {
       skipped += 1;
-      lastSeenByCase.set(key, {
+      firmStore.getState().setWatcherLastSeen(key, {
         headSeq: pointer.logHeadSeq,
         proposedKind: prev?.proposedKind,
       });
@@ -425,7 +444,7 @@ export async function runWatcherPass(
     // the budget stops the pass once its envelope is spent. Both are metrics.
     if (breaker.wouldTrip(pointer.caseId, now)) {
       breakerTrips += 1;
-      lastSeenByCase.set(key, {
+      firmStore.getState().setWatcherLastSeen(key, {
         headSeq: pointer.logHeadSeq,
         proposedKind: prev?.proposedKind,
       });
@@ -435,7 +454,7 @@ export async function runWatcherPass(
       // Budget-starved, NOT a cheap fast-path skip: counted distinctly so a
       // supervisor can tell a healthy pass from one that ran out of envelope.
       budgetRefusals += 1;
-      lastSeenByCase.set(key, {
+      firmStore.getState().setWatcherLastSeen(key, {
         headSeq: pointer.logHeadSeq,
         proposedKind: prev?.proposedKind,
       });
@@ -446,7 +465,7 @@ export async function runWatcherPass(
     await writeDecision(edge, coordinatorProjectId, pointer, passId, hit, now);
     decided += 1;
     providerCalls += 1;
-    lastSeenByCase.set(key, {
+    firmStore.getState().setWatcherLastSeen(key, {
       headSeq: pointer.logHeadSeq,
       proposedKind: hit.kind,
     });
@@ -472,6 +491,89 @@ export async function runWatcherPass(
     budgetRefusals,
     pointerSkips: indexReadStats.skipped,
   };
+}
+
+// A desktop-issued acknowledgement has no server run to point back to; a stable
+// sentinel names the origin rather than an empty runId (contract requires it).
+const WATCHER_ACK_RUN_ID = 'desktop:lm-watcher-ack';
+
+export interface AcknowledgeWatcherProposalInput {
+  caseId: string;
+  firmId: string;
+  projectId: string;
+  worklistItemId: string;
+  gateInstanceId: string;
+  adviserId: string;
+  note?: string;
+  now?: number;
+}
+
+export interface AcknowledgeWatcherProposalResult {
+  headSeq: string;
+  decision: 'acknowledged';
+}
+
+/**
+ * Adviser acknowledgement of a watcher G7 proposal. M2 is PROPOSE-ONLY: this is
+ * NOT a send and NOT a stage transition (contrast the G1 onboarding send). It
+ * resolves the proposal's OWN worklist item and closes the G7 mirror keyed by
+ * the gate's OWN instance id — never G1's — writing a gate-resolve so a refold
+ * reconstructs the closed card (findings 1 & 2). Nothing is dispatched.
+ */
+export async function acknowledgeWatcherProposal(
+  input: AcknowledgeWatcherProposalInput
+): Promise<AcknowledgeWatcherProposalResult> {
+  const now = input.now ?? Date.now();
+  const edge = await getAgentEdge();
+
+  const activity: ActivityEvent = {
+    id: `act_watcher_ack_${input.caseId}`,
+    caseId: input.caseId,
+    kind: 'note',
+    title: 'Watcher proposal acknowledged',
+    detail: input.note
+      ? `Adviser acknowledged the watcher proposal: ${input.note}`
+      : 'Adviser acknowledged the watcher proposal; propose-only, nothing was sent.',
+    when: now,
+    actor: input.adviserId,
+    schemaVersion: CRM_SCHEMA_VERSION,
+  };
+
+  const events: CaseLogEvent[] = [
+    { type: 'activity', payload: { activity } },
+    {
+      type: 'worklist-resolve',
+      payload: {
+        id: input.worklistItemId,
+        resolvedBy: input.adviserId,
+        resolution: {
+          method: 'reviewed',
+          detail: 'Watcher proposal acknowledged; propose-only, nothing sent.',
+        },
+      },
+    },
+    {
+      type: 'gate-resolve',
+      payload: { id: input.gateInstanceId, decision: 'acknowledged' },
+    },
+  ];
+
+  const write = await appendCaseLog(edge, input.projectId, {
+    caseId: input.caseId,
+    firmId: input.firmId,
+    actor: { kind: 'adviser', id: input.adviserId },
+    events,
+    versions: WATCHER_VERSIONS,
+    originArtifactId: `watcher_ack_${input.caseId}`,
+    runId: WATCHER_ACK_RUN_ID,
+    at: now,
+  });
+
+  getCrmEventLogStore()
+    .getState()
+    .resolveMirroredGate(input.gateInstanceId, 'acknowledged', now);
+
+  return { headSeq: write.headSeq, decision: 'acknowledged' };
 }
 
 /**

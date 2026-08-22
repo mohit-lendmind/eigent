@@ -19,6 +19,22 @@
     "starting": "Starting…",
     "close-gate": "Close"
   },
+  "gate": {
+    "tier-1": "Tier 1 · veto-grade",
+    "tier-2": "Tier 2 · regulated",
+    "tier-3": "Tier 3 · operational",
+    "disclosure": "Disclosure:",
+    "batchable": "Batchable (disabled in M2)",
+    "single-approval": "Single approval",
+    "batch": "Batch",
+    "batch-title": "Batch approval is not available in M2",
+    "reject": "Reject",
+    "reject-title": "Reject this send",
+    "approve": "Approve",
+    "acknowledge": "Acknowledge",
+    "acknowledge-title": "Acknowledge this proposal; propose-only, nothing is sent",
+    "draft-label": "Onboarding draft"
+  },
   "nav": {
     "crm": "CRM"
   }

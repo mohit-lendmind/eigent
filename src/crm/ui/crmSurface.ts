@@ -33,7 +33,10 @@ import {
   type OnboardingResult,
 } from '../agents/onboarding';
 import { deployLmSkills } from '../agents/skillDeploy';
-import { ensureWatcherSchedule } from '../agents/watcher';
+import {
+  acknowledgeWatcherProposal,
+  ensureWatcherSchedule,
+} from '../agents/watcher';
 import { newCrmId } from '../domain/ids';
 import type { MirroredGate } from '../fold/eventLogStore';
 
@@ -105,8 +108,11 @@ export async function startOnboardingCase(
 
 /**
  * Journey 1 approval: record the adviser's G1 approval for a mirrored gate,
- * threading the edited draft (if any) into the chain entry. Only valid for a G1
- * onboarding gate — the caller wires this to G1 cards only.
+ * threading the edited draft (if any) into the chain entry. STRICTLY G1: the
+ * approve path is a regulated SEND, and M2 is propose-only for every other gate.
+ * A G7 watcher proposal that reached here would otherwise be written to the
+ * chain as a false "onboarding pack sent" under G1's hardcoded ids (finding 1),
+ * so a non-G1 mirror is refused rather than mis-routed. G7 uses acknowledgeGate.
  */
 export async function approveGate(
   mirror: MirroredGate,
@@ -114,6 +120,12 @@ export async function approveGate(
   editedDraft?: string,
   firmId: string = CRM_PREVIEW_FIRM_ID
 ): Promise<CrmSurfaceOutcome<{ decision: 'allow' }>> {
+  if (mirror.gateId !== 'G1') {
+    return {
+      ok: false,
+      error: `approveGate is only valid for a G1 onboarding send; refused ${mirror.gateId}. M2 is propose-only for other gates.`,
+    };
+  }
   try {
     const result = await approveOnboardingSend({
       caseId: mirror.caseId,
@@ -130,13 +142,24 @@ export async function approveGate(
   }
 }
 
-/** Journey 1 rejection: refuse a G1 send, closing the mirrored gate as denied. */
+/**
+ * Journey 1 rejection: refuse a G1 send, closing the mirrored gate as denied.
+ * STRICTLY G1, mirroring approveGate: denyOnboardingSend writes a G1-keyed
+ * gate-resolve and worklist-resolve under hardcoded onboarding ids, so a G7
+ * watcher mirror routed here would resolve the WRONG gate. G7 uses acknowledgeGate.
+ */
 export async function rejectGate(
   mirror: MirroredGate,
   adviserId: string,
   reason?: string,
   firmId: string = CRM_PREVIEW_FIRM_ID
 ): Promise<CrmSurfaceOutcome<{ decision: 'deny' }>> {
+  if (mirror.gateId !== 'G1') {
+    return {
+      ok: false,
+      error: `rejectGate is only valid for a G1 onboarding send; refused ${mirror.gateId}. M2 is propose-only for other gates.`,
+    };
+  }
   try {
     const result = await denyOnboardingSend({
       caseId: mirror.caseId,
@@ -146,6 +169,48 @@ export async function rejectGate(
       gateInstanceId: gateInstanceId(mirror.caseId),
       adviserId,
       reason,
+    });
+    return { ok: true, value: { decision: result.decision } };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * Journey 2 acknowledgement: the ONLY resolution path for a G7 watcher proposal.
+ * M2 is propose-only, so a G7 card has no send/deny — the adviser simply
+ * acknowledges the nudge. This resolves the proposal by its OWN worklist item and
+ * closes the mirror by its OWN gate-instance id, writing a G7-keyed gate-resolve
+ * onto the chain (never a G1 "onboarding pack sent" activity — finding 1). A
+ * non-G7 mirror, or a G7 mirror missing the watcher's worklist id, is refused.
+ */
+export async function acknowledgeGate(
+  mirror: MirroredGate,
+  adviserId: string,
+  note?: string,
+  firmId: string = CRM_PREVIEW_FIRM_ID
+): Promise<CrmSurfaceOutcome<{ decision: 'acknowledged' }>> {
+  if (mirror.gateId !== 'G7') {
+    return {
+      ok: false,
+      error: `acknowledgeGate is only valid for a G7 watcher proposal; refused ${mirror.gateId}.`,
+    };
+  }
+  if (mirror.worklistItemId === undefined) {
+    return {
+      ok: false,
+      error: `G7 mirror ${mirror.id} carries no worklistItemId; cannot resolve the proposal's own worklist item.`,
+    };
+  }
+  try {
+    const result = await acknowledgeWatcherProposal({
+      caseId: mirror.caseId,
+      firmId,
+      projectId: mirror.projectId,
+      worklistItemId: mirror.worklistItemId,
+      gateInstanceId: mirror.id,
+      adviserId,
+      note,
     });
     return { ok: true, value: { decision: result.decision } };
   } catch (error) {
