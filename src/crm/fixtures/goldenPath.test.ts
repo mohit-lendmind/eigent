@@ -97,8 +97,8 @@ describe('goldenPath fixture integrity', () => {
     expect(goldenPathBundle.worklist).toHaveLength(6);
   });
 
-  it('documents fixture has 6 records', () => {
-    expect(goldenPathBundle.documents).toHaveLength(6);
+  it('documents fixture has 7 records', () => {
+    expect(goldenPathBundle.documents).toHaveLength(7);
   });
 
   it('checklist has 4 aisha, 3 daniel, 3 joint items', () => {

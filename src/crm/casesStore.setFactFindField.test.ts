@@ -17,6 +17,11 @@ import { useCrmCasesStore } from './casesStore';
 import { useCrmClientsStore } from './clientsStore';
 import { useCrmDocumentsStore } from './documentsStore';
 import type { Pence } from './domain/money';
+// Side-effect import: wires the eventlog outbox bus (registered at outbox
+// module import). An adviser edit now queues a durable outbox record (FR-018),
+// and dispatching to an unwired bus is loud by contract (FR-020) — the barrel
+// wires this in the app; an isolated store unit test must wire it itself.
+import './fold/outbox';
 import { seedCrmGoldenPath } from './seed';
 import { useCrmWorkstreamStore } from './workstreamStore';
 

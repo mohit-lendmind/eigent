@@ -95,10 +95,49 @@ export {
 export { seedCrmGoldenPath, type SeedOptions } from './seed';
 
 export {
+  canonicalise,
   clearAllCrmState,
   exportCaseFile,
+  exportCaseFileV2,
   importCaseFile,
+  type CaseFileExportEnvelopeV2,
+  type CaseFileExportV2,
   type ExportFailure,
   type ImportFailure,
   type ImportSuccess,
 } from './caseFile';
+
+export {
+  computeEntryHash,
+  settleHashOf,
+  sha256HexCanonical,
+  verifyChain,
+} from './hashChain';
+
+// The six per-case rendering selectors (FR-015, SC-005) — the read surface an
+// M2 case-health strip renders from, alongside GATE_REGISTRY for approval
+// cards. Exposed here so a later surface builds against the public barrel
+// alone, never reaching into the fold internals.
+export {
+  selectCaseChainStatus,
+  selectCaseFreshness,
+  selectCaseHalt,
+  selectCaseWatermark,
+  selectQuarantineCount,
+  selectUnsettledOutbox,
+} from './fold/caseLogFold';
+
+// Importing the outbox module for its side effect wires the event-log side-bus
+// so desktop store writes can enqueue without a static store→fold import.
+export {
+  OUTBOX_LWW_KINDS,
+  OUTBOX_MAX_UNSETTLED,
+  configureOutboxCarrier,
+  flushOutbox,
+  recordLocalEvent,
+  type LocalEventCandidate,
+  type LocalEventRefusal,
+  type OutboxCarrier,
+} from './fold/outbox';
+
+export * from './agentContracts';

@@ -13,12 +13,22 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 import {
+  clearAllCrmState,
   seedCrmGoldenPath,
   useCrmCasesStore,
   useCrmClientsStore,
   useCrmDocumentsStore,
   useCrmWorkstreamStore,
 } from '@/crm';
+import {
+  outOfOrderArrival,
+  unknownEventKind,
+} from '@/crm/fixtures/caselog/negatives';
+import { foldEntries } from '@/crm/fold/caseLogFold';
+import {
+  CRM_EVENTLOG_STORE_KEY,
+  useCrmEventLogStore,
+} from '@/crm/fold/eventLogStore';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('persist round-trip', () => {
@@ -37,6 +47,7 @@ describe('persist round-trip', () => {
       useCrmCasesStore.getState(),
       useCrmDocumentsStore.getState(),
       useCrmWorkstreamStore.getState(),
+      useCrmEventLogStore.getState(),
     ]) {
       // Strip actions (functions).
       const partialised = JSON.parse(
@@ -81,5 +92,64 @@ describe('persist round-trip', () => {
     const parsed = JSON.parse(raw);
     expect(parsed).toHaveProperty('state.storageEnvironmentKey');
     expect(parsed).toHaveProperty('state.clientsById');
+  });
+});
+
+describe('event-log store persist round-trip (FR-011/12/13)', () => {
+  beforeEach(() => {
+    clearAllCrmState();
+  });
+
+  it('quarantine, tombstones, everCount and outbox persist; pendingByCase does not', async () => {
+    // A real quarantine record + monotonic everCount from folding an unknown
+    // event member.
+    const { entries } = await unknownEventKind();
+    await foldEntries('c417', entries);
+    expect(useCrmEventLogStore.getState().quarantine).toHaveLength(1);
+    expect(useCrmEventLogStore.getState().quarantineEverCount).toBe(1);
+
+    // A gap on a second case populates the DERIVED pendingByCase buffer.
+    const scrambled = await outOfOrderArrival();
+    const bySeq = new Map(scrambled.map((e) => [e.seq, e]));
+    await foldEntries('cgap', [
+      bySeq.get('1')!,
+      bySeq.get('2')!,
+      bySeq.get('4')!,
+    ]);
+    expect(useCrmEventLogStore.getState().pendingByCase.cgap).toBeDefined();
+
+    // A genuine outbox record (entryCandidate is a seq/hash-stripped entry).
+    const { seq, prevHash, hash, ...entryCandidate } = entries[0];
+    void seq;
+    void prevHash;
+    void hash;
+    useCrmEventLogStore.getState().enqueueOutbox({
+      id: 'outbox_test_1',
+      caseId: 'c417',
+      entryCandidate,
+      settleHash: 'settle-abc',
+      state: 'queued',
+      queuedAt: 1,
+    });
+
+    // A tombstone injected directly (eviction path is exercised elsewhere).
+    useCrmEventLogStore.setState((s) => ({
+      quarantineTombstones: [
+        ...s.quarantineTombstones,
+        { hash: 'tomb-h', kind: 'tomb-k', at: 1 },
+      ],
+    }));
+
+    const raw = localStorage.getItem(CRM_EVENTLOG_STORE_KEY);
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw as string);
+
+    expect(parsed.state.quarantine).toHaveLength(1);
+    expect(parsed.state.quarantineEverCount).toBe(1);
+    expect(parsed.state.quarantineTombstones).toHaveLength(1);
+    expect(parsed.state.outbox).toHaveLength(1);
+    expect(parsed.state.outbox[0].id).toBe('outbox_test_1');
+    // DERIVED — deliberately excluded from the persisted envelope.
+    expect(parsed.state).not.toHaveProperty('pendingByCase');
   });
 });

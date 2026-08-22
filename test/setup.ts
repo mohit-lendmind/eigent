@@ -14,7 +14,28 @@
 
 // Global test setup file
 import '@testing-library/jest-dom';
-import { beforeEach, vi } from 'vitest';
+import { beforeAll, beforeEach, vi } from 'vitest';
+
+// WebCrypto canary (FR-016): the hash chain hashes via crypto.subtle, which is
+// present in the renderer and web build but only by vitest's grace under
+// jsdom's Node global. If a future toolchain bump drops it, the audit spine
+// would silently degrade — so fail the whole suite loudly, up front, instead.
+beforeAll(async () => {
+  if (typeof crypto === 'undefined' || !crypto.subtle) {
+    throw new Error(
+      '[test/setup] crypto.subtle is unavailable — the hash-chain audit spine cannot run'
+    );
+  }
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode('canary')
+  );
+  if (digest.byteLength !== 32) {
+    throw new Error(
+      `[test/setup] SHA-256 digest was ${digest.byteLength} bytes, expected 32`
+    );
+  }
+});
 
 // Web Storage, owned by this file rather than by whichever implementation wins.
 //

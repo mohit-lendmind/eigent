@@ -179,4 +179,37 @@ export const goldenPathDocuments: CrmDocument[] = [
     insights: [],
     schemaVersion: CRM_SCHEMA_VERSION,
   },
+  {
+    id: 'd7',
+    owner: 'daniel',
+    name: 'Payslip_TraffordHS_Jan.pdf',
+    type: 'Payslip',
+    status: 'COMPLETED',
+    size: 198_000,
+    when: t(2026, 5, 3, 9, 17),
+    iconTone: 'status-warning',
+    attribution: 0.92,
+    insights: [
+      {
+        id: 'i-d7-1',
+        label: 'Gross this period',
+        value: '£3,108.33',
+        conf: 0.94,
+      },
+      {
+        id: 'i-d7-2',
+        label: 'Annualised salary income basic',
+        value: '£37,300',
+        conf: 0.92,
+        conflict: true,
+      },
+      {
+        id: 'i-d7-3',
+        label: 'Employer',
+        value: 'Trafford High School',
+        conf: 0.95,
+      },
+    ],
+    schemaVersion: CRM_SCHEMA_VERSION,
+  },
 ];
