@@ -44,6 +44,8 @@ export type CaseLogEventKind =
   | 'case-upsert'
   | 'client-upsert'
   | 'document-upsert'
+  | 'gate-raise' // a G-gate raised by an agent, mirrored into the fold's openGates
+  | 'gate-resolve' // an adviser decision on a raised gate (allow/deny)
   | 'chain-anchor' // reserved (T3): writer-side chain re-base; fold applies as no-op re-base
   | (string & {}); // unknown members quarantine, never throw
 
@@ -86,6 +88,8 @@ export const KNOWN_CASELOG_EVENT_KINDS: readonly CaseLogEventKind[] = [
   'case-upsert',
   'client-upsert',
   'document-upsert',
+  'gate-raise',
+  'gate-resolve',
   'chain-anchor',
 ];
 

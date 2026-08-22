@@ -129,7 +129,11 @@ export function parseActionArgs(
   const raw = argumentsJson.trim() === '' ? '{}' : argumentsJson;
   try {
     const parsed = JSON.parse(raw);
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    if (
+      parsed === null ||
+      typeof parsed !== 'object' ||
+      Array.isArray(parsed)
+    ) {
       return { error: 'arguments must be a JSON object' };
     }
     return { args: parsed as ActionArgs };
@@ -153,6 +157,51 @@ export function checkUrlAllowed(url: string): string | null {
   if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return null;
   if (parsed.protocol === 'about:' && parsed.pathname === 'blank') return null;
   return `unsupported url scheme ${JSON.stringify(parsed.protocol)} (http, https or about:blank)`;
+}
+
+/**
+ * Licensed / authenticated portals we must NEVER present a spoofed browser
+ * fingerprint to. Evading their bot-detection risks a ToS ban that would burn
+ * the design-partner seat the whole connector strategy depends on, and it cuts
+ * against the audit-honesty doctrine. Decision (2026-08-22): gate the evasion,
+ * never remove it — off by default, opt-in, and never on these hosts. Matched
+ * on the host itself or any subdomain of it.
+ */
+export const FINGERPRINT_EVASION_DENYLIST: readonly string[] = [
+  'mortgage-brain.co.uk',
+  'mortgagebrain.co.uk',
+  'twenty7tec.com',
+  'mortgagemagic.co.uk',
+  'mortgage-magic.co.uk',
+];
+
+/**
+ * The honest fingerprint is the default. Evasion is opt-in via
+ * LM_BROWSER_FINGERPRINT_EVASION=1 only; any other value keeps it off.
+ */
+export function fingerprintEvasionOptIn(
+  env: Record<string, string | undefined>
+): boolean {
+  return env.LM_BROWSER_FINGERPRINT_EVASION === '1';
+}
+
+/**
+ * Whether to inject the fingerprint-evasion script for a page: only when opted
+ * in AND the page is not a denylisted licensed portal (or a subdomain of one).
+ * An unparseable or hostless URL never gets it.
+ */
+export function shouldInjectFingerprint(url: string, optIn: boolean): boolean {
+  if (!optIn) return false;
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  if (host === '') return false;
+  return !FINGERPRINT_EVASION_DENYLIST.some(
+    (portal) => host === portal || host.endsWith(`.${portal}`)
+  );
 }
 
 /** doVisit's tab decision: reuse a blank current tab, else open a new one. */

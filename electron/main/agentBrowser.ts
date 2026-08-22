@@ -23,43 +23,45 @@
 // auto-creation and inactivity sweeps assume product webviews, and any of
 // them touching an agent tab mid-delegation would corrupt the run.
 
-import { app, BrowserWindow, WebContentsView, session } from 'electron';
+import { app, BrowserWindow, session, WebContentsView } from 'electron';
 import log from 'electron-log';
 import {
   consoleHookScript,
-  snapshotScript,
-  refRectScript,
-  focusAndClearScript,
-  selectScript,
   consoleReadScript,
+  focusAndClearScript,
+  refRectScript,
+  selectScript,
+  snapshotScript,
 } from './agentBrowserScripts';
 import {
   type ActionArgs,
   type BrowserCtlOut,
-  type SnapshotResult,
-  type NavigationHistory,
   type ConsoleEntry,
+  type NavigationHistory,
+  type SnapshotResult,
   actionForTool,
-  parseActionArgs,
+  buildTabs,
   checkUrlAllowed,
-  visitPlan,
-  typeFields,
-  scrollPlan,
-  historyPlan,
-  formatSnapshot,
-  mouseClickEvents,
   enterKeyEvents,
-  SCROLL_ANCHOR,
+  fingerprintEvasionOptIn,
+  firstLine,
+  formatSnapshot,
   FRAME_JPEG_QUALITY,
   frameName,
-  screenshotName,
-  buildTabs,
+  historyPlan,
   marshalOut,
-  firstLine,
-  windowTitle,
+  mouseClickEvents,
+  parseActionArgs,
+  screenshotName,
+  SCROLL_ANCHOR,
+  scrollPlan,
   scrubAgentUserAgent,
+  shouldInjectFingerprint,
   TAKE_CONTROL_ERROR,
+  typeFields,
+  visitPlan,
   WINDOW_CLOSED_ERROR,
+  windowTitle,
 } from './agentBrowserVerbs';
 
 export interface AgentBrowserRequest {
@@ -94,6 +96,11 @@ const VIEW_HEIGHT = 800;
 const ISOLATED_PARTITION = 'persist:agent-browse';
 const LOGGED_IN_PARTITION = 'persist:user_login';
 
+// Bot-detection evasion is OFF by default (the honest fingerprint) and, even
+// when opted in, never runs on a licensed portal — see shouldInjectFingerprint.
+// Read once at module load; opt in per machine with LM_BROWSER_FINGERPRINT_EVASION=1.
+const FINGERPRINT_OPT_IN = fingerprintEvasionOptIn(process.env);
+
 function agentUserAgent(): string {
   return scrubAgentUserAgent(app.userAgentFallback, app.getName());
 }
@@ -123,6 +130,9 @@ const READY_TIMEOUT_MS = 8_000;
 // The webview.ts stealth script minus its capture-phase mousedown
 // preventDefault: that listener suppresses focus for anything that is not a
 // <button>/<input>, which breaks agent clicking on links and custom widgets.
+// GATED: the honest fingerprint is the default. This is injected only when
+// opted in (LM_BROWSER_FINGERPRINT_EVASION=1) and NEVER on a licensed portal —
+// see shouldInjectFingerprint / FINGERPRINT_OPT_IN. Decision 2026-08-22.
 const FINGERPRINT_SCRIPT = `
   const originalLanguages = navigator.languages ? [...navigator.languages] : ['en-US', 'en'];
   const originalHardwareConcurrency = navigator.hardwareConcurrency || 8;
@@ -436,7 +446,9 @@ export class AgentBrowser {
     // page-opened window would live outside the delegated tab set.
     wc.setWindowOpenHandler(() => ({ action: 'deny' }));
     wc.on('did-finish-load', () => {
-      wc.executeJavaScript(FINGERPRINT_SCRIPT).catch(() => {});
+      if (shouldInjectFingerprint(wc.getURL(), FINGERPRINT_OPT_IN)) {
+        wc.executeJavaScript(FINGERPRINT_SCRIPT).catch(() => {});
+      }
     });
     // Persistent attach for the tab's whole life — per-action attach/detach
     // would race page teardown and re-arm banner UI on some sites.
@@ -495,10 +507,16 @@ export class AgentBrowser {
   }
 
   /** Evaluates a script that returns a JSON string and parses it. */
-  private async evalStringJSON<T>(tab: AgentTab, expression: string): Promise<T> {
+  private async evalStringJSON<T>(
+    tab: AgentTab,
+    expression: string
+  ): Promise<T> {
     const res = await this.cdp<{
       result?: { type?: string; value?: unknown };
-      exceptionDetails?: { text?: string; exception?: { description?: string } };
+      exceptionDetails?: {
+        text?: string;
+        exception?: { description?: string };
+      };
     }>(tab, 'Runtime.evaluate', { expression, returnByValue: true });
     if (res.exceptionDetails) {
       throw new Error(
@@ -520,7 +538,10 @@ export class AgentBrowser {
   ): Promise<{ value: unknown } | { error: string }> {
     const res = await this.cdp<{
       result?: { type?: string; value?: unknown };
-      exceptionDetails?: { text?: string; exception?: { description?: string } };
+      exceptionDetails?: {
+        text?: string;
+        exception?: { description?: string };
+      };
     }>(tab, 'Runtime.evaluate', { expression, returnByValue: true });
     if (res.exceptionDetails) {
       return {
@@ -562,7 +583,10 @@ export class AgentBrowser {
           'Runtime.evaluate',
           { expression: 'location.href', returnByValue: true }
         );
-        if (typeof res.result?.value === 'string' && res.result.value !== preURL) {
+        if (
+          typeof res.result?.value === 'string' &&
+          res.result.value !== preURL
+        ) {
           return;
         }
       } catch {
@@ -581,10 +605,14 @@ export class AgentBrowser {
     tab: AgentTab
   ): Promise<{ base64: string; name: string } | undefined> {
     try {
-      const res = await this.cdp<{ data?: string }>(tab, 'Page.captureScreenshot', {
-        format: 'jpeg',
-        quality: FRAME_JPEG_QUALITY,
-      });
+      const res = await this.cdp<{ data?: string }>(
+        tab,
+        'Page.captureScreenshot',
+        {
+          format: 'jpeg',
+          quality: FRAME_JPEG_QUALITY,
+        }
+      );
       if (!res.data) return undefined;
       this.frames++;
       return { base64: res.data, name: frameName(this.frames) };
@@ -594,16 +622,23 @@ export class AgentBrowser {
   }
 
   /** actions.go's finish(): settle, photograph, snapshot — in that order. */
-  private async finish(tab: AgentTab, out: BrowserCtlOut): Promise<VerbOutcome> {
+  private async finish(
+    tab: AgentTab,
+    out: BrowserCtlOut
+  ): Promise<VerbOutcome> {
     await this.waitReady(tab);
     const frame = await this.captureFrame(tab);
     try {
-      const snap = await this.evalStringJSON<SnapshotResult>(tab, snapshotScript);
+      const snap = await this.evalStringJSON<SnapshotResult>(
+        tab,
+        snapshotScript
+      );
       out.url = snap.url;
       out.title = snap.title;
       out.snapshot = formatSnapshot(snap);
     } catch (e) {
-      out.note = `${out.note ?? ''} snapshot unavailable: ${firstLine(errText(e))}`.trim();
+      out.note =
+        `${out.note ?? ''} snapshot unavailable: ${firstLine(errText(e))}`.trim();
     }
     return { out, frame };
   }
@@ -650,7 +685,10 @@ export class AgentBrowser {
     return { error: 'ref or x/y coordinates required' };
   }
 
-  private async dispatch(action: string, args: ActionArgs): Promise<VerbOutcome> {
+  private async dispatch(
+    action: string,
+    args: ActionArgs
+  ): Promise<VerbOutcome> {
     switch (action) {
       case 'open':
         return this.doOpen();
@@ -762,10 +800,10 @@ export class AgentBrowser {
       return { out: { error: 'ref and value are required' } };
     }
     const tab = await this.ensureTab();
-    const res = await this.evalStringJSON<{ error?: string; selected?: string }>(
-      tab,
-      selectScript(args.ref, args.value)
-    );
+    const res = await this.evalStringJSON<{
+      error?: string;
+      selected?: string;
+    }>(tab, selectScript(args.ref, args.value));
     if (res.error) {
       return { out: { error: res.error } };
     }
@@ -790,12 +828,17 @@ export class AgentBrowser {
 
   private async doHistory(delta: -1 | 1): Promise<VerbOutcome> {
     const tab = await this.ensureTab();
-    const hist = await this.cdp<NavigationHistory>(tab, 'Page.getNavigationHistory');
+    const hist = await this.cdp<NavigationHistory>(
+      tab,
+      'Page.getNavigationHistory'
+    );
     const plan = historyPlan(hist, delta);
     if (plan.kind === 'edge') {
       return this.finish(tab, { result: plan.result });
     }
-    await this.cdp(tab, 'Page.navigateToHistoryEntry', { entryId: plan.entryId });
+    await this.cdp(tab, 'Page.navigateToHistoryEntry', {
+      entryId: plan.entryId,
+    });
     return this.finish(tab, { result: plan.result });
   }
 
@@ -871,9 +914,13 @@ export class AgentBrowser {
 
   private async doScreenshot(): Promise<VerbOutcome> {
     const tab = await this.ensureTab();
-    const res = await this.cdp<{ data?: string }>(tab, 'Page.captureScreenshot', {
-      format: 'png',
-    });
+    const res = await this.cdp<{ data?: string }>(
+      tab,
+      'Page.captureScreenshot',
+      {
+        format: 'png',
+      }
+    );
     if (!res.data) {
       return { out: { error: 'screenshot capture returned no data' } };
     }

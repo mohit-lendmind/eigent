@@ -78,6 +78,8 @@ export {
 
 export {
   FIRM_CONFIG_DEFAULTS,
+  FX_EFFECTIVE_DATE_DEFAULT,
+  FX_USD_PER_GBP_MICRO_DEFAULT,
   decodeFirmConfig,
   type FirmConfig,
 } from './firmConfig';

@@ -1,0 +1,42 @@
+{
+  "today": {
+    "title": "Today",
+    "subtitle": "What needs you now",
+    "all-clear": "All clear — nothing needs you right now.",
+    "first-run": "No cases yet. Once cases arrive, the gates and tasks that need you will appear here.",
+    "empty": "Nothing in your queue.",
+    "degraded": "Some case data could not be loaded — this queue may be incomplete.",
+    "stat-gates": "Gates",
+    "stat-tasks": "Tasks",
+    "stat-overdue": "Overdue",
+    "due-in": "Due in {{minutes}}m",
+    "overdue": "Overdue by {{minutes}}m",
+    "freshness-live": "Live",
+    "freshness-as-of": "As of last sync",
+    "freshness-stale": "Stale",
+    "start-onboarding": "New onboarding case",
+    "starting": "Starting…",
+    "close-gate": "Close"
+  },
+  "gate": {
+    "tier-1": "Tier 1 · veto-grade",
+    "tier-2": "Tier 2 · regulated",
+    "tier-3": "Tier 3 · operational",
+    "disclosure": "Disclosure:",
+    "batchable": "Batchable (disabled in M2)",
+    "single-approval": "Single approval",
+    "batch": "Batch",
+    "batch-title": "Batch approval is not available in M2",
+    "reject": "Reject",
+    "reject-title": "Reject this send",
+    "approve": "Approve",
+    "acknowledge": "Acknowledge",
+    "acknowledge-title": "Acknowledge this proposal; propose-only, nothing is sent",
+    "draft-label": "Onboarding draft",
+    "card-label": "Gate {{id}}",
+    "sla-pill": "SLA {{minutes}}m"
+  },
+  "nav": {
+    "crm": "CRM"
+  }
+}

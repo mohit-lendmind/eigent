@@ -24,6 +24,10 @@ const History = lazy(() => import('@/pages/History'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 const IntegrationLab = lazy(() => import('@/pages/IntegrationLab'));
 const Onboarding = lazy(() => import('@/pages/Onboarding'));
+const CrmLayout = lazy(() => import('@/crm/ui/CrmLayout'));
+const TodayQueue = lazy(() =>
+  import('@/crm/ui/TodayQueue').then((m) => ({ default: m.TodayQueue }))
+);
 
 interface AuthState {
   loading: boolean;
@@ -119,6 +123,11 @@ const AppRoutes = () => (
           path="/setting/*"
           element={<Navigate to="/history?tab=settings" replace />}
         />
+      </Route>
+      {/* The CRM surface is a sibling to the main Layout: its own shell (rail +
+          screen), still behind the auth guard. */}
+      <Route path="/crm" element={<CrmLayout />}>
+        <Route index element={<TodayQueue />} />
       </Route>
     </Route>
     <Route path="*" element={<NotFound />} />

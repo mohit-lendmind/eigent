@@ -26,6 +26,7 @@ import type {
   CaseLogEntry,
   DecimalSeq,
 } from '../agentContracts/caseLog';
+import type { GateId } from '../agentContracts/gates';
 import type { FoldReasonCode } from '../agentContracts/reasonCodes';
 
 export const CRM_EVENTLOG_PERSIST_VERSION = 1;
@@ -92,6 +93,47 @@ export interface ChainHead {
   hash: string;
 }
 
+// A gate raised by an agent and mirrored here so the Today queue can render it
+// without a live subscription per row (FR-008). The ONE live approval
+// subscription (subscribeOpenGate) attaches only to the open card; every other
+// row reads this persisted mirror. `projectId`/`approvalId` locate the edge
+// approval the card resolves; `draftFull`/`disclosureRef`/`reasons` are the
+// provenance the card renders. Keyed by a deterministic instance id so a
+// re-raise of the same gate supersedes rather than duplicates.
+export interface MirroredGate {
+  id: string;
+  gateId: GateId;
+  caseId: CaseId;
+  projectId: string;
+  approvalId: string;
+  title: string;
+  draftFull?: string;
+  /** Deprecated single ref; superseded by `disclosureRefs`. First of the set. */
+  disclosureRef?: string;
+  /**
+   * Every disclosure reference the draft cites, so the card's provenance shows
+   * the full set an adviser is signing off — not just the first (finding 9).
+   */
+  disclosureRefs?: string[];
+  /**
+   * The open worklist item this gate proposes against, so a G7 watcher proposal
+   * can be resolved (acknowledged) by its OWN worklist item + gate ids rather
+   * than being mis-routed through the G1 send path (finding 1).
+   */
+  worklistItemId?: string;
+  reasons: string[];
+  raisedAt: number;
+  status: 'open' | 'resolved';
+  decision?: string;
+  resolvedAt?: number;
+  /**
+   * True when the adviser changed the draft before approving. Feeds the
+   * "% drafts approved unedited" leading metric (FR-022); absent until a gate
+   * with an editable draft is resolved (finding 5/21).
+   */
+  edited?: boolean;
+}
+
 // The single-setState patch the fold hands to `applyCaseFold` for one touched
 // case. Everything is optional so a fold that only buffers (no apply) or only
 // quarantines still lands in one write.
@@ -124,6 +166,7 @@ type EventLogData = Pick<
   | 'anomalies'
   | 'freshness'
   | 'haltedCases'
+  | 'openGates'
 >;
 
 export interface CrmEventLogState {
@@ -139,6 +182,7 @@ export interface CrmEventLogState {
   anomalies: Record<CaseId, CaseAnomalies>;
   freshness: Record<CaseId, CaseFreshness>;
   haltedCases: Record<CaseId, CaseHalt>;
+  openGates: Record<string, MirroredGate>; // keyed by MirroredGate.id
 
   applyCaseFold: (patch: CaseFoldPatch) => void;
   setCaseFreshness: (caseId: CaseId, freshness: CaseFreshness) => void;
@@ -147,6 +191,13 @@ export interface CrmEventLogState {
   updateOutbox: (
     id: string,
     change: Partial<Pick<OutboxRecord, 'state' | 'flushedAt' | 'settledAt'>>
+  ) => void;
+  mirrorOpenGate: (gate: MirroredGate) => void;
+  resolveMirroredGate: (
+    id: string,
+    decision: string,
+    at: number,
+    opts?: { edited?: boolean }
   ) => void;
   resetForTests: () => void;
 }
@@ -164,6 +215,7 @@ const emptyData = (): EventLogData => ({
   anomalies: {},
   freshness: {},
   haltedCases: {},
+  openGates: {},
 });
 
 const environmentMatches = (
@@ -309,6 +361,29 @@ export const useCrmEventLogStore = create<CrmEventLogState>()(
           ),
         })),
 
+      mirrorOpenGate: (gate) =>
+        set((state) => ({
+          openGates: { ...state.openGates, [gate.id]: gate },
+        })),
+
+      resolveMirroredGate: (id, decision, at, opts) =>
+        set((state) => {
+          const existing = state.openGates[id];
+          if (!existing) return {};
+          return {
+            openGates: {
+              ...state.openGates,
+              [id]: {
+                ...existing,
+                status: 'resolved',
+                decision,
+                resolvedAt: at,
+                ...(opts?.edited !== undefined ? { edited: opts.edited } : {}),
+              },
+            },
+          };
+        }),
+
       resetForTests: () => set(emptyData()),
     }),
     {
@@ -358,6 +433,7 @@ export const useCrmEventLogStore = create<CrmEventLogState>()(
           anomalies: state.anomalies ?? {},
           freshness: state.freshness ?? {},
           haltedCases: state.haltedCases ?? {},
+          openGates: state.openGates ?? {},
         } as CrmEventLogState;
       },
       partialize: (state) => ({
@@ -373,6 +449,7 @@ export const useCrmEventLogStore = create<CrmEventLogState>()(
         anomalies: state.anomalies,
         freshness: state.freshness,
         haltedCases: state.haltedCases,
+        openGates: state.openGates,
       }),
     }
   )

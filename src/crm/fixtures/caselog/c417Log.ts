@@ -511,6 +511,28 @@ const drafts: CaseLogEntryDraft[] = [
   draft(41, 'activity', {
     activity: activity('ac-final', 'system', 'Chain anchored at DIP', at(41)),
   }),
+  // A G1 onboarding gate raised by the agent and then resolved by the adviser —
+  // the two gate-mirror event kinds (findings 5/10) the fold reconstructs into
+  // openGates, so the golden log covers every known member including these.
+  draft(42, 'gate-raise', {
+    gate: {
+      id: 'G1_c417',
+      gateId: 'G1',
+      caseId: CASE,
+      projectId: 'proj-c417',
+      approvalId: 'appr-G1-c417',
+      title: 'Approve the onboarding send',
+      reasons: ['Onboarding pack drafted; awaiting adviser approval to send.'],
+      raisedAt: at(42),
+      status: 'open',
+    },
+  }),
+  draft(
+    43,
+    'gate-resolve',
+    { id: 'G1_c417', decision: 'allow', edited: false },
+    adviser
+  ),
 ];
 
 let cached: Promise<CaseLogEntry[]> | null = null;

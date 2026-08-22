@@ -19,6 +19,8 @@ import {
   buildTabs,
   checkUrlAllowed,
   enterKeyEvents,
+  FINGERPRINT_EVASION_DENYLIST,
+  fingerprintEvasionOptIn,
   firstLine,
   formatSnapshot,
   FRAME_JPEG_QUALITY,
@@ -27,10 +29,11 @@ import {
   marshalOut,
   mouseClickEvents,
   parseActionArgs,
-  SCROLL_ANCHOR,
   screenshotName,
+  SCROLL_ANCHOR,
   scrollPlan,
   scrubAgentUserAgent,
+  shouldInjectFingerprint,
   TOOL_ACTIONS,
   typeFields,
   visitPlan,
@@ -118,6 +121,65 @@ describe('checkUrlAllowed', () => {
   });
 });
 
+describe('fingerprintEvasionOptIn', () => {
+  it('is off by default (the honest fingerprint)', () => {
+    expect(fingerprintEvasionOptIn({})).toBe(false);
+    expect(
+      fingerprintEvasionOptIn({ LM_BROWSER_FINGERPRINT_EVASION: '0' })
+    ).toBe(false);
+    expect(
+      fingerprintEvasionOptIn({ LM_BROWSER_FINGERPRINT_EVASION: 'true' })
+    ).toBe(false);
+  });
+
+  it('is on only for the exact opt-in value', () => {
+    expect(
+      fingerprintEvasionOptIn({ LM_BROWSER_FINGERPRINT_EVASION: '1' })
+    ).toBe(true);
+  });
+});
+
+describe('shouldInjectFingerprint', () => {
+  it('never injects when opt-in is off, whatever the url', () => {
+    expect(
+      shouldInjectFingerprint('https://www.moneysavingexpert.com', false)
+    ).toBe(false);
+    expect(shouldInjectFingerprint('https://twenty7tec.com', false)).toBe(
+      false
+    );
+  });
+
+  it('injects on a public site when opted in', () => {
+    expect(
+      shouldInjectFingerprint('https://www.moneysavingexpert.com', true)
+    ).toBe(true);
+  });
+
+  it('never injects on a licensed portal, even when opted in', () => {
+    for (const portal of FINGERPRINT_EVASION_DENYLIST) {
+      expect(shouldInjectFingerprint(`https://${portal}/login`, true)).toBe(
+        false
+      );
+      // subdomains of a licensed portal are covered too
+      expect(shouldInjectFingerprint(`https://app.${portal}/x`, true)).toBe(
+        false
+      );
+    }
+  });
+
+  it('is not fooled by a look-alike host that merely ends in the brand', () => {
+    // evilmortgagemagic.co.uk is NOT a subdomain of mortgagemagic.co.uk
+    expect(
+      shouldInjectFingerprint('https://evilmortgagemagic.co.uk', true)
+    ).toBe(true);
+  });
+
+  it('refuses an unparseable or hostless url', () => {
+    expect(shouldInjectFingerprint('not a url', true)).toBe(false);
+    expect(shouldInjectFingerprint('about:blank', true)).toBe(false);
+  });
+});
+
 describe('visitPlan', () => {
   it('reuses a blank current tab', () => {
     expect(visitPlan('https://x.test', 'about:blank')).toEqual({
@@ -167,7 +229,11 @@ describe('typeFields', () => {
 
 describe('scrollPlan', () => {
   it('defaults to down 500', () => {
-    expect(scrollPlan({})).toEqual({ dx: 0, dy: 500, result: 'scrolled down 500' });
+    expect(scrollPlan({})).toEqual({
+      dx: 0,
+      dy: 500,
+      result: 'scrolled down 500',
+    });
   });
 
   it('treats amount 0 as the default 500', () => {
@@ -386,7 +452,8 @@ describe('scrubAgentUserAgent', () => {
   });
 
   it('leaves a user agent that carries neither token alone', () => {
-    const plain = 'Mozilla/5.0 AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36';
+    const plain =
+      'Mozilla/5.0 AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36';
     expect(scrubAgentUserAgent(plain, 'Eternyl')).toBe(plain);
   });
 });
