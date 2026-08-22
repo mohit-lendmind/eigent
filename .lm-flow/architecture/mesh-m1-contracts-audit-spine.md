@@ -121,13 +121,14 @@ flowchart TD
 No database (repo has none — zustand→localStorage only). Changes:
 - New persisted store `crm-eventlog-store` v1 (house checklist above).
 - `domain/ids.ts`: add `'outbox' | 'quarantine'` to `CrmIdPrefix`.
+- `domain/types.ts`: additive optional `aionProjectId?: string` on `Case` (assumed by the fold/outbox; does not exist in F01 today).
 - `domain/types.ts`: additive optional `origin?: Origin` on `ActivityEvent` (the one entity missing it); `CRM_SCHEMA_VERSION` stays 1 (additive-optional is non-breaking; shape-repair already tolerates it).
 - `caseFile.ts`: `CaseFileExportV2` types; `CRM_LS_KEYS` gains the new key.
 
 ## External integrations
 | Provider | Auth | Endpoints we call | Events we consume | Limits to respect |
 |---|---|---|---|---|
-| aion edge (existing, only integration) | bearer edge API key (existing resolution) | `GET /projects/{id}/artifacts` (paginated, `?name=` exact-match only — prefix filter is client-side), `GET .../artifacts/{artifactId}?inline=true`, `POST /projects/{id}/attachments` | `artifact_created` via the existing SSE fold → `subscribeAionArtifacts` | inline read ≤ 1 MiB all-or-nothing (`content_truncated` → typed failure + worklist, fallback to grant download is M2); attachments ≤ 3 MiB; artifact listing paginated — fold source pages fully before ordering; idempotency keys on attachment POSTs |
+| aion edge (existing, only integration) | bearer edge API key (existing resolution) | `GET /projects/{id}/artifacts` (paginated, `?name=` exact-match only — prefix filter is client-side), `GET .../artifacts/{artifactId}?inline=true`, `POST /projects/{id}/attachments` | `artifact_created` via the existing SSE fold → `subscribeAionArtifacts` | inline read ≤ 1 MiB all-or-nothing (`content_truncated` → typed failure + worklist, fallback to grant download is M2); attachments ≤ 3 MiB (uploadAttachment carries NO Idempotency-Key by contract — retry safety = CAS dedupe + settle-by-hash); artifact listing paginated — fold source pages fully before ordering |
 
 No third-party integrations in M1. No new endpoints are requested from the edge team.
 
@@ -146,7 +147,7 @@ No third-party integrations in M1. No new endpoints are requested from the edge 
 | `content_truncated` on inline read | Typed failure + worklist item (entry >1 MiB is itself a contract violation worth surfacing) |
 | localStorage quota / outbox growth | Quarantine capped with eviction; outbox NEVER evicted while unflushed — new local writes refused with typed refusal + worklist item |
 | Env-key change (house wipe) | Existing per-store wipe fires → watermarks reset → **refold from artifacts reconstructs state** — this IS the kill-the-laptop converge path, and its test |
-| Attachment POST failure | Retry per problem `retryable`/5xx rule (`session.ts:224-234` discipline); outbox record stays queued; idempotency key = content hash |
+| Attachment POST failure | Retry per problem `retryable`/5xx rule (`session.ts:224-234` discipline); outbox record stays queued; duplicate-upload safety = the plane's CAS dedupe + settle-by-hash (no Idempotency-Key on this route by contract) |
 
 ## Test strategy
 - **Colocated unit** (`src/crm/**/*.test.ts`): decode/encode round-trips per contract, quarantine classification, gate registry lookups, hash chain (tamper flips verify), outbox enqueue/settle, eventLogStore persist round-trip.
