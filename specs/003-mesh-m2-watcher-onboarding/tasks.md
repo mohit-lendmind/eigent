@@ -55,7 +55,7 @@ description: "Task list — mesh-m2-watcher-onboarding (M2)"
 ## Phase 6: Polish
 - [x] T029 `test/unit/crm/convergenceWithAgents.test.ts` — kill-the-laptop converges byte-identical with agent-written entries; export v2 verifies (SC-004)
 - [x] T030 [P] Contract-freeze assignability test `test/unit/crm/m2ContractFreeze.test.ts` vs specs/003/contracts/*.d.ts (FR-021)
-- [ ] T031 [P] `scripts/demo-mesh-m2.mjs` (seed→watcher pass→onboarding draft→G1 approve→logged) + `docs/compliance-one-pager.md` + wire leading metrics (FR-022, SC-007)
+- [x] T031 [P] `scripts/demo-mesh-m2.mjs` (seed→watcher pass→onboarding draft→G1 approve→logged) + `docs/compliance-one-pager.md` + wire leading metrics (FR-022, SC-007)
 - [ ] T032 Full gate run: type-check, lint, check:i18n, check:design-tokens, check:vitest-baseline, electron-access, build; dark-mode contrast check; then PR into lendmind-crm with the per-FR checklist (FR-023, SC-006)
 
 ## Dependencies
