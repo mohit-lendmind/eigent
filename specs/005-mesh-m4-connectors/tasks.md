@@ -17,9 +17,9 @@ Additive under src/crm/connectors, src/crm/agents, src/crm/ui, resources/lm-skil
 - [x] T010 [P] Tests: payload decoder rejects missing fields; assertClaimable blocks unverified/evidence-less; coverage lint gate; no-client-embed
 
 ## P2 — MSE adapter (verified)
-- [ ] T011 adapters/mse.ts: isolated, console-fetch JSON, buildQuery plan + pure extract; coverage "MSE Best Buys (Podium) — not whole of market" (FR-002)
-- [ ] T012 e2e/connector-mse.eval.ts live canary (nightly) + recorded replay fixture (scrubbed) verifying extract in CI (FR-003)
-- [ ] T013 [P] Tests: MSE replay green; verified derived true only with a passing canary+evidence
+- [x] T011 adapters/mse.ts: isolated, console-fetch JSON, buildQuery plan + pure extract; coverage "MSE Best Buys (Podium) — not whole of market" (FR-002)
+- [x] T012 e2e/connector-mse.eval.ts live canary (nightly) + recorded replay fixture (scrubbed) verifying extract in CI (FR-003)
+- [x] T013 [P] Tests: MSE replay green; verified derived true only with a passing canary+evidence
 
 ## P3 — Mortgage Brain scaffold (verified:false)
 - [ ] T014 adapters/mortgageBrain.ts: logged-in DOM-scrape plan against fixture DOM; verified:false; coverage=firm-panel (FR-002/009)
