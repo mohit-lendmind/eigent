@@ -24,7 +24,9 @@ export type CrmIdPrefix =
   | 'event'
   | 'conflict'
   | 'stream_trunc'
-  | 'activity';
+  | 'activity'
+  | 'outbox'
+  | 'quarantine';
 
 // The repo's generateUniqueId() collides under rapid succession (10k rand
 // values). We tack on a monotonically-increasing counter so a burst of ids —

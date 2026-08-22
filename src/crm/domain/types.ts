@@ -157,6 +157,8 @@ export interface Case {
   affordability: Affordability;
   retention?: CaseRetention;
   ownership?: CaseOwnership;
+  // The aion project this case's audit log lives under (F07 ingest seam).
+  aionProjectId?: string;
   schemaVersion: number;
   origin?: Origin;
 }
@@ -249,6 +251,11 @@ export interface WorklistItem {
   resolution?: WorklistResolution;
   linkedConflictId?: ConflictId;
   linkedDocId?: DocumentId;
+  // Fold-authored items carry a structured reason (T5 loudness grammar). Typed
+  // as string/bag to keep domain decoupled from the agent-contract layer; the
+  // fold narrows these to FoldReasonCode / ReasonParams.
+  reasonCode?: string;
+  reasonParams?: Record<string, unknown>;
   origin?: Origin;
   schemaVersion: number;
 }
@@ -331,6 +338,7 @@ export interface ActivityEvent {
   detail?: string;
   when: EpochMs;
   actor?: string;
+  origin?: Origin;
   schemaVersion: number;
 }
 
