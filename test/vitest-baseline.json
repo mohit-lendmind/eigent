@@ -4,7 +4,7 @@
     "node": "20.20.2",
     "platform": "linux-x64"
   },
-  "totalTests": 1012,
+  "totalTests": 1609,
   "totalFailedTests": 8,
   "failingFiles": {
     "test/integration/chatStore/newProject.test.tsx": 2,
