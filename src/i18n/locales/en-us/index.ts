@@ -15,6 +15,7 @@
 import agents from './agents.json';
 import chat from './chat.json';
 import connectors from './connectors.json';
+import crm from './crm.json';
 import dashboard from './dashboard.json';
 import layout from './layout.json';
 import onboarding from './onboarding.json';
@@ -29,6 +30,7 @@ export default {
   workforce,
   chat,
   connectors,
+  crm,
   onboarding,
   setting,
   update,

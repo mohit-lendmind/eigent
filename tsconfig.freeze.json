@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src",
+    "electron",
+    "specs/003-mesh-m2-watcher-onboarding/contracts",
+    "test/unit/crm/m2ContractFreeze.test.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.ts",
+    "src/**/*.spec.tsx"
+  ],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

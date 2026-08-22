@@ -27,9 +27,7 @@ import {
   getActiveSpaceTriggerLabel,
   getDefaultNewSpaceName,
 } from '@/lib/spaceLabel';
-import {
-  renameBoundSpace,
-} from '@/store/aionSpaceBinding';
+import { renameBoundSpace } from '@/store/aionSpaceBinding';
 import { useAuthStore } from '@/store/authStore';
 import { useInstallationUI } from '@/store/installationStore';
 import { usePageTabStore } from '@/store/pageTabStore';
@@ -45,6 +43,7 @@ import {
   ChevronsUpDown,
   CircleHelp,
   Folder,
+  ListChecks,
   Minus,
   PanelLeft,
   PanelLeftClose,
@@ -218,7 +217,6 @@ function HeaderWin() {
         .sort((a, b) => b.updatedAt - a.updatedAt),
     [activeSpaceId, projectsBySpaceId, spacesById]
   );
-
 
   const navigateToHistoryTab = useCallback(
     (tab: HistoryTabId) => {
@@ -504,6 +502,27 @@ function HeaderWin() {
         <div className="flex h-full shrink-0 items-center gap-0.5">
           {/* Update slot: hidden → background download progress → launch new version */}
           <UpdateButton />
+          {/* CRM surface: a visible, discoverable nav entry into /crm from the
+              main chrome (FR-015, finding 4) — the surface's own rail lives
+              inside /crm, so without this the Today queue is URL-only. */}
+          <TooltipSimple
+            content={t('crm.nav.crm')}
+            side="bottom"
+            align="end"
+            variant="instant"
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="no-drag rounded-full"
+              aria-label={t('crm.nav.crm')}
+              onClick={() => navigate('/crm')}
+              buttonContent="icon-only"
+            >
+              <ListChecks aria-hidden />
+            </Button>
+          </TooltipSimple>
           <TooltipSimple
             content={t('layout.support')}
             side="bottom"

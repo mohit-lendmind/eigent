@@ -29,6 +29,7 @@ import {
   type CaseFileExport,
   type CaseId,
 } from './domain/types';
+import { CRM_FIRM_STORE_KEY, getCrmFirmStore } from './firmStore';
 import { CONTRACTS_VERSION } from './fold/caseLogFold';
 import {
   CRM_EVENTLOG_STORE_KEY,
@@ -401,6 +402,7 @@ const CRM_LS_KEYS = [
   CRM_DOCUMENTS_STORE_KEY,
   CRM_WORKSTREAM_STORE_KEY,
   CRM_EVENTLOG_STORE_KEY,
+  CRM_FIRM_STORE_KEY,
 ];
 
 export function clearAllCrmState(): void {
@@ -409,6 +411,7 @@ export function clearAllCrmState(): void {
   getCrmDocumentsStore().getState().resetForTests();
   getCrmWorkstreamStore().getState().resetForTests();
   getCrmEventLogStore().getState().resetForTests();
+  getCrmFirmStore().getState().resetForTests();
   if (typeof localStorage !== 'undefined') {
     for (const key of CRM_LS_KEYS) {
       localStorage.removeItem(key);
