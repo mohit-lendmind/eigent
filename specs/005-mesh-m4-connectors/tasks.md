@@ -22,9 +22,9 @@ Additive under src/crm/connectors, src/crm/agents, src/crm/ui, resources/lm-skil
 - [x] T013 [P] Tests: MSE replay green; verified derived true only with a passing canary+evidence
 
 ## P3 — Mortgage Brain scaffold (verified:false)
-- [ ] T014 adapters/mortgageBrain.ts: logged-in DOM-scrape plan against fixture DOM; verified:false; coverage=firm-panel (FR-002/009)
-- [ ] T015 Authored (red) replay eval + documented "add a real recorded session → green" path; per-portal ToS record placeholder (FR-003/010)
-- [ ] T016 [P] Tests: scaffold runs on fixture; verified:false; assertClaimable blocks it from evidence + client surfaces
+- [x] T014 adapters/mortgageBrain.ts: logged-in DOM-scrape plan against fixture DOM; verified:false; coverage=firm-panel (FR-002/009)
+- [x] T015 Authored (red) replay eval + documented "add a real recorded session → green" path; per-portal ToS record placeholder (FR-003/010)
+- [x] T016 [P] Tests: scaffold runs on fixture; verified:false; assertClaimable blocks it from evidence + client surfaces
 
 ## P4 — results surface + G5 + evidence
 - [ ] T017 sourcing.ts (A4): dispatched on income-det; runs the adapter plan; writes snapshot (FR-001/004)
