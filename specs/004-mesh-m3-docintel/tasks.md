@@ -28,10 +28,10 @@ Additive under src/crm/agents, src/crm/ui, resources/lm-skills/lm-docintel, test
 - [x] T017 [P] Tests: d7 £38,500/£37,300 fires G3 deterministically; resolution logged; refold byte-identical (SC-002/004); G9 blocks on syn income
 
 ## P4 — doc vault surface + polish
-- [ ] T018 DocVault.tsx + DocCard QUEUED→PROCESSING→COMPLETED; upload dropzone (reuse InputBox/attachments); vault tab on the M2 surface (FR-011)
-- [ ] T019 det fact deep-links to highlighted quote span in ArtifactViewer; syn non-color channel + confidence + confirm; collapse unmapped insights (FR-011)
-- [ ] T020 G2/G3 cards decidable without opening the doc; G9 shows why blocked; typed error cards; aria-live; crm i18n keys added ×11 (FR-011)
-- [ ] T021 [P] Tests: vault state machine; deep-link; syn non-color; G2/G3/G9 cards; storybook stories
+- [x] T018 DocVault.tsx + DocCard QUEUED→PROCESSING→COMPLETED; upload dropzone (reuse InputBox/attachments); vault tab on the M2 surface (FR-011)
+- [x] T019 det fact deep-links to highlighted quote span in ArtifactViewer; syn non-color channel + confidence + confirm; collapse unmapped insights (FR-011)
+- [x] T020 G2/G3 cards decidable without opening the doc; G9 shows why blocked; typed error cards; aria-live; crm i18n keys added ×11 (FR-011)
+- [x] T021 [P] Tests: vault state machine; deep-link; syn non-color; G2/G3/G9 cards; storybook stories
 - [ ] T022 Per-field precision report harness + nightly live-model eval scaffold e2e/lm-docintel.eval.ts (FR-013)
 - [x] T023 convergenceDocintel.test.ts — kill-the-laptop byte-identical with docintel entries (SC-004); m3ContractFreeze.test.ts vs specs/004/contracts (FR-012)
 - [ ] T024 demo-mesh-m3.mjs (upload fixture→det+checklist→d7 conflict) + full gate run + PR into lendmind-crm w/ per-FR checklist (SC-006)

@@ -37,6 +37,48 @@
     "sla-pill": "SLA {{minutes}}m"
   },
   "nav": {
-    "crm": "CRM"
+    "crm": "CRM",
+    "vault": "Documents"
+  },
+  "vault": {
+    "title": "Documents",
+    "subtitle": "Upload and track client documents",
+    "dropzone": "Drag documents here to add them to the queue",
+    "choose": "Choose files",
+    "empty": "No documents yet.",
+    "uploading": "Added {{count}} document(s) to the queue",
+    "status-queued": "Queued",
+    "status-processing": "Processing",
+    "status-completed": "Completed",
+    "status-rejected": "Rejected",
+    "attribution": "Attributed {{percent}}%",
+    "attribution-joint": "Joint document",
+    "attribution-unknown": "Unattributed",
+    "det-count": "{{count}} verified",
+    "syn-count": "{{count}} unverified",
+    "conflict-count": "{{count}} in conflict",
+    "more-insights": "Other extracted details ({{count}})"
+  },
+  "insight": {
+    "verified": "Verified",
+    "unverified": "Unverified",
+    "confidence": "{{percent}}% confidence",
+    "view-source": "View source",
+    "confirm": "Confirm",
+    "conflict": "Conflict"
+  },
+  "docgate": {
+    "reasons": "Why",
+    "g2-title": "Confirm the applicant",
+    "g2-confirm": "Confirm applicant",
+    "g2-reject": "Reject",
+    "g3-title": "Resolve the conflict",
+    "g3-existing": "On file",
+    "g3-incoming": "From document",
+    "g3-keep-existing": "Keep on file",
+    "g3-use-incoming": "Use document value",
+    "g9-title": "Income not yet verified",
+    "g9-blocked": "A recommendation is blocked until each applicant's income is verified.",
+    "error-title": "Document could not be processed"
   }
 }

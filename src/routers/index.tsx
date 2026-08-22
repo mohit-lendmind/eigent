@@ -28,6 +28,9 @@ const CrmLayout = lazy(() => import('@/crm/ui/CrmLayout'));
 const TodayQueue = lazy(() =>
   import('@/crm/ui/TodayQueue').then((m) => ({ default: m.TodayQueue }))
 );
+const DocumentVault = lazy(() =>
+  import('@/crm/ui/DocumentVault').then((m) => ({ default: m.DocumentVault }))
+);
 
 interface AuthState {
   loading: boolean;
@@ -128,6 +131,7 @@ const AppRoutes = () => (
           screen), still behind the auth guard. */}
       <Route path="/crm" element={<CrmLayout />}>
         <Route index element={<TodayQueue />} />
+        <Route path="vault" element={<DocumentVault />} />
       </Route>
     </Route>
     <Route path="*" element={<NotFound />} />
