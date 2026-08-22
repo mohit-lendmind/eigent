@@ -48,6 +48,8 @@ import {
   type WorklistItem,
 } from '../domain/types';
 import type { MirroredGate } from '../fold/eventLogStore';
+import { detectSpecialCategory } from './attribution';
+import { shouldQuarantine } from './docClassify';
 import {
   classifySrc,
   derivedId,
@@ -173,7 +175,20 @@ export function applyExtraction(
     attribution.joint ||
     attribution.clientId === null ||
     attribution.confidence < ATTRIBUTION_CONFIDENCE_THRESHOLD;
-  const quarantined = !extraction.docTypeInScope;
+  // Quarantine is a coded decision, not the model's own flag: an out-of-scope
+  // type is held out even if the artifact claims docTypeInScope (FR-005).
+  const quarantined = shouldQuarantine(
+    extraction.docType,
+    extraction.docTypeInScope
+  );
+
+  // Special-category is flagged if EITHER the model flagged it OR a coded Art 9
+  // scan of the extracted text hits — the write path never rounds this down.
+  const specialCategory =
+    extraction.specialCategoryFlagged ||
+    detectSpecialCategory(
+      extraction.insights.map((i) => `${i.label} ${i.value} ${i.quote ?? ''}`)
+    );
 
   // The applicant we may write to — null whenever attribution is gated, so no
   // field can leak to the wrong person.
@@ -287,7 +302,7 @@ export function applyExtraction(
   events.push({ type: 'document-upsert', payload: { document } });
 
   // Special-category data is FLAGGED, never silently folded into fields (FR-010).
-  if (extraction.specialCategoryFlagged) {
+  if (specialCategory) {
     const activity: ActivityEvent = {
       id: `act_docintel_specialcat_${documentId}`,
       caseId: ctx.caseId,

@@ -16,10 +16,10 @@ Additive under src/crm/agents, src/crm/ui, resources/lm-skills/lm-docintel, test
 - [x] T009 [P] Tests: ingest round-trip → folded entry; idempotent re-process; classifySrc det/syn
 
 ## P2 — classify + extract + attribute (G2)
-- [ ] T010 Classification (payslip/P60/passport/contract/statement/gift/accounts); out-of-scope ⇒ quarantine (FR-005)
-- [ ] T011 extractionApply.ts: coded substring match of quote vs born-digital text ⇒ det, else/vision-only ⇒ syn (FR-004)
-- [ ] T012 attribution.ts: deterministic name/NI/address cluster; <0.85 or joint ⇒ G2; special-category ⇒ flag (FR-006/010)
-- [ ] T013 [P] Tests: extract det with verified quote (c417 payslips); vision-only ⇒ syn; G2 fires on ambiguous; special-category flagged
+- [x] T010 Classification (payslip/P60/passport/contract/statement/gift/accounts); out-of-scope ⇒ quarantine (FR-005)
+- [x] T011 extractionApply.ts: coded substring match of quote vs born-digital text ⇒ det, else/vision-only ⇒ syn (FR-004)
+- [x] T012 attribution.ts: deterministic name/NI/address cluster; <0.85 or joint ⇒ G2; special-category ⇒ flag (FR-006/010)
+- [x] T013 [P] Tests: extract det with verified quote (c417 payslips); vision-only ⇒ syn; G2 fires on ambiguous; special-category flagged
 
 ## P3 — conflict (G3) + checklist + G9
 - [ ] T014 conflicts.ts: deterministic Pence recompute at 1% materiality ⇒ conflict-upsert + G3 + stream (never LLM) (FR-007)
