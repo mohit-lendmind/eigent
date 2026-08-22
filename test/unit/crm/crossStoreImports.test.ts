@@ -41,3 +41,20 @@ describe('cross-store import direction (FR-014)', () => {
     expect(src).not.toMatch(/from ['"]\.\/workstreamStore['"]/);
   });
 });
+
+describe('fold seam direction (FR-018)', () => {
+  const baseStores = [
+    'clientsStore.ts',
+    'casesStore.ts',
+    'documentsStore.ts',
+    'workstreamStore.ts',
+  ];
+
+  for (const store of baseStores) {
+    it(`${store} does not statically import the fold`, () => {
+      const src = readSrc(store);
+      expect(src).not.toMatch(/from ['"]\.\/fold\//);
+      expect(src).not.toMatch(/from ['"]@\/crm\/fold\//);
+    });
+  }
+});

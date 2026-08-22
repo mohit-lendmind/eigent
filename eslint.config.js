@@ -183,9 +183,12 @@ export default [
       'no-restricted-properties': 'off',
     },
   },
-  // CRM domain: one-directional cross-store imports (spec FR-014).
-  // clientsStore is the root; casesStore may read clientsStore; documentsStore
-  // may read clientsStore + casesStore; workstreamStore may read all three.
+  // CRM domain: one-directional cross-store imports (spec FR-014) plus the
+  // fold seam (spec FR-018). clientsStore is the root; casesStore may read
+  // clientsStore; documentsStore may read clientsStore + casesStore;
+  // workstreamStore may read all three. None of the four base stores may
+  // import the fold — the fold reads/writes them through public actions, never
+  // the reverse.
   {
     files: ['src/crm/clientsStore.ts'],
     rules: {
@@ -196,9 +199,11 @@ export default [
             './casesStore',
             './documentsStore',
             './workstreamStore',
+            './fold/*',
             '@/crm/casesStore',
             '@/crm/documentsStore',
             '@/crm/workstreamStore',
+            '@/crm/fold/*',
           ],
         },
       ],
@@ -213,8 +218,10 @@ export default [
           patterns: [
             './documentsStore',
             './workstreamStore',
+            './fold/*',
             '@/crm/documentsStore',
             '@/crm/workstreamStore',
+            '@/crm/fold/*',
           ],
         },
       ],
@@ -226,7 +233,23 @@ export default [
       'no-restricted-imports': [
         'error',
         {
-          patterns: ['./workstreamStore', '@/crm/workstreamStore'],
+          patterns: [
+            './workstreamStore',
+            './fold/*',
+            '@/crm/workstreamStore',
+            '@/crm/fold/*',
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/crm/workstreamStore.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: ['./fold/*', '@/crm/fold/*'],
         },
       ],
     },
