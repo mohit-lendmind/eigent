@@ -1,0 +1,24 @@
+{
+  "slug": "mesh-m1-contracts-audit-spine",
+  "recon": "project-level (.lm-flow/recon/eigent-codebase-map.md) + 3 parallel codebase reports (evidence in architecture doc)",
+  "architecture": ".lm-flow/architecture/mesh-m1-contracts-audit-spine.md",
+  "personas": ".lm-flow/personas/mesh-m1-contracts-audit-spine/",
+  "spec": "specs/002-mesh-m1-contracts-audit-spine/spec.md",
+  "plan": "specs/002-mesh-m1-contracts-audit-spine/plan.md",
+  "tasks_md": "specs/002-mesh-m1-contracts-audit-spine/tasks.md",
+  "task_graph": ".lm-flow/tasks/mesh-m1-contracts-audit-spine.json",
+  "contracts_freeze": "specs/002-mesh-m1-contracts-audit-spine/contracts/",
+  "github": {
+    "milestone": 2,
+    "tracking_issue": null,
+    "issues": null,
+    "deviation": "repo has issues DISABLED (bsnghvi lacks admin to enable). Task queue served from tasks.md + task graph, same fallback as F01. Re-run pgm-sync sync_tasks.sh once issues are enabled to backfill idempotently."
+  },
+  "base_branch": "lendmind-crm",
+  "feature_branch": "feature/mesh-m1-contracts-audit-spine",
+  "prereq_branch_to_merge_first": "fix/crm-review-iter1 (T001; one commit, rebased on lendmind-crm)",
+  "m2_unblocks_after": "T029 (US1 fold checkpoint)",
+  "planned_at": "2026-08-22",
+  "tasks": { "total": 42, "phases": 6, "ready_at_launch": 1 },
+  "system_contract": ".lm-flow/spec/lendmind-agent-mesh-spec-v2.md"
+}
