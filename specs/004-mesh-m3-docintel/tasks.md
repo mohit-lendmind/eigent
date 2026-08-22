@@ -2,9 +2,11 @@
 description: "Tasks — mesh-m3-docintel (M3)"
 ---
 # Tasks: mesh-m3-docintel
+
 Additive under src/crm/agents, src/crm/ui, resources/lm-skills/lm-docintel, test/unit/crm, docs; named mods: src/crm/domain/types.ts (DocInsight +locator, flip src default — additive), the M2 thin surface for the vault tab. src/api/aion/v1/** + M1/M2 contracts frozen. Branch feature/mesh-m3-docintel from lendmind-crm; PR to lendmind-crm. Synthetic fixtures only — no real PII.
 
 ## P1 — ingest + skill + guardrails
+
 - [x] T001 Baseline gates green on lendmind-crm (record)
 - [x] T002 DocInsight +locator field; flip `src ?? 'det'` → unverified defaults to `syn` (FR-004); additive, no schema bump
 - [x] T003 Ingest seam: FileAttachment → uploadAttachment(projectId) → artifact_id → directive.inputs.artifacts[] → submitCommand (FR-001)
@@ -16,27 +18,33 @@ Additive under src/crm/agents, src/crm/ui, resources/lm-skills/lm-docintel, test
 - [x] T009 [P] Tests: ingest round-trip → folded entry; idempotent re-process; classifySrc det/syn
 
 ## P2 — classify + extract + attribute (G2)
+
 - [x] T010 Classification (payslip/P60/passport/contract/statement/gift/accounts); out-of-scope ⇒ quarantine (FR-005)
 - [x] T011 extractionApply.ts: coded substring match of quote vs born-digital text ⇒ det, else/vision-only ⇒ syn (FR-004)
 - [x] T012 attribution.ts: deterministic name/NI/address cluster; <0.85 or joint ⇒ G2; special-category ⇒ flag (FR-006/010)
 - [x] T013 [P] Tests: extract det with verified quote (c417 payslips); vision-only ⇒ syn; G2 fires on ambiguous; special-category flagged
 
 ## P3 — conflict (G3) + checklist + G9
+
 - [x] T014 conflicts.ts: deterministic Pence recompute at 1% materiality ⇒ conflict-upsert + G3 + stream (never LLM) (FR-007)
 - [x] T015 Checklist reconcile (received/partial) from extraction (FR-005)
 - [x] T016 incomeGate.ts: G9 blocks recommendation until income det-verified; syn income never satisfies; surfaces blocking field (FR-008)
 - [x] T017 [P] Tests: d7 £38,500/£37,300 fires G3 deterministically; resolution logged; refold byte-identical (SC-002/004); G9 blocks on syn income
 
 ## P4 — doc vault surface + polish
+
 - [x] T018 DocVault.tsx + DocCard QUEUED→PROCESSING→COMPLETED; upload dropzone (reuse InputBox/attachments); vault tab on the M2 surface (FR-011)
 - [x] T019 det fact deep-links to highlighted quote span in ArtifactViewer; syn non-color channel + confidence + confirm; collapse unmapped insights (FR-011)
 - [x] T020 G2/G3 cards decidable without opening the doc; G9 shows why blocked; typed error cards; aria-live; crm i18n keys added ×11 (FR-011)
 - [x] T021 [P] Tests: vault state machine; deep-link; syn non-color; G2/G3/G9 cards; storybook stories
 - [x] T022 Per-field precision report harness + nightly live-model eval scaffold e2e/lm-docintel.eval.ts (FR-013)
 - [x] T023 convergenceDocintel.test.ts — kill-the-laptop byte-identical with docintel entries (SC-004); m3ContractFreeze.test.ts vs specs/004/contracts (FR-012)
-- [ ] T024 demo-mesh-m3.mjs (upload fixture→det+checklist→d7 conflict) + full gate run + PR into lendmind-crm w/ per-FR checklist (SC-006)
+- [x] T024 demo-mesh-m3.mjs (upload fixture→det+checklist→d7 conflict) + full gate run + PR into lendmind-crm w/ per-FR checklist (SC-006)
 
 ## Deps
+
 P1 blocks all; T007 red-team is a hard gate before real extraction ships. P2 after T002/T005/T011-dep. P3 after T014-dep on T011. P4 after P2/P3. US2/US3 vault parallel after P2.
+
 ## MVP
+
 P1+P2 (extract det with verified quote, idempotent, red-team green) = the "drop a payslip, fact-find fills" core; conflict + vault follow.
