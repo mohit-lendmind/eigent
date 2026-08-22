@@ -114,7 +114,7 @@ description: "Task list for feature implementation — mesh-m1-contracts-audit-s
 - [x] T038 [P] Author `scripts/demo-mesh-m1.mjs` — the scripted compliance demo per quickstart §3 (fold → wipe → converge → tamper → failed verify → quarantine; evidence JSON + transcript to `test-results/demo-mesh-m1/`); unattended, <5 min from clean checkout (FR-022, SC-007)
 - [x] T039 [P] Extend `src/crm/seed.ts` dev-gate path so `seedCrmGoldenPath` can optionally seed VIA the fold (`{throughFold: true}`) — proving seed and fold produce identical state (converge cross-check)
 - [x] T040 Run the M2 rendering-contract spike test `test/unit/crm/renderingContract.test.ts` — imports ONLY the public barrel, renders (headless object assertions) an approval-card model from `GATE_REGISTRY` alone and a case-health strip from the six selectors (SC-005)
-- [ ] T041 Full gate run + baseline check: `pnpm type-check && pnpm lint && pnpm check:i18n && pnpm check:vitest-baseline && bash scripts/check-electron-access.sh` + `npx vitest run src/crm test/unit/crm` (all green, baseline unmoved) (FR-025, SC-008)
+- [x] T041 Full gate run + baseline check: `pnpm type-check && pnpm lint && pnpm check:i18n && pnpm check:vitest-baseline && bash scripts/check-electron-access.sh` + `npx vitest run src/crm test/unit/crm` (all green, baseline unmoved) (FR-025, SC-008)
 - [ ] T042 Update PR body: Gates section, per-FR checklist, review-fixes section listing each iteration-1 finding and its regression test, demo transcript excerpt
 
 ---
