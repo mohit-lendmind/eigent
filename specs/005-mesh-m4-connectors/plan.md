@@ -1,0 +1,12 @@
+# Implementation Plan: mesh-m4-connectors
+**Branch**: lendmind-crm (impl feature/mesh-m4-connectors) · 2026-08-22 · [spec.md](spec.md)
+## Summary
+Sourcing connector framework + computer-use. Adapter emits a declarative plan the EXISTING delegation pump runs via lm.directive/1 (no new browser stack). MSE verified (isolated/console-fetch); Mortgage Brain scaffold (logged-in DOM-scrape, verified:false). Snapshot = folded summary + full-set attachment. Derived `verified` + a single assertClaimable choke-point. Coverage typed + wholeOfMarket bool + lint gate. surfaceClass adviser-only + no-client-embed CI test. Build Opus 4.8; review Fable 5 xhigh. No new deps; aion client + M1/M2 contracts frozen.
+## Technical Context
+Reuse browserDelegationExecutor + agentBrowser (LB4), aionLocalBrowserStore submit flags, M1 fold + artifactKinds, M2 dispatch + thin surface, HomeHub cards, ArtifactViewer. Record/replay = capture tool_result SSE, feed result_json to a pure extract() in vitest; live MSE canary (nightly) for drift. Local sourcing serialized (singleton window). Fixtures scrub tokens/CSRF/PII.
+## Constitution Check
+Unfilled template. Gates: no-new-deps ✓ · frozen contracts ✓ · determinism/refold ✓ · invariant-2 CI test ✓ · coverage lint gate ✓ · design-token/i18n/baseline ✓. No violations.
+## Structure
+src/crm/connectors/{SourcingAdapter,registry,replay/,assertClaimable,coverage}.ts · adapters/{mse,mortgageBrain}.ts · src/crm/agents/sourcing.ts (A4) · src/crm/ui/SourcingResults.tsx + run ribbon/take-control on the M2 surface · test/unit/crm/{adapter,assertClaimable,coverage,noClientEmbed,sourcingConverge}.test.ts · e2e/connector-mse.eval.ts (live canary, nightly) · specs/005-*/contracts/*.d.ts
+## Phase ordering
+P1 framework: SourcingAdapter+registry(verified) + pure-extract replay harness + folded-summary+attachment snapshot writer + dedicated payload decoder + derived verified + assertClaimable + coverage typed/wholeOfMarket + lint gate + surfaceClass + no-client-embed CI test + per-firm config (FR-001,004-010,014). P2 MSE adapter verified (replay + live canary) (FR-002,003). P3 Mortgage Brain scaffold logged-in DOM-scrape verified:false + red replay + ToS record (FR-002,009). P4 results surface (ranked cards, pinned coverage, verified:false watermark+disabled export, narrating ribbon + always-hot take-control + running-as-you) + G5 (pick+rationale+staleness) + evidence-of-research export gated by assertClaimable + demo + gates (FR-011,012). writeBack/DIP excluded (FR-013 → G8).

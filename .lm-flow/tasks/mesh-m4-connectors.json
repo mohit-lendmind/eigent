@@ -1,0 +1,346 @@
+{
+  "feature": "mesh-m4-connectors",
+  "spec": "specs/005-mesh-m4-connectors/spec.md",
+  "plan": "specs/005-mesh-m4-connectors/plan.md",
+  "tasks_md": "specs/005-mesh-m4-connectors/tasks.md",
+  "base_branch": "lendmind-crm",
+  "feature_branch": "feature/mesh-m4-connectors",
+  "depends_on": "M2 merged (dispatch + surface); develops against frozen M2 contracts + the existing LB4 stack",
+  "decisions": [
+    "connector-access",
+    "data-residency"
+  ],
+  "v1_adapters": [
+    "mse (verified)",
+    "mortgage-brain (scaffold verified:false)"
+  ],
+  "framework_supports": "all broker tools on the same interface",
+  "build_constraint": "MSE verified for real; licensed adapters verified:false until a real recorded session",
+  "phases": [
+    {
+      "name": "P1 framework+harness+guardrails",
+      "tasks": [
+        {
+          "id": "T001",
+          "title": "baseline",
+          "acceptance": "gates green recorded",
+          "files": [
+            "package.json"
+          ],
+          "depends_on": [],
+          "size": "xs"
+        },
+        {
+          "id": "T002",
+          "title": "SourcingAdapter + registry",
+          "acceptance": "interface + registry carrying derived verified per contracts",
+          "files": [
+            "src/crm/connectors/SourcingAdapter.ts",
+            "src/crm/connectors/registry.ts"
+          ],
+          "depends_on": [
+            "T001"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T003",
+          "title": "record/replay harness",
+          "acceptance": "capture tool_result SSE; pure extract() in vitest",
+          "files": [
+            "src/crm/connectors/replay/harness.ts"
+          ],
+          "depends_on": [
+            "T002"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T004",
+          "title": "snapshot writer",
+          "acceptance": "folded-summary case-log entry + full-set attachment (never inline)",
+          "files": [
+            "src/crm/agents/sourcing.ts"
+          ],
+          "depends_on": [
+            "T002"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T005",
+          "title": "payload decoder",
+          "acceptance": "requires coverage/ratesAsAt/products/verified; rejects partial",
+          "files": [
+            "src/crm/agentContracts/index.ts"
+          ],
+          "depends_on": [
+            "T002"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T006",
+          "title": "derived verified + assertClaimable",
+          "acceptance": "verified from VerificationRef; assertClaimable choke-point in writer/fold",
+          "files": [
+            "src/crm/connectors/assertClaimable.ts"
+          ],
+          "depends_on": [
+            "T004",
+            "T005"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T007",
+          "title": "coverage typed + lint gate",
+          "acceptance": "wholeOfMarket bool; lint rejects the literal phrase unless true",
+          "files": [
+            "src/crm/connectors/coverage.ts",
+            "scripts/check-coverage-claim.mjs"
+          ],
+          "depends_on": [
+            "T002"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T008",
+          "title": "surfaceClass + no-client-embed CI test",
+          "acceptance": "adviser-only tag; test no client component embeds a snapshot",
+          "files": [
+            "src/crm/connectors/coverage.ts",
+            "test/unit/crm/noClientEmbed.test.ts"
+          ],
+          "depends_on": [
+            "T004"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T009",
+          "title": "serialize + adviser-id stamp",
+          "acceptance": "single-window serialization; stamp acting adviser id",
+          "files": [
+            "src/crm/agents/sourcing.ts"
+          ],
+          "depends_on": [
+            "T004"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T010",
+          "title": "P1 tests",
+          "acceptance": "decoder rejects partial; assertClaimable blocks unverified; coverage lint; no-client-embed",
+          "files": [
+            "test/unit/crm/assertClaimable.test.ts",
+            "test/unit/crm/coverage.test.ts"
+          ],
+          "depends_on": [
+            "T006",
+            "T007",
+            "T008"
+          ],
+          "size": "m"
+        }
+      ]
+    },
+    {
+      "name": "P2 MSE verified",
+      "tasks": [
+        {
+          "id": "T011",
+          "title": "mse adapter",
+          "acceptance": "isolated console-fetch; plan + pure extract; correct coverage",
+          "files": [
+            "src/crm/connectors/adapters/mse.ts"
+          ],
+          "depends_on": [
+            "T003",
+            "T006"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T012",
+          "title": "MSE canary + replay",
+          "acceptance": "nightly live canary + scrubbed recorded replay verifying extract in CI",
+          "files": [
+            "e2e/connector-mse.eval.ts",
+            "src/crm/connectors/replay/mse.fixture.ts"
+          ],
+          "depends_on": [
+            "T011"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T013",
+          "title": "MSE tests",
+          "acceptance": "replay green; verified true only with canary+evidence",
+          "files": [
+            "test/unit/crm/sourcingMse.test.ts"
+          ],
+          "depends_on": [
+            "T012"
+          ],
+          "size": "s"
+        }
+      ]
+    },
+    {
+      "name": "P3 Mortgage Brain scaffold",
+      "tasks": [
+        {
+          "id": "T014",
+          "title": "mortgage-brain scaffold",
+          "acceptance": "logged-in DOM-scrape plan vs fixture DOM; verified:false; firm-panel coverage",
+          "files": [
+            "src/crm/connectors/adapters/mortgageBrain.ts"
+          ],
+          "depends_on": [
+            "T003",
+            "T006"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T015",
+          "title": "red replay + ToS record",
+          "acceptance": "authored red replay + documented green path; per-portal ToS placeholder",
+          "files": [
+            "src/crm/connectors/replay/mortgageBrain.fixture.ts",
+            "docs/tos-mortgage-brain.md"
+          ],
+          "depends_on": [
+            "T014"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T016",
+          "title": "scaffold tests",
+          "acceptance": "runs on fixture; verified:false; assertClaimable blocks from evidence+client",
+          "files": [
+            "test/unit/crm/sourcingScaffold.test.ts"
+          ],
+          "depends_on": [
+            "T014",
+            "T006"
+          ],
+          "size": "s"
+        }
+      ]
+    },
+    {
+      "name": "P4 results+G5+evidence",
+      "tasks": [
+        {
+          "id": "T017",
+          "title": "A4 sourcing run",
+          "acceptance": "dispatched on income-det; runs plan; writes snapshot",
+          "files": [
+            "src/crm/agents/sourcing.ts"
+          ],
+          "depends_on": [
+            "T011"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T018",
+          "title": "results shortlist",
+          "acceptance": "adviser-only ranked cards + collapsed why-not + pinned coverage line",
+          "files": [
+            "src/crm/ui/SourcingResults.tsx"
+          ],
+          "depends_on": [
+            "T017"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T019",
+          "title": "run ribbon + take-control + watermark",
+          "acceptance": "narrating ribbon + always-hot take-control + running-as-you; verified:false watermark + disabled export",
+          "files": [
+            "src/crm/ui/SourcingResults.tsx"
+          ],
+          "depends_on": [
+            "T018"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T020",
+          "title": "G5 gate",
+          "acceptance": "disabled until pick + rationale; staleness warning; choice+reasons fold",
+          "files": [
+            "src/crm/ui/SourcingResults.tsx"
+          ],
+          "depends_on": [
+            "T019"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T021",
+          "title": "evidence export",
+          "acceptance": "exportEvidenceOfResearch gated by assertClaimable (MCOB 4.7A spine)",
+          "files": [
+            "src/crm/connectors/assertClaimable.ts",
+            "src/crm/caseFile.ts"
+          ],
+          "depends_on": [
+            "T006"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T022",
+          "title": "P4 UI tests",
+          "acceptance": "adviser-only; watermark+disabled export; G5 gating; evidence refuses non-claimable; dark contrast",
+          "files": [
+            "test/unit/crm/sourcingResults.test.ts"
+          ],
+          "depends_on": [
+            "T020",
+            "T021"
+          ],
+          "size": "m"
+        },
+        {
+          "id": "T023",
+          "title": "converge + freeze tests",
+          "acceptance": "kill-the-laptop w/ sourcing entries; contract-freeze vs specs/005",
+          "files": [
+            "test/unit/crm/sourcingConverge.test.ts",
+            "test/unit/crm/m4ContractFreeze.test.ts"
+          ],
+          "depends_on": [
+            "T017",
+            "T002"
+          ],
+          "size": "s"
+        },
+        {
+          "id": "T024",
+          "title": "demo + gates + PR",
+          "acceptance": "demo runs; all gates green; PR into lendmind-crm w/ per-FR checklist",
+          "files": [
+            "scripts/demo-mesh-m4.mjs"
+          ],
+          "depends_on": [
+            "T013",
+            "T016",
+            "T022",
+            "T023"
+          ],
+          "size": "m"
+        }
+      ]
+    }
+  ]
+}
