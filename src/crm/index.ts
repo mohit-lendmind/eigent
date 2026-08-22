@@ -95,6 +95,7 @@ export {
 export { seedCrmGoldenPath, type SeedOptions } from './seed';
 
 export {
+  canonicalise,
   clearAllCrmState,
   exportCaseFile,
   importCaseFile,
@@ -102,3 +103,12 @@ export {
   type ImportFailure,
   type ImportSuccess,
 } from './caseFile';
+
+export {
+  computeEntryHash,
+  settleHashOf,
+  sha256HexCanonical,
+  verifyChain,
+} from './hashChain';
+
+export * from './agentContracts';
