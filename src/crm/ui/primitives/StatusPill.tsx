@@ -12,27 +12,23 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import agents from './agents.json';
-import chat from './chat.json';
-import connectors from './connectors.json';
-import crm from './crm.json';
-import dashboard from './dashboard.json';
-import layout from './layout.json';
-import onboarding from './onboarding.json';
-import setting from './setting.json';
-import triggers from './triggers.json';
-import update from './update.json';
-import workforce from './workforce.json';
-export default {
-  agents,
-  layout,
-  dashboard,
-  workforce,
-  chat,
-  connectors,
-  crm,
-  onboarding,
-  setting,
-  update,
-  triggers,
-};
+// FR-020 — a semantic status pill. Given a tone role it paints the ds trio; a
+// queue row uses it for its freshness/urgency chip.
+
+import { toneClasses, type CrmTone } from '../tones';
+
+export interface StatusPillProps {
+  tone: CrmTone;
+  label: string;
+}
+
+export function StatusPill({ tone, label }: StatusPillProps) {
+  const cls = toneClasses(tone);
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${cls.bg} ${cls.text}`}
+    >
+      {label}
+    </span>
+  );
+}

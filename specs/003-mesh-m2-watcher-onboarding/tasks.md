@@ -43,14 +43,14 @@ description: "Task list — mesh-m2-watcher-onboarding (M2)"
 - [x] T020 [P] [US2] `e2e/lm-watcher.eval.ts` — recorded pass over c417/c392 produces expected decisions
 
 ## Phase 5: US3 — thin surface (P2 story)
-- [ ] T021 [US3] `src/routers/index.tsx` `/crm` route (sibling to Layout, inside ProtectedRoute) + `src/crm/ui/CrmLayout.tsx` + `TacticalRail.tsx` (from ProjectPageSidebar/NavTab) + a visible nav entry (FR-015)
-- [ ] T022 [US3] `src/crm/ui/tones.ts` — CrmTone union + stage ramp (f02 recon), light+dark contrast verified; `primitives/` (PipelineBadge, StatusPill, CompletenessRing) + storybook stories; jetbrains-mono in `.storybook/preview.tsx` if mono used (FR-020)
-- [ ] T023 [US3] `src/crm/ui/queueModel.ts` per contracts/queue.d.ts — selectTodayQueue (fold-sourced), gates pinned + SLA→tier→age sort, freshness badge, selectQueueDegraded; mirror approvals into fold (FR-016/017/018)
-- [ ] T024 [US3] `src/crm/ui/GateCard.tsx` per contracts/queue.d.ts — render from GATE_REGISTRY (tier/SLA shown, batch inert); G1 card shows full draft + inline edit + provenance; subscribeOpenGate = the ONE live subscription (FR-019, FR-008)
-- [ ] T025 [US3] `src/crm/ui/TodayQueue.tsx` — the screen: stat strip, queue rows, empty/loading/all-clear/first-run states, degraded banner, aria-live SLA timers (FR-016/017)
-- [ ] T026 [US3] `crm` i18n namespace: `src/i18n/locales/*/crm.json` ×11 + register in each index.ts (FR-020, parity gate)
-- [ ] T027 [P] [US3] `test/unit/crm/queueModel.test.ts` — Journey 3: two sources merged, gates pinned+SLA-sorted, one live sub, degraded banner on source fail, all empty states (SC-003)
-- [ ] T028 [P] [US3] `test/unit/crm/gateCard.test.ts` — renders from registry alone; G1 shows draft+provenance; approve calls back with edited draft
+- [x] T021 [US3] `src/routers/index.tsx` `/crm` route (sibling to Layout, inside ProtectedRoute) + `src/crm/ui/CrmLayout.tsx` + `TacticalRail.tsx` (from ProjectPageSidebar/NavTab) + a visible nav entry (FR-015)
+- [x] T022 [US3] `src/crm/ui/tones.ts` — CrmTone union + stage ramp (f02 recon), light+dark contrast verified; `primitives/` (PipelineBadge, StatusPill, CompletenessRing) + storybook stories; jetbrains-mono in `.storybook/preview.tsx` if mono used (FR-020)
+- [x] T023 [US3] `src/crm/ui/queueModel.ts` per contracts/queue.d.ts — selectTodayQueue (fold-sourced), gates pinned + SLA→tier→age sort, freshness badge, selectQueueDegraded; mirror approvals into fold (FR-016/017/018)
+- [x] T024 [US3] `src/crm/ui/GateCard.tsx` per contracts/queue.d.ts — render from GATE_REGISTRY (tier/SLA shown, batch inert); G1 card shows full draft + inline edit + provenance; subscribeOpenGate = the ONE live subscription (FR-019, FR-008)
+- [x] T025 [US3] `src/crm/ui/TodayQueue.tsx` — the screen: stat strip, queue rows, empty/loading/all-clear/first-run states, degraded banner, aria-live SLA timers (FR-016/017)
+- [x] T026 [US3] `crm` i18n namespace: `src/i18n/locales/*/crm.json` ×11 + register in each index.ts (FR-020, parity gate)
+- [x] T027 [P] [US3] `test/unit/crm/queueModel.test.ts` — Journey 3: two sources merged, gates pinned+SLA-sorted, one live sub, degraded banner on source fail, all empty states (SC-003)
+- [x] T028 [P] [US3] `test/unit/crm/gateCard.test.ts` — renders from registry alone; G1 shows draft+provenance; approve calls back with edited draft
 
 ## Phase 6: Polish
 - [ ] T029 `test/unit/crm/convergenceWithAgents.test.ts` — kill-the-laptop converges byte-identical with agent-written entries; export v2 verifies (SC-004)

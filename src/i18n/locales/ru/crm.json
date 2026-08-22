@@ -1,0 +1,22 @@
+{
+  "today": {
+    "title": "Today",
+    "subtitle": "What needs you now",
+    "loading": "Loading your queue…",
+    "all-clear": "All clear — nothing needs you right now.",
+    "first-run": "No cases yet. Once cases arrive, the gates and tasks that need you will appear here.",
+    "empty": "Nothing in your queue.",
+    "degraded": "Some case data could not be loaded — this queue may be incomplete.",
+    "stat-gates": "Gates",
+    "stat-tasks": "Tasks",
+    "stat-overdue": "Overdue",
+    "due-in": "Due in {{minutes}}m",
+    "overdue": "Overdue by {{minutes}}m",
+    "freshness-live": "Live",
+    "freshness-as-of": "As of last sync",
+    "freshness-stale": "Stale"
+  },
+  "nav": {
+    "crm": "CRM"
+  }
+}

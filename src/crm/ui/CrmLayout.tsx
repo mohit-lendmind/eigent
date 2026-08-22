@@ -12,27 +12,22 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import agents from './agents.json';
-import chat from './chat.json';
-import connectors from './connectors.json';
-import crm from './crm.json';
-import dashboard from './dashboard.json';
-import layout from './layout.json';
-import onboarding from './onboarding.json';
-import setting from './setting.json';
-import triggers from './triggers.json';
-import update from './update.json';
-import workforce from './workforce.json';
-export default {
-  agents,
-  layout,
-  dashboard,
-  workforce,
-  chat,
-  connectors,
-  crm,
-  onboarding,
-  setting,
-  update,
-  triggers,
-};
+// FR-015 — the CRM surface shell. A sibling to the app's main Layout: the
+// tactical rail on the left, the routed CRM screen on the right. Kept thin on
+// purpose — M2's only screen is the Today queue.
+
+import { Outlet } from 'react-router-dom';
+import { TacticalRail } from './TacticalRail';
+
+export function CrmLayout() {
+  return (
+    <div className="flex h-screen bg-ds-bg-neutral-default-default">
+      <TacticalRail />
+      <main className="flex-1 overflow-y-auto">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
+
+export default CrmLayout;
