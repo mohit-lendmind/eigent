@@ -17,9 +17,11 @@ on:
   pull_request:
     branches:
       - main
+      - lendmind-crm
   push:
     branches:
       - main
+      - lendmind-crm
   workflow_dispatch:
 
 # A force-push should not leave two runs racing over the same branch.
