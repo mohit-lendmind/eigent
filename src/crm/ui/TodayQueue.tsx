@@ -217,7 +217,12 @@ export function TodayQueue() {
 
       {selectedGate !== undefined && selectedGate.status === 'open' && (
         <div className="flex flex-col gap-2">
+          {/* key on the gate identity forces a remount when the adviser switches
+              from one open gate to another, so GateCard's `edited` draft state is
+              re-seeded from the newly-selected gate's own draft instead of
+              bleeding the previous case's body onto the approval (finding 1). */}
           <GateCard
+            key={selectedGate.id}
             gate={descriptorForMirror(selectedGate)}
             draft={
               selectedGate.draftFull !== undefined

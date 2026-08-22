@@ -85,7 +85,7 @@ export function GateCard({
   return (
     <section
       className="flex flex-col gap-3 rounded-lg border border-ds-bg-neutral-default-default bg-ds-bg-neutral-subtle-default p-4"
-      aria-label={`Gate ${gate.id}`}
+      aria-label={t('crm.gate.card-label', { id: gate.id })}
     >
       <header className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-1">
@@ -101,7 +101,10 @@ export function GateCard({
             tone={tierTone(gate.tier)}
             label={t(tierLabelKey(gate.tier))}
           />
-          <StatusPill tone="info" label={`SLA ${gate.slaMinutes}m`} />
+          <StatusPill
+            tone="info"
+            label={t('crm.gate.sla-pill', { minutes: gate.slaMinutes })}
+          />
         </div>
       </header>
 

@@ -53,7 +53,12 @@ import { firmCoordinatorProject } from './caseProject';
 import { encodeJsonAttachment } from './codec';
 import type { AgentEdge } from './edge';
 import { getAgentEdge } from './edge';
-import { readFirmIndex, type CaseIndexPointer } from './firmIndex';
+import {
+  publishCasePointer,
+  readCasePointer,
+  readFirmIndex,
+  type CaseIndexPointer,
+} from './firmIndex';
 import type {
   SpendRecord,
   WatcherDecisionKind,
@@ -429,13 +434,31 @@ export async function runWatcherPass(
     );
     const hit = evaluateTriggers(caseFacts, now);
 
+    // Chain-sourced dedupe for the G7 proposal (finding 2): if the fold — which a
+    // fresh device reconstructs from the durable chain on boot — already holds this
+    // gate instance RESOLVED, the adviser has acknowledged it, so re-raising it
+    // would re-open a handled nudge. The per-device last-seen cannot catch this on
+    // a fresh device (its store is empty), but the acknowledged gate-resolve is on
+    // the chain, so the fold is the durable signal. Only a G7-raising trigger can
+    // re-open a card, so the guard is scoped to it.
+    const g7AlreadyResolved =
+      hit?.raisesG7 === true &&
+      getCrmEventLogStore().getState().openGates[
+        watcherGateInstanceId(pointer.caseId)
+      ]?.status === 'resolved';
+
     // Fast-path skip: nothing due, OR the same proposal already stands and the
-    // log head has not moved. Either way, no model tokens are spent.
-    if (!hit || (!headChanged && prev?.proposedKind === hit.kind)) {
+    // log head has not moved, OR the G7 proposal was already acknowledged. Either
+    // way, no model tokens are spent.
+    if (
+      !hit ||
+      (!headChanged && prev?.proposedKind === hit.kind) ||
+      g7AlreadyResolved
+    ) {
       skipped += 1;
       firmStore.getState().setWatcherLastSeen(key, {
         headSeq: pointer.logHeadSeq,
-        proposedKind: prev?.proposedKind,
+        proposedKind: g7AlreadyResolved ? hit?.kind : prev?.proposedKind,
       });
       continue;
     }
@@ -497,6 +520,18 @@ export async function runWatcherPass(
 // sentinel names the origin rather than an empty runId (contract requires it).
 const WATCHER_ACK_RUN_ID = 'desktop:lm-watcher-ack';
 
+// An acknowledgement is an ADVISER action taken at the desktop, not a watcher
+// model run. Stamping it with WATCHER_VERSIONS (model 'lm-watcher') would smudge
+// the audit chain's provenance — an adviser click recorded as an lm-watcher model
+// action (finding 6). The proposal it resolves already carries the truthful
+// lm-watcher stamp at its gate-raise; the ack carries the desktop origin instead.
+const ADVISER_ACK_VERSIONS: VersionStamp = {
+  model: 'lm-desktop',
+  promptSha: 'lm-desktop',
+  skillSemver: '1.0.0',
+  skillSha: 'lm-desktop-ack-m2',
+};
+
 export interface AcknowledgeWatcherProposalInput {
   caseId: string;
   firmId: string;
@@ -526,8 +561,13 @@ export async function acknowledgeWatcherProposal(
   const now = input.now ?? Date.now();
   const edge = await getAgentEdge();
 
+  // Per-ACK activity id (finding 3): keyed by the proposal's OWN gate instance id
+  // AND the ack time, so a legitimate re-raise + second acknowledgement projects
+  // BOTH acks in the adviser's history rather than the later one superseding the
+  // earlier under a per-case id. The chain retained both entries either way; this
+  // keeps the fold's projection faithful to the adviser's actual actions.
   const activity: ActivityEvent = {
-    id: `act_watcher_ack_${input.caseId}`,
+    id: `act_watcher_ack_${input.gateInstanceId}_${now}`,
     caseId: input.caseId,
     kind: 'note',
     title: 'Watcher proposal acknowledged',
@@ -563,7 +603,7 @@ export async function acknowledgeWatcherProposal(
     firmId: input.firmId,
     actor: { kind: 'adviser', id: input.adviserId },
     events,
-    versions: WATCHER_VERSIONS,
+    versions: ADVISER_ACK_VERSIONS,
     originArtifactId: `watcher_ack_${input.caseId}`,
     runId: WATCHER_ACK_RUN_ID,
     at: now,
@@ -572,6 +612,24 @@ export async function acknowledgeWatcherProposal(
   getCrmEventLogStore()
     .getState()
     .resolveMirroredGate(input.gateInstanceId, 'acknowledged', now);
+
+  // Republish the case pointer at the new chain head (finding 2). The ack advanced
+  // the log; leaving the index pointing at the pre-ack head makes any consumer that
+  // trusts `logHeadSeq` as the true head read a stale value, and — because the
+  // firm store's last-seen is per-device — a FRESH device (empty last-seen) would
+  // otherwise re-raise this already-acknowledged G7 on its first pass. Preserve the
+  // case's current stage: an acknowledgement is propose-only and moves nothing, so
+  // it must not rewind an advanced case to fact-find. This mirrors the onboarding
+  // approve/deny paths, which already republish.
+  const currentPointer = await readCasePointer(input.firmId, input.caseId);
+  await publishCasePointer({
+    caseId: input.caseId,
+    firmId: input.firmId,
+    aionProjectId: input.projectId,
+    stage: currentPointer?.stage ?? 'FACT_FIND',
+    logHeadSeq: write.headSeq,
+    updatedAt: now,
+  });
 
   return { headSeq: write.headSeq, decision: 'acknowledged' };
 }

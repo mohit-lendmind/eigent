@@ -28,6 +28,7 @@ import { publishCasePointer, readFirmIndex } from '@/crm/agents/firmIndex';
 import { resetWatcherState, runWatcherPass } from '@/crm/agents/watcher';
 import { useCrmCasesStore } from '@/crm/casesStore';
 import { useCrmFirmStore } from '@/crm/firmStore';
+import { foldEntries } from '@/crm/fold/caseLogFold';
 import {
   useCrmEventLogStore,
   type MirroredGate,
@@ -295,6 +296,49 @@ describe('crmSurface — a G7 watcher card never takes the G1 send path (finding
     expect(titles).toContain('Watcher proposal acknowledged');
     expect(titles).not.toContain('Onboarding pack sent');
     expect(edge.commands).toHaveLength(0);
+  });
+
+  it('a fresh-device pass after an ack does NOT re-raise the acknowledged G7 (finding 2)', async () => {
+    const edge = new FakeEdge();
+    configureAgentEdge(edge);
+    const g7 = await raiseWatcherG7(edge, 'c417');
+
+    // The adviser acknowledges the proposal: this writes the gate-resolve to the
+    // durable chain AND republishes the case pointer at the new head.
+    const ack = await acknowledgeGate(g7, 'adviser:me');
+    expect(ack.ok).toBe(true);
+
+    // The firm index pointer now reflects the ack's chain head, not the stale
+    // pre-ack head '5' — the index-freshness half of finding 2.
+    const pointers = await readFirmIndex(CRM_PREVIEW_FIRM_ID);
+    const pointer = pointers.find((p) => p.caseId === 'c417');
+    expect(pointer).toBeDefined();
+    expect(pointer!.logHeadSeq).not.toBe('5');
+
+    // Simulate a FRESH device: the per-device last-seen (firm store) is empty, and
+    // the fold is rebuilt from the durable chain on boot — so the acknowledged G7
+    // is reconstructed as RESOLVED, exactly as a real cold start would.
+    resetWatcherState();
+    resetCaseProjectCaches();
+    useCrmEventLogStore.getState().resetForTests();
+    const chain = (await readCaseChain(edge, 'c417')).sort((a, b) =>
+      BigInt(a.seq) < BigInt(b.seq) ? -1 : BigInt(a.seq) > BigInt(b.seq) ? 1 : 0
+    );
+    await foldEntries('c417', chain);
+    expect(useCrmEventLogStore.getState().openGates['G7_c417'].status).toBe(
+      'resolved'
+    );
+
+    // A watcher pass over the same, unchanged case must NOT re-raise the handled
+    // nudge: nothing is decided and the card stays resolved rather than re-opening.
+    const report = await runWatcherPass(CRM_PREVIEW_FIRM_ID, {
+      now: WATCHER_NOW + 60_000,
+      firmConfig: previewFirmConfig(),
+    });
+    expect(report.decided).toBe(0);
+    expect(useCrmEventLogStore.getState().openGates['G7_c417'].status).toBe(
+      'resolved'
+    );
   });
 
   it('a non-G7 mirror is refused by acknowledgeGate', async () => {

@@ -41,7 +41,9 @@ describe('GateCard — renders from the registry, approves the edited draft', ()
     );
     expect(screen.getByText(gateById('G7').name)).toBeInTheDocument();
     expect(screen.getByText('crm.gate.tier-2')).toBeInTheDocument();
-    expect(screen.getByText(/SLA 240m/)).toBeInTheDocument();
+    // The SLA pill now routes through t('crm.gate.sla-pill') (finding 4); the
+    // test i18n mock returns the key verbatim, so assert by key.
+    expect(screen.getByText('crm.gate.sla-pill')).toBeInTheDocument();
   });
 
   it('keeps the batch control inert in M2', () => {

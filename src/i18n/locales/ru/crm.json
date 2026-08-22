@@ -2,7 +2,6 @@
   "today": {
     "title": "Today",
     "subtitle": "What needs you now",
-    "loading": "Loading your queue…",
     "all-clear": "All clear — nothing needs you right now.",
     "first-run": "No cases yet. Once cases arrive, the gates and tasks that need you will appear here.",
     "empty": "Nothing in your queue.",
@@ -33,7 +32,9 @@
     "approve": "Approve",
     "acknowledge": "Acknowledge",
     "acknowledge-title": "Acknowledge this proposal; propose-only, nothing is sent",
-    "draft-label": "Onboarding draft"
+    "draft-label": "Onboarding draft",
+    "card-label": "Gate {{id}}",
+    "sla-pill": "SLA {{minutes}}m"
   },
   "nav": {
     "crm": "CRM"
