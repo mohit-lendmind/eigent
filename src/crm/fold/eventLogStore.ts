@@ -84,14 +84,26 @@ export interface CaseHalt {
   atSeq: DecimalSeq;
 }
 
+// The verified tip of a case's chain: the last applied/advanced entry. Seeds
+// prevHash linkage for the next incremental delta and feeds the export v2
+// envelope's `chainHead`. DERIVED — rebuilt by a refold.
+export interface ChainHead {
+  seq: DecimalSeq;
+  hash: string;
+}
+
 // The single-setState patch the fold hands to `applyCaseFold` for one touched
 // case. Everything is optional so a fold that only buffers (no apply) or only
 // quarantines still lands in one write.
 export interface CaseFoldPatch {
   caseId: CaseId;
   watermark?: DecimalSeq;
+  chainHead?: ChainHead;
   pending?: CaseLogEntry[];
   quarantineAdditions?: QuarantineRecord[];
+  // When true, this case's existing retained quarantine records are dropped
+  // before the additions land (a T4 refold-from-zero re-evaluates them).
+  clearCaseQuarantine?: boolean;
   anomalies?: CaseAnomalies;
   halted?: CaseHalt | null;
   freshness?: CaseFreshness;
@@ -103,6 +115,7 @@ type EventLogData = Pick<
   | 'storageEnvironmentKey'
   | 'contractsVersion'
   | 'watermarks'
+  | 'chainHeads'
   | 'pendingByCase'
   | 'quarantine'
   | 'quarantineTombstones'
@@ -117,6 +130,7 @@ export interface CrmEventLogState {
   storageEnvironmentKey: string;
   contractsVersion: number;
   watermarks: Record<CaseId, DecimalSeq>;
+  chainHeads: Record<CaseId, ChainHead>; // DERIVED
   pendingByCase: Record<CaseId, CaseLogEntry[]>; // DERIVED, NOT persisted
   quarantine: QuarantineRecord[];
   quarantineTombstones: QuarantineTombstone[]; // PERMANENT
@@ -141,6 +155,7 @@ const emptyData = (): EventLogData => ({
   storageEnvironmentKey: getAuthEnvironmentKey(),
   contractsVersion: 0,
   watermarks: {},
+  chainHeads: {},
   pendingByCase: {},
   quarantine: [],
   quarantineTombstones: [],
@@ -199,6 +214,13 @@ export const useCrmEventLogStore = create<CrmEventLogState>()(
             };
           }
 
+          if (patch.chainHead !== undefined) {
+            next.chainHeads = {
+              ...state.chainHeads,
+              [patch.caseId]: patch.chainHead,
+            };
+          }
+
           if (patch.pending !== undefined) {
             next.pendingByCase = { ...state.pendingByCase };
             if (patch.pending.length === 0) {
@@ -208,13 +230,35 @@ export const useCrmEventLogStore = create<CrmEventLogState>()(
             }
           }
 
-          if (patch.quarantineAdditions && patch.quarantineAdditions.length) {
-            const merged = [...state.quarantine, ...patch.quarantineAdditions];
-            const capped = capQuarantine(merged, state.quarantineTombstones);
+          const additions = patch.quarantineAdditions ?? [];
+          if (patch.clearCaseQuarantine || additions.length) {
+            // A refold drops the case's own retained records first (each leaves
+            // a tombstone), then the fresh additions land. everCount is
+            // monotonic — it only ever climbs by the count of new additions.
+            let retained = state.quarantine;
+            let tombstones = state.quarantineTombstones;
+            if (patch.clearCaseQuarantine) {
+              const dropped = retained.filter((r) => r.caseId === patch.caseId);
+              retained = retained.filter((r) => r.caseId !== patch.caseId);
+              tombstones = [
+                ...tombstones,
+                ...dropped.map((r) => ({
+                  hash: r.contentHash,
+                  kind: r.kindSeen,
+                  at: r.at,
+                })),
+              ];
+            }
+            const capped = capQuarantine(
+              [...retained, ...additions],
+              tombstones
+            );
             next.quarantine = capped.quarantine;
             next.quarantineTombstones = capped.quarantineTombstones;
-            next.quarantineEverCount =
-              state.quarantineEverCount + patch.quarantineAdditions.length;
+            if (additions.length) {
+              next.quarantineEverCount =
+                state.quarantineEverCount + additions.length;
+            }
           }
 
           if (patch.anomalies !== undefined) {
@@ -302,6 +346,7 @@ export const useCrmEventLogStore = create<CrmEventLogState>()(
               ? state.contractsVersion
               : 0,
           watermarks: state.watermarks ?? {},
+          chainHeads: state.chainHeads ?? {},
           pendingByCase: {}, // DERIVED, never rehydrated from persist
           quarantine: capped.quarantine,
           quarantineTombstones: capped.quarantineTombstones,
@@ -319,6 +364,7 @@ export const useCrmEventLogStore = create<CrmEventLogState>()(
         storageEnvironmentKey: state.storageEnvironmentKey,
         contractsVersion: state.contractsVersion,
         watermarks: state.watermarks,
+        chainHeads: state.chainHeads,
         // pendingByCase is DERIVED — deliberately excluded from persist.
         quarantine: state.quarantine,
         quarantineTombstones: state.quarantineTombstones,
