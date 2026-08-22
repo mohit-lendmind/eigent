@@ -73,9 +73,17 @@ export async function publishCasePointer(p: CaseIndexPointer): Promise<void> {
   });
 }
 
-/** The firm's active case pointers, latest version per case. */
+/**
+ * The firm's active case pointers, latest version per case. When `out` is
+ * supplied, its `skipped` counter is incremented for every pointer that could
+ * NOT be read (truncated content or an undecodable body) — a corrupt pointer
+ * silently drops a case from every watcher pass and the queue, so callers that
+ * care surface the count rather than losing the case without a signal (finding
+ * 14). The optional param keeps the frozen one-arg contract assignable.
+ */
 export async function readFirmIndex(
-  firmId: string
+  firmId: string,
+  out?: { skipped: number }
 ): Promise<CaseIndexPointer[]> {
   const edge = await getAgentEdge();
   const projectId = await firmCoordinatorProject(firmId);
@@ -108,10 +116,12 @@ export async function readFirmIndex(
       inline: true,
     });
     if (access.content_truncated === true || access.content === undefined) {
+      if (out) out.skipped += 1;
       continue;
     }
     const pointer = decodeCaseIndexPointer(JSON.parse(access.content));
     if (pointer) pointers.push(pointer);
+    else if (out) out.skipped += 1;
   }
   return pointers;
 }

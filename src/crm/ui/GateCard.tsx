@@ -35,6 +35,12 @@ export interface GateCardProps {
   provenance?: { disclosureRef?: string; reasons: string[] };
   onApprove: (editedDraft?: string) => void;
   onEdit?: (next: string) => void;
+  /**
+   * Deny path: an adviser must be able to reject a regulated send, not only
+   * approve it (finding 18). Optional to keep the frozen GateCardProps
+   * assignable; when unset the reject control is not rendered.
+   */
+  onReject?: () => void;
 }
 
 function tierLabel(tier: 1 | 2 | 3): string {
@@ -49,6 +55,7 @@ export function GateCard({
   provenance,
   onApprove,
   onEdit,
+  onReject,
 }: GateCardProps) {
   const [edited, setEdited] = useState(draft?.full ?? '');
   const isG1 = gate.id === 'G1';
@@ -112,6 +119,16 @@ export function GateCard({
           >
             Batch
           </Button>
+          {onReject !== undefined && (
+            <Button
+              variant="secondary"
+              tone="error"
+              onClick={() => onReject()}
+              title="Reject this send"
+            >
+              Reject
+            </Button>
+          )}
           <Button onClick={() => onApprove(showDraft ? edited : undefined)}>
             Approve
           </Button>

@@ -14,7 +14,10 @@
     "overdue": "Overdue by {{minutes}}m",
     "freshness-live": "Live",
     "freshness-as-of": "As of last sync",
-    "freshness-stale": "Stale"
+    "freshness-stale": "Stale",
+    "start-onboarding": "New onboarding case",
+    "starting": "Starting…",
+    "close-gate": "Close"
   },
   "nav": {
     "crm": "CRM"

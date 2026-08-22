@@ -17,9 +17,11 @@ on:
   pull_request:
     branches:
       - main
+      - lendmind-crm
   push:
     branches:
       - main
+      - lendmind-crm
   workflow_dispatch:
 
 # A force-push should not leave two runs racing over the same branch.
@@ -64,6 +66,14 @@ jobs:
       - name: Type check
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm type-check
+
+      # The main type-check uses tsconfig.build.json, which excludes test/**, so
+      # the frozen M2 contract pins in test/unit/crm/m2ContractFreeze.test.ts are
+      # never type-checked there. This scoped run makes the freeze declarations
+      # (specs/003-.../contracts/*.d.ts) load-bearing: any drift fails to compile.
+      - name: Type check (M2 contract freeze)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm type-check:freeze
 
       - name: ESLint
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}

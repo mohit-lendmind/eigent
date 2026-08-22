@@ -14,9 +14,13 @@
 
 // SC-004 — the M1 kill-the-laptop invariant still holds when the chain is
 // authored by the M2 agents rather than a hand-built fixture. An onboarding pass
-// (draft → G1 → approve) writes a genuine 4-entry case chain to the edge; we
-// read it back, fold it, wipe every store to the floor, refold, and assert the
-// projection is byte-identical. The v2 compliance export re-verifies the same
+// (draft → G1 → approve) writes a genuine 12-entry case chain to the edge
+// (checklist-status + stream-entry + gate-raise/gate-resolve entries and all);
+// we read it back, fold it, wipe every store to the floor, refold, and assert
+// the projection — the mirrored open-gate map INCLUDED — is byte-identical. That
+// the openGates map survives a wipe+refold is the finding-10 proof: the gate is
+// reconstructed from the chain's gate-raise/gate-resolve entries, not a
+// side-write the fold would lose. The v2 compliance export re-verifies the same
 // chain from the artifact store, so the exported envelope's chainVerified tip is
 // proof the agent-written log is tamper-evident.
 
@@ -101,6 +105,9 @@ function foldSnapshot(): string {
       quarantine: log.quarantine,
       anomalies: log.anomalies,
       haltedCases: log.haltedCases,
+      // openGates is fold-derived from gate-raise/gate-resolve entries, so it
+      // MUST reproduce byte-for-byte on refold — the finding-10 invariant.
+      openGates: log.openGates,
     })
   );
 }
@@ -147,13 +154,20 @@ describe('convergence with agents — kill-the-laptop on agent-written entries (
     const edge = new FakeEdge();
     configureAgentEdge(edge);
     const chain = await authorAgentChain(edge, CASE);
-    expect(chain).toHaveLength(4);
+    // 9 from beginOnboarding('purchase') + 3 from approveOnboardingSend.
+    expect(chain).toHaveLength(12);
 
     await foldEntries(CASE, chain);
     const s1 = foldSnapshot();
+    // The gate is present in the projection and resolved from the chain — if the
+    // snapshot silently dropped openGates this proof would be vacuous.
+    const g1 = getCrmEventLogStore().getState().openGates[`G1_${CASE}`];
+    expect(g1?.status).toBe('resolved');
+    expect(g1?.decision).toBe('allow');
 
     clearAllCrmState();
     expect(getCrmEventLogStore().getState().watermarks).toEqual({});
+    expect(getCrmEventLogStore().getState().openGates).toEqual({});
 
     await foldEntries(CASE, chain);
     const s2 = foldSnapshot();

@@ -68,7 +68,11 @@ import type {
 import { CRM_SCHEMA_VERSION } from '../domain/types';
 import { computeEntryHash } from '../hashChain';
 import { getCrmWorkstreamStore } from '../workstreamStore';
-import type { CaseFoldPatch, QuarantineRecord } from './eventLogStore';
+import type {
+  CaseFoldPatch,
+  MirroredGate,
+  QuarantineRecord,
+} from './eventLogStore';
 import {
   QUARANTINE_PREVIEW_MAX_BYTES,
   getCrmEventLogStore,
@@ -369,6 +373,20 @@ function applyDomainWrites(
   const conflictOut: ConflictRecord[] = [];
   const streamOut: StreamEntry[] = [];
   const activitiesOut: Array<{ caseId: CaseId; activity: ActivityEvent }> = [];
+  // Gate mirror ops are replayed in seq order AFTER the domain stores settle so
+  // a wipe-then-refold reconstructs openGates from the chain rather than losing
+  // every Today-queue gate row (finding 10). A raise then a resolve of the same
+  // instance id collapses to a resolved row, exactly as the live path produced.
+  type GateOp =
+    | { op: 'raise'; gate: MirroredGate }
+    | {
+        op: 'resolve';
+        id: string;
+        decision: string;
+        at: number;
+        edited?: boolean;
+      };
+  const gateOps: GateOp[] = [];
 
   for (const e of entries) {
     const p = e.event.payload;
@@ -448,6 +466,18 @@ function applyDomainWrites(
         }
         break;
       }
+      case 'gate-raise':
+        gateOps.push({ op: 'raise', gate: p.gate as MirroredGate });
+        break;
+      case 'gate-resolve':
+        gateOps.push({
+          op: 'resolve',
+          id: p.id as string,
+          decision: p.decision as string,
+          at: e.at,
+          ...(p.edited !== undefined ? { edited: p.edited as boolean } : {}),
+        });
+        break;
       case 'chain-anchor':
         // A writer-side re-base — no projection change.
         break;
@@ -487,6 +517,17 @@ function applyDomainWrites(
   }
   for (const a of activitiesOut) {
     getCrmWorkstreamStore().getState().noteActivity(a.caseId, a.activity);
+  }
+  for (const g of gateOps) {
+    const eventLog = getCrmEventLogStore().getState();
+    if (g.op === 'raise') eventLog.mirrorOpenGate(g.gate);
+    else
+      eventLog.resolveMirroredGate(
+        g.id,
+        g.decision,
+        g.at,
+        g.edited !== undefined ? { edited: g.edited } : undefined
+      );
   }
 }
 

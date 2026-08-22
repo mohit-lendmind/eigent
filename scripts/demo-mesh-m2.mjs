@@ -297,7 +297,10 @@ function validate(r) {
   // 3. approve → logged
   assert(r.step3.g1Status === 'resolved', 'step3 G1 resolved on approval');
   assert(r.step3.g1Decision === 'allow', 'step3 approval is an allow');
-  assert(r.step3.chainLength === 4, 'step3 four entries on the chain');
+  // beginOnboarding writes 9 entries (1 activity + 5 checklist-status + 1
+  // stream-entry + 1 worklist-upsert + 1 gate-raise; findings 6 & 10) and the
+  // approval writes 3 (activity + worklist-resolve + gate-resolve) = 12.
+  assert(r.step3.chainLength === 12, 'step3 twelve entries on the chain');
   assert(r.step3.chainVerified === true, 'step3 chain verifies');
   // 4. export v2
   assert(r.step4.exported, 'step4 v2 export succeeded');

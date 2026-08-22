@@ -146,29 +146,51 @@ export function selectTodayQueue(): QueueRow[] {
   return buildTodayQueue(openGates, worklistItems, freshness);
 }
 
-// Pure core: a degraded queue is one whose fold source failed for at least one
-// case — the surface must warn rather than silently show a stale queue.
+// Pure core: a degraded queue is one whose source failed for at least one case
+// backing a rendered row — the surface must warn rather than silently show a
+// stale queue. All three QueueSources can trip it (finding 20): the failure is
+// attributed to the gate mirror when a failed case backs an open gate row, to
+// the worklist when it backs an open worklist row, else to the fold. The gate
+// and worklist maps are optional so the frozen zero-source-arg callers still
+// resolve (attribution falls back to 'fold').
 export function computeQueueDegraded(
-  freshness: Record<string, CaseFreshness>
+  freshness: Record<string, CaseFreshness>,
+  openGates: Record<string, MirroredGate> = {},
+  worklistItems: Record<string, WorklistItem> = {}
 ): {
   degraded: boolean;
   failedSource?: QueueSource;
 } {
-  for (const entry of Object.values(freshness)) {
+  const failedCases = new Set<string>();
+  for (const [caseId, entry] of Object.entries(freshness)) {
     if (
       entry.sourceStatus === 'failed' ||
       entry.sourceStatus === 'no-project'
     ) {
-      return { degraded: true, failedSource: 'fold' };
+      failedCases.add(caseId);
     }
   }
-  return { degraded: false };
+  if (failedCases.size === 0) return { degraded: false };
+
+  const gateBacked = Object.values(openGates).some(
+    (g) => g.status === 'open' && failedCases.has(g.caseId)
+  );
+  if (gateBacked) return { degraded: true, failedSource: 'gate' };
+
+  const worklistBacked = Object.values(worklistItems).some(
+    (w) => w.status === 'open' && failedCases.has(w.caseId)
+  );
+  if (worklistBacked) return { degraded: true, failedSource: 'worklist' };
+
+  return { degraded: true, failedSource: 'fold' };
 }
 
-/** True when any case's fold source has failed — the surface shows a banner. */
+/** True when any queue source has failed — the surface shows a banner. */
 export function selectQueueDegraded(): {
   degraded: boolean;
   failedSource?: QueueSource;
 } {
-  return computeQueueDegraded(useCrmEventLogStore.getState().freshness);
+  const { openGates, freshness } = useCrmEventLogStore.getState();
+  const { worklistItems } = useCrmWorkstreamStore.getState();
+  return computeQueueDegraded(freshness, openGates, worklistItems);
 }

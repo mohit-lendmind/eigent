@@ -12,6 +12,7 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
+import { FIRM_CONFIG_DEFAULTS, decodeFirmConfig } from '@/crm/agentContracts';
 import {
   CaseBreaker,
   PassBudget,
@@ -113,5 +114,27 @@ describe('PassBudget bounds a single pass', () => {
     expect(budget.tryDebit(8_000n)).toBe(false); // would be 24_000 > 20_000
     expect(budget.spent).toBe(16_000n);
     expect(budget.remaining).toBe(4_000n);
+  });
+});
+
+// FR-004 regression: the default per-pass cap must survive a normal LLM pass.
+// The old £0.02 default (20_000 microGBP) tripped after ~a dozen stub-priced
+// calls and instantly at real token prices, starving watcher passes silently.
+describe('default watcher-pass budget is realistic (FR-004)', () => {
+  it('decodes to £2 (2_000_000 microGBP), not the £0.02 that trips a real pass', () => {
+    const decoded = decodeFirmConfig({ firmId: 'firm-alpha' });
+    expect(decoded.budgets.watcherPassMicroGbp).toBe(2_000_000);
+    expect(FIRM_CONFIG_DEFAULTS.budgets?.watcherPassMicroGbp).toBe(2_000_000);
+  });
+
+  it('a realistic multi-call pass fits inside the default envelope', () => {
+    // Ten provider calls at ~£0.12 each (a plausible real pass) = £1.20 < £2.
+    const decoded = decodeFirmConfig({ firmId: 'firm-alpha' });
+    const budget = new PassBudget(BigInt(decoded.budgets.watcherPassMicroGbp));
+    let admitted = 0;
+    for (let i = 0; i < 10; i += 1) {
+      if (budget.tryDebit(120_000n)) admitted += 1;
+    }
+    expect(admitted).toBe(10);
   });
 });

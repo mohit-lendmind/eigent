@@ -12,16 +12,24 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-// Recorded eval — lm-watcher decisions (Journey 2, SC-002/SC-005 rubric).
+// RUBRIC-ONLY harness — lm-watcher decisions (Journey 2, SC-002/SC-005 rubric).
 //
 // The watcher's risk surface is the DECISIONS a pass emits: they must fire the
 // right trigger for each case, share one passId, be honest about confidence, and
 // — the load-bearing M2 invariant — stay PROPOSE-ONLY (no `directive`, the M3
-// seam left empty) and never quote a product/rate/affordability claim to a
-// client. A live-model run needs the eigent-local stack and an API key; this eval
-// is the RECORDED half — it scores a captured pass against the rubric so the bar
-// is executable offline. Point EIGENT_WATCHER_DECISIONS at a fresh transcript to
-// score a live capture instead of the recording.
+// seam left empty) and never quote a product/rate/affordability claim to a client.
+//
+// NOT journey-coverage evidence (finding 13). By default this scores the
+// hand-written RECORDED_DECISIONS below, which is tautological — the fixture was
+// written to pass the rubric. The GENUINE journey coverage — the same rubric run
+// against the decisions a REAL runWatcherPass actually writes — lives in
+// test/unit/crm/journeyRubric.test.ts (and the full pass in watcherPass.test.ts),
+// both of which CI runs. This file is a rubric harness you point at a LIVE capture:
+// set EIGENT_WATCHER_DECISIONS to a real lm-watcher transcript to score it.
+//
+// Provenance of RECORDED_DECISIONS: an illustrative pass over a firm whose c417
+// has a fixed-rate deal ending inside the lead window and whose c392 has stalled;
+// it mirrors runWatcherPass's decision shape but is not a verbatim shipped output.
 //
 // Run: npx playwright test --config e2e/eval.config.ts lm-watcher
 // (The *.eval.ts suite is disjoint from the *.e2e.ts testMatch on purpose.)

@@ -72,4 +72,16 @@ export interface WatcherPassReport {
   decided: number;
   breakerTrips: number;
   spend: SpendRecord;
+  /**
+   * Cases refused because the pass budget was exhausted, kept DISTINCT from the
+   * cheap fast-path `skipped` so a supervisor can tell a healthy pass from a
+   * budget-starved one (finding 15). Optional to keep the frozen contract.
+   */
+  budgetRefusals?: number;
+  /**
+   * Case pointers that could not be read during the index scan (truncated or
+   * undecodable) — a corrupt pointer silently drops a case, so the count is
+   * surfaced (finding 14). Optional to keep the frozen contract.
+   */
+  pointerSkips?: number;
 }

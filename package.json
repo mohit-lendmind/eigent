@@ -45,6 +45,7 @@
     "check:design-tokens": "npm run verify:theme && npm run check:design-token-usage",
     "verify:theme": "vite-node scripts/verify-theme-tokens.ts",
     "type-check": "tsc -p tsconfig.build.json --noEmit",
+    "type-check:freeze": "tsc -p tsconfig.freeze.json --noEmit",
     "lint": "eslint . --no-warn-ignored && npm run check:design-token-usage && npm run check:no-legacy-backend && npm run check:no-dead-brain-calls",
     "lint:fix": "eslint . --fix --no-warn-ignored",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",

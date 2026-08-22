@@ -19,7 +19,11 @@
 // by the per-case breaker and the per-pass budget. Every figure the pass reports
 // is a metric, including a tripped limit; nothing is sent.
 
-import { decodeFirmConfig, type FirmConfig } from '@/crm/agentContracts';
+import {
+  decodeCaseLogEntry,
+  decodeFirmConfig,
+  type FirmConfig,
+} from '@/crm/agentContracts';
 import {
   firmCoordinatorProject,
   resetCaseProjectCaches,
@@ -157,6 +161,72 @@ describe('watcher — Journey 2: scan, skip, propose-only (SC-002)', () => {
     expect(g7!.status).toBe('open');
   });
 
+  it('stamps the decision chain entry with the artifact id and pass run id', async () => {
+    const edge = new FakeEdge();
+    configureAgentEdge(edge);
+    await seedCase(edge, 'c417', { fixedRateEndAt: NOW + 30 * DAY });
+
+    const report = await runWatcherPass(FIRM, {
+      now: NOW,
+      firmConfig: firmConfig(),
+    });
+    expect(report.decided).toBe(1);
+
+    // The decision artifact lives in the coordinator project; grab its real id.
+    const coordId = await firmCoordinatorProject(FIRM);
+    const decisionList = await edge.listArtifacts(coordId, {
+      name: `lm/watcher/${report.passId}/c417.json`,
+    });
+    const decisionId = decisionList.artifacts[0]!.artifact_id;
+
+    // The proposal's chain entry (written to the CASE project) must point back
+    // to that artifact by its ID, not its name (finding 16), and carry the real
+    // pass run id rather than an empty string (finding 17).
+    const caseList = await edge.listArtifacts(caseProjectId('c417'), {});
+    const chain = [];
+    for (const artifact of caseList.artifacts) {
+      if (!artifact.name.startsWith('lm/case/c417/')) continue;
+      // The case project also holds the non-chain facts.json seed.
+      if (artifact.name.endsWith('/facts.json')) continue;
+      const access = await edge.getArtifact(
+        caseProjectId('c417'),
+        artifact.artifact_id,
+        { inline: true }
+      );
+      chain.push(decodeCaseLogEntry(JSON.parse(access.content!)));
+    }
+    const proposal = chain.find((e) => e.event.type === 'activity');
+    expect(proposal).toBeDefined();
+    expect(proposal!.origin.artifactId).toBe(decisionId);
+    expect(proposal!.origin.artifactId).not.toBe(
+      `lm/watcher/${report.passId}/c417.json`
+    );
+    expect(proposal!.origin.runId).toBe(report.passId);
+  });
+
+  it('surfaces a corrupt firm-index pointer as a pass pointer-skip', async () => {
+    const edge = new FakeEdge();
+    configureAgentEdge(edge);
+    await seedCase(edge, 'c417', { fixedRateEndAt: NOW + 30 * DAY });
+
+    // A pointer that cannot be decoded must not silently drop the case from the
+    // pass with no signal — the pass reports it as a pointerSkip (finding 14).
+    const coordId = await firmCoordinatorProject(FIRM);
+    await edge.uploadAttachment(coordId, {
+      name: `lm/firm/${FIRM}/case/c-corrupt.json`,
+      media_type: 'application/json',
+      data_base64: encodeJsonAttachment({ caseId: 'c-corrupt' }),
+    });
+
+    const report = await runWatcherPass(FIRM, {
+      now: NOW,
+      firmConfig: firmConfig(),
+    });
+    // Only the good case is scanned; the corrupt pointer is a reported skip.
+    expect(report.scanned).toBe(1);
+    expect(report.pointerSkips).toBe(1);
+  });
+
   it('skips every unchanged case on the next pass (fast-path)', async () => {
     const edge = new FakeEdge();
     configureAgentEdge(edge);
@@ -247,7 +317,12 @@ describe('watcher — Journey 2: scan, skip, propose-only (SC-002)', () => {
     });
     const report = await runWatcherPass(FIRM, { now: NOW, firmConfig: cfg });
     expect(report.decided).toBe(0);
-    expect(report.skipped).toBe(1);
+    // A trigger was due but the envelope could not fund the provider call, so
+    // the case is a budget refusal — NOT a cheap fast-path skip. The two are
+    // counted distinctly so a supervisor can tell a healthy pass from a
+    // starved one (finding 15).
+    expect(report.skipped).toBe(0);
+    expect(report.budgetRefusals).toBe(1);
     expect(report.spend.providerCalls).toBe(0);
   });
 

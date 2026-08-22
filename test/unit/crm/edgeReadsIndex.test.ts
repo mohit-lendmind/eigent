@@ -25,7 +25,8 @@ import { readCaseLogHead } from '@/crm/agents/caseLogHead';
 import { resetCaseProjectCaches } from '@/crm/agents/caseProject';
 import { configureAgentEdge, type AgentEdge } from '@/crm/agents/edge';
 import { publishCasePointer, readFirmIndex } from '@/crm/agents/firmIndex';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { useCrmFirmStore } from '@/crm/firmStore';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeEdge } from './fakeEdge';
 
 // Exactly the two primitives a scheduled run has. Everything else throws, so a
@@ -83,6 +84,11 @@ function base64Json(value: unknown): string {
 describe('T009 proof: the watcher reads are run-portable', () => {
   beforeEach(() => {
     resetCaseProjectCaches();
+    useCrmFirmStore.getState().resetForTests();
+    localStorage.clear();
+  });
+  afterEach(() => {
+    configureAgentEdge(null);
   });
 
   it('reads the firm index and a case log head with list+get only', async () => {
@@ -168,5 +174,36 @@ describe('T009 proof: the watcher reads are run-portable', () => {
     expect(index[0].logHeadSeq).toBe('9');
 
     configureAgentEdge(null);
+  });
+
+  it('resolves the coordinator from the persisted id under a cold cache + read-only edge', async () => {
+    const backing = new FakeEdge();
+    configureAgentEdge(backing);
+    const firmId = 'firm-coldcache';
+
+    // Desktop mints and PERSISTS the coordinator project when it first publishes
+    // a pointer (finding 2). No pre-priming beyond this write.
+    await publishCasePointer({
+      caseId: 'c1',
+      firmId,
+      aionProjectId: 'proj-c1',
+      stage: 'application',
+      logHeadSeq: '3',
+      updatedAt: 1,
+    });
+    expect(
+      useCrmFirmStore.getState().getCoordinatorProject(firmId)
+    ).toBeDefined();
+
+    // A fresh session: the in-memory promise cache is cold. Under a read-only
+    // run edge (every write throws), coordinator resolution MUST come from the
+    // persisted id — never a createProject — or this read would throw (finding
+    // 9). Before finding 2 the cold resolver always re-created the project.
+    resetCaseProjectCaches();
+    configureAgentEdge(runEdge(backing));
+
+    const index = await readFirmIndex(firmId);
+    expect(index.map((p) => p.caseId)).toEqual(['c1']);
+    expect(index[0].logHeadSeq).toBe('3');
   });
 });

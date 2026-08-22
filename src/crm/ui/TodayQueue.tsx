@@ -18,10 +18,19 @@
 // banner. SLA countdowns are aria-live so a screen reader hears a gate age.
 // Every colour is a ds token via the tone primitives — no raw values here.
 
-import { useEffect, useMemo, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCrmEventLogStore } from '../fold/eventLogStore';
 import { useCrmWorkstreamStore } from '../workstreamStore';
+import {
+  approveGate,
+  bootstrapCrmSurface,
+  descriptorForMirror,
+  rejectGate,
+  startOnboardingCase,
+} from './crmSurface';
+import { GateCard } from './GateCard';
 import { StatusPill } from './primitives/StatusPill';
 import {
   buildTodayQueue,
@@ -29,6 +38,8 @@ import {
   type QueueRow,
 } from './queueModel';
 import { toneClasses, type CrmTone } from './tones';
+
+const ADVISER_ID = 'adviser:me';
 
 const MINUTE_MS = 60_000;
 
@@ -56,11 +67,65 @@ export function TodayQueue({ loading = false }: TodayQueueProps) {
     return () => clearInterval(id);
   }, []);
 
+  // The imperative surface controller (finding 3): install skills + the watcher
+  // schedule once on mount, and drive the onboarding + gate-resolution journeys.
+  const [busy, setBusy] = useState(false);
+  const [surfaceError, setSurfaceError] = useState<string | null>(null);
+  const [selectedGateId, setSelectedGateId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void bootstrapCrmSurface().then((r) => {
+      if (cancelled || r.ok) return;
+      setSurfaceError(r.error);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedGate =
+    selectedGateId !== null ? openGates[selectedGateId] : undefined;
+
+  const handleStartOnboarding = useCallback(async () => {
+    setBusy(true);
+    setSurfaceError(null);
+    const r = await startOnboardingCase('purchase');
+    if (!r.ok) setSurfaceError(r.error);
+    setBusy(false);
+  }, []);
+
+  const handleApprove = useCallback(
+    async (editedDraft?: string) => {
+      if (!selectedGate) return;
+      setBusy(true);
+      setSurfaceError(null);
+      const r = await approveGate(selectedGate, ADVISER_ID, editedDraft);
+      if (r.ok) setSelectedGateId(null);
+      else setSurfaceError(r.error);
+      setBusy(false);
+    },
+    [selectedGate]
+  );
+
+  const handleReject = useCallback(async () => {
+    if (!selectedGate) return;
+    setBusy(true);
+    setSurfaceError(null);
+    const r = await rejectGate(selectedGate, ADVISER_ID);
+    if (r.ok) setSelectedGateId(null);
+    else setSurfaceError(r.error);
+    setBusy(false);
+  }, [selectedGate]);
+
   const rows = useMemo(
     () => buildTodayQueue(openGates, worklistItems, freshness),
     [openGates, worklistItems, freshness]
   );
-  const degraded = useMemo(() => computeQueueDegraded(freshness), [freshness]);
+  const degraded = useMemo(
+    () => computeQueueDegraded(freshness, openGates, worklistItems),
+    [freshness, openGates, worklistItems]
+  );
 
   const gateCount = rows.filter((r) => r.source === 'gate').length;
   const taskCount = rows.filter((r) => r.source === 'worklist').length;
@@ -75,13 +140,22 @@ export function TodayQueue({ loading = false }: TodayQueueProps) {
 
   return (
     <div className="flex flex-col gap-4 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-lg font-semibold text-ds-text-neutral-strong-default">
-          {t('crm.today.title')}
-        </h1>
-        <p className="text-sm text-ds-text-neutral-default-default">
-          {t('crm.today.subtitle')}
-        </p>
+      <header className="flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-lg font-semibold text-ds-text-neutral-strong-default">
+            {t('crm.today.title')}
+          </h1>
+          <p className="text-sm text-ds-text-neutral-default-default">
+            {t('crm.today.subtitle')}
+          </p>
+        </div>
+        <Button
+          onClick={() => void handleStartOnboarding()}
+          disabled={busy}
+          aria-disabled={busy}
+        >
+          {busy ? t('crm.today.starting') : t('crm.today.start-onboarding')}
+        </Button>
       </header>
 
       <div className="flex gap-3">
@@ -111,6 +185,41 @@ export function TodayQueue({ loading = false }: TodayQueueProps) {
         </div>
       )}
 
+      {surfaceError !== null && (
+        <div
+          role="alert"
+          className="rounded-md border border-ds-bg-error-default-default bg-ds-bg-status-error-subtle-default px-3 py-2 text-sm text-ds-text-status-error-strong-default"
+        >
+          {surfaceError}
+        </div>
+      )}
+
+      {selectedGate !== undefined && selectedGate.status === 'open' && (
+        <div className="flex flex-col gap-2">
+          <GateCard
+            gate={descriptorForMirror(selectedGate)}
+            draft={
+              selectedGate.draftFull !== undefined
+                ? { full: selectedGate.draftFull, editable: true }
+                : undefined
+            }
+            provenance={{
+              disclosureRef: selectedGate.disclosureRef,
+              reasons: selectedGate.reasons,
+            }}
+            onApprove={(editedDraft) => void handleApprove(editedDraft)}
+            onReject={() => void handleReject()}
+          />
+          <button
+            type="button"
+            className="self-start text-xs text-ds-text-neutral-muted-default hover:underline"
+            onClick={() => setSelectedGateId(null)}
+          >
+            {t('crm.today.close-gate')}
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <EmptyState message={t('crm.today.loading')} />
       ) : rows.length === 0 ? (
@@ -122,7 +231,17 @@ export function TodayQueue({ loading = false }: TodayQueueProps) {
       ) : (
         <ul className="flex flex-col gap-2">
           {rows.map((row) => (
-            <QueueRowItem key={row.id} row={row} now={now} t={t} />
+            <QueueRowItem
+              key={row.id}
+              row={row}
+              now={now}
+              t={t}
+              onSelect={
+                row.source === 'gate'
+                  ? () => setSelectedGateId(row.id)
+                  : undefined
+              }
+            />
           ))}
         </ul>
       )}
@@ -164,24 +283,46 @@ function QueueRowItem({
   row,
   now,
   t,
+  onSelect,
 }: {
   row: QueueRow;
   now: number;
   t: ReturnType<typeof useTranslation>['t'];
+  onSelect?: () => void;
 }) {
   const tone = toneClasses(row.tone as CrmTone);
+  const selectable = onSelect !== undefined;
   return (
     <li
       className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${tone.bg} ${tone.border}`}
     >
-      <div className="flex flex-col gap-0.5">
-        <span className={`text-sm font-medium ${tone.text}`}>{row.title}</span>
-        {row.meta !== undefined && (
-          <span className="text-xs text-ds-text-neutral-default-default">
-            {row.meta}
+      {selectable ? (
+        <button
+          type="button"
+          onClick={onSelect}
+          className="flex flex-1 flex-col gap-0.5 text-left"
+        >
+          <span className={`text-sm font-medium ${tone.text}`}>
+            {row.title}
           </span>
-        )}
-      </div>
+          {row.meta !== undefined && (
+            <span className="text-xs text-ds-text-neutral-default-default">
+              {row.meta}
+            </span>
+          )}
+        </button>
+      ) : (
+        <div className="flex flex-col gap-0.5">
+          <span className={`text-sm font-medium ${tone.text}`}>
+            {row.title}
+          </span>
+          {row.meta !== undefined && (
+            <span className="text-xs text-ds-text-neutral-default-default">
+              {row.meta}
+            </span>
+          )}
+        </div>
+      )}
       <div className="flex items-center gap-2">
         {row.sla !== undefined && (
           <span

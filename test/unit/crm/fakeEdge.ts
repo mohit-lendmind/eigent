@@ -156,12 +156,13 @@ export class FakeEdge implements AgentEdge {
     request: SubmitCommandRequest
   ): Promise<CommandReceipt> {
     this.commands.push({ projectId, request });
-    return Promise.resolve({
+    const receipt: CommandReceipt = {
       command_id: request.command_id,
       run_id: `run_${(this.runSeq += 1)}`,
-      run_epoch: 1,
-      accepted_sequence: (this.commandSeq += 1),
-    } as CommandReceipt);
+      run_epoch: '1',
+      accepted_sequence: String((this.commandSeq += 1)),
+    };
+    return Promise.resolve(receipt);
   }
 
   putSkill(name: string, request: PutSkillRequest): Promise<PutSkillResult> {

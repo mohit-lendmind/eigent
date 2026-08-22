@@ -43,8 +43,10 @@ export interface FirmConfig extends Record<string, unknown> {
   // silently rewrites past spend.
   fxUsdPerGbpMicro?: number;
   fxEffectiveDate?: string;
-  // The firm's watcher coordinator Project, once minted. Absent until the first
-  // watcher wiring; firmCoordinatorProject creates and records it.
+  // The firm's watcher coordinator Project, if a firm pins it in config. When
+  // absent, firmCoordinatorProject mints one on true first use and records the
+  // id in the durable firm store (src/crm/firmStore.ts) so later sessions reuse
+  // it — the running id lives there, not written back into this config artifact.
   coordinatorProjectId?: string;
 }
 
@@ -63,7 +65,7 @@ export const FIRM_CONFIG_DEFAULTS: Readonly<Partial<FirmConfig>> = {
   delegationRoster: [],
   quietHours: null,
   breaker: { maxInvocationsPerCaseHour: 12 },
-  budgets: { watcherPassMicroGbp: 20_000, caseMicroGbp: 15_000_000 },
+  budgets: { watcherPassMicroGbp: 2_000_000, caseMicroGbp: 15_000_000 },
   fxUsdPerGbpMicro: FX_USD_PER_GBP_MICRO_DEFAULT,
   fxEffectiveDate: FX_EFFECTIVE_DATE_DEFAULT,
 };
@@ -152,7 +154,7 @@ export function decodeFirmConfig(value: unknown): FirmConfig {
       ),
     },
     budgets: {
-      watcherPassMicroGbp: numberOr(budgetsRaw.watcherPassMicroGbp, 20_000),
+      watcherPassMicroGbp: numberOr(budgetsRaw.watcherPassMicroGbp, 2_000_000),
       caseMicroGbp: numberOr(budgetsRaw.caseMicroGbp, 15_000_000),
     },
     // A non-positive rate is treated as absent: it would divide GBP by zero.

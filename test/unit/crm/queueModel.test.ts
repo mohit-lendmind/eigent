@@ -165,6 +165,30 @@ describe('queueModel — Journey 3: merge, pin, sort, freshness, degraded (SC-00
     expect(degraded.failedSource).toBe('fold');
   });
 
+  it('attributes the degraded source to a failed case backing a gate row', () => {
+    // A failed case that backs an OPEN gate row must trip the banner and name
+    // the gate mirror, not fall through to the fold (finding 20).
+    const degraded = computeQueueDegraded(
+      { c1: { lastFoldedAt: 1, sourceStatus: 'failed' } },
+      { g1: gate({ id: 'g1', gateId: 'G1', caseId: 'c1' }) },
+      {}
+    );
+    expect(degraded.degraded).toBe(true);
+    expect(degraded.failedSource).toBe('gate');
+  });
+
+  it('attributes the degraded source to a failed case backing a worklist row', () => {
+    // No gate backs the failed case, but an open worklist row does — the
+    // worklist source trips the banner rather than the fold (finding 20).
+    const degraded = computeQueueDegraded(
+      { c2: { lastFoldedAt: 1, sourceStatus: 'failed' } },
+      {},
+      { w1: worklist({ id: 'w1', caseId: 'c2', kind: 'doc' }) }
+    );
+    expect(degraded.degraded).toBe(true);
+    expect(degraded.failedSource).toBe('worklist');
+  });
+
   it('reads live store state through the zero-arg selectors', () => {
     useCrmEventLogStore
       .getState()

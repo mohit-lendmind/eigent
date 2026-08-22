@@ -291,7 +291,7 @@ async function writeDecision(
     reason: hit.reason,
     worklistItemId,
   };
-  await edge.uploadAttachment(coordinatorProjectId, {
+  const decisionArtifact = await edge.uploadAttachment(coordinatorProjectId, {
     name: decisionArtifactName(passId, pointer.caseId),
     media_type: 'application/json',
     data_base64: encodeJsonAttachment({
@@ -337,7 +337,7 @@ async function writeDecision(
     actor: { kind: 'watcher', id: 'lm-watcher' },
     events,
     versions: WATCHER_VERSIONS,
-    originArtifactId: decisionArtifactName(passId, pointer.caseId),
+    originArtifactId: decisionArtifact.artifact_id,
     runId: passId,
     at: now,
   });
@@ -385,12 +385,14 @@ export async function runWatcherPass(
     cfg.fxUsdPerGbpMicro ?? FIRM_CONFIG_DEFAULTS.fxUsdPerGbpMicro!
   );
 
-  const pointers = await readFirmIndex(firmId);
+  const indexReadStats = { skipped: 0 };
+  const pointers = await readFirmIndex(firmId, indexReadStats);
 
   let scanned = 0;
   let skipped = 0;
   let decided = 0;
   let breakerTrips = 0;
+  let budgetRefusals = 0;
   let providerCalls = 0;
 
   for (const pointer of pointers) {
@@ -430,7 +432,9 @@ export async function runWatcherPass(
       continue;
     }
     if (!budget.tryDebit(perCallGbp)) {
-      skipped += 1;
+      // Budget-starved, NOT a cheap fast-path skip: counted distinctly so a
+      // supervisor can tell a healthy pass from one that ran out of envelope.
+      budgetRefusals += 1;
       lastSeenByCase.set(key, {
         headSeq: pointer.logHeadSeq,
         proposedKind: prev?.proposedKind,
@@ -458,7 +462,16 @@ export async function runWatcherPass(
     at: now,
   });
 
-  return { passId, scanned, skipped, decided, breakerTrips, spend };
+  return {
+    passId,
+    scanned,
+    skipped,
+    decided,
+    breakerTrips,
+    spend,
+    budgetRefusals,
+    pointerSkips: indexReadStats.skipped,
+  };
 }
 
 /**

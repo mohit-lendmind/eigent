@@ -26,6 +26,7 @@
 
 import { getAionModelCatalog, resolveModelAlias } from '@/store/aionChatBridge';
 import { getCrmCasesStore } from '../casesStore';
+import { getCrmFirmStore } from '../firmStore';
 import { getAgentEdge } from './edge';
 
 // A keyless/fixture stack offers the picker nothing; the created Project still
@@ -81,11 +82,21 @@ export function ensureCaseProject(caseId: string): Promise<string> {
 }
 
 async function resolveCoordinatorProject(firmId: string): Promise<string> {
+  // Durable first: a coordinator minted in an earlier session (persisted to the
+  // firm store) is reused, so the firm keeps ONE coordinator Project across
+  // restarts and its case-pointer index never fragments. Only a true first use
+  // (no persisted id) issues the create — which is what makes a read-only edge
+  // able to resolve the coordinator without a write.
+  const firmStore = getCrmFirmStore();
+  const persisted = firmStore.getState().getCoordinatorProject(firmId);
+  if (persisted) return persisted;
+
   const edge = await getAgentEdge();
   const project = await edge.createProject({
     title: `lm firm coordinator ${firmId}`,
     model_alias: await agentModelAlias(),
   });
+  firmStore.getState().setCoordinatorProject(firmId, project.project_id);
   return project.project_id;
 }
 

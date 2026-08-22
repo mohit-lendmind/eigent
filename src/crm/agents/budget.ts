@@ -24,7 +24,7 @@
 //
 // Two limits guard a pass: the per-case breaker (max invocations per rolling
 // hour, default 12) refuses a case that has already been touched too often;
-// the per-pass budget (default £0.02) stops a pass that has spent its envelope.
+// the per-pass budget (default £2) stops a pass that has spent its envelope.
 
 import {
   FX_EFFECTIVE_DATE_DEFAULT,

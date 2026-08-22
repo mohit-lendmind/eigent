@@ -12,15 +12,23 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-// Recorded eval — lm-onboarding draft quality (Journey 1, SC-001 rubric).
+// RUBRIC-ONLY harness — lm-onboarding draft quality (Journey 1, SC-001 rubric).
 //
 // The onboarding skill's whole risk surface is the DRAFT it writes: it must
 // carry every disclosure the firm requires and must NOT stray into product,
-// rate, or affordability claims (those are other agents' gates). A live-model
-// run of this skill needs the eigent-local stack and an API key; this eval is
-// the RECORDED half — it scores a captured draft against the rubric so the
-// bar is executable offline and in CI-adjacent runs. Point EIGENT_ONBOARDING_DRAFT
-// at a fresh transcript file to score a live capture instead of the recording.
+// rate, or affordability claims (those are other agents' gates).
+//
+// NOT journey-coverage evidence (finding 13). By default this scores the
+// hand-written RECORDED_DRAFT below, which is tautological — the fixture was
+// written to pass the rubric. The GENUINE journey coverage — the same rubric run
+// against the draft the SHIPPED buildOnboardingDraft actually produces — lives in
+// test/unit/crm/journeyRubric.test.ts (and Journey 1 end-to-end in onboarding.test.ts),
+// both of which CI runs. This file is a rubric harness you point at a LIVE capture:
+// set EIGENT_ONBOARDING_DRAFT to a real lm-onboarding transcript to score it.
+//
+// Provenance of RECORDED_DRAFT: an illustrative purchase-case draft for the
+// fixture firm config (disclosures IDD-2026, ESIS-terms, fee-agreement-v3); it
+// mirrors buildOnboardingDraft's structure but is not a verbatim shipped output.
 //
 // Run: npx playwright test --config e2e/eval.config.ts lm-onboarding
 // (The *.eval.ts suite is disjoint from the *.e2e.ts testMatch on purpose.)

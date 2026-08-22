@@ -120,4 +120,41 @@ describe('leadingMetrics — FR-022 leading indicators', () => {
       MINUTES_SAVED_PER_DRAFT + MINUTES_SAVED_PER_WATCHER_DECISION
     );
   });
+
+  it('reflects an edited approval in the unedited-% so it can drop below 100', () => {
+    // Two approved G1 drafts, one resolved edited. Before finding 21 the edited
+    // flag never reached the sample, so the metric was structurally pinned at
+    // 100%; now the live selector threads gate.edited through and it reads 50%.
+    const store = useCrmEventLogStore.getState();
+    store.mirrorOpenGate({
+      id: 'g1-clean',
+      gateId: 'G1',
+      caseId: 'c1',
+      projectId: 'p1',
+      approvalId: 'a1',
+      title: 'Onboarding send',
+      reasons: [],
+      raisedAt: RAISED,
+      status: 'open',
+    });
+    store.mirrorOpenGate({
+      id: 'g1-edited',
+      gateId: 'G1',
+      caseId: 'c2',
+      projectId: 'p2',
+      approvalId: 'a2',
+      title: 'Onboarding send',
+      reasons: [],
+      raisedAt: RAISED,
+      status: 'open',
+    });
+    store.resolveMirroredGate('g1-clean', 'allow', RAISED + 60_000);
+    store.resolveMirroredGate('g1-edited', 'allow', RAISED + 60_000, {
+      edited: true,
+    });
+
+    const m = selectLeadingMetrics({});
+    expect(m.sampleSizes.drafts).toBe(2);
+    expect(m.draftsApprovedUneditedPct).toBe(50);
+  });
 });

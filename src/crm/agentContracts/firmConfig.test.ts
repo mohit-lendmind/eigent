@@ -29,7 +29,9 @@ describe('decodeFirmConfig', () => {
   it('never lets a missing breaker/budget mean unbounded', () => {
     const config = decodeFirmConfig({ firmId: 'f', breaker: {}, budgets: {} });
     expect(config.breaker.maxInvocationsPerCaseHour).toBe(12);
-    expect(config.budgets.watcherPassMicroGbp).toBe(20_000);
+    // £2 per pass (finding 1): the old £0.02 default tripped on essentially any
+    // real LLM pass, starving watcher passes silently in production.
+    expect(config.budgets.watcherPassMicroGbp).toBe(2_000_000);
     expect(config.budgets.caseMicroGbp).toBe(15_000_000);
   });
 

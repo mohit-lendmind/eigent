@@ -127,4 +127,18 @@ describe('dispatch seam — M3 is additive (SC-005)', () => {
     );
     expect(submitted.request.text).toBe('open-retention-review');
   });
+
+  // Regression for the FakeEdge/transport divergence: the real CommandReceipt
+  // declares run_epoch and accepted_sequence as STRINGS. A fake that emitted
+  // numbers exercised a receipt the edge would never return (and only compiled
+  // behind a test-excluded tsconfig). The fake must match the transport shape.
+  it('submitCommand returns a receipt with string run_epoch/accepted_sequence', async () => {
+    const edge = new FakeEdge();
+    const receipt = await edge.submitCommand('proj_1', {
+      command_id: 'cmd_1',
+      text: 'noop',
+    } as Parameters<FakeEdge['submitCommand']>[1]);
+    expect(typeof receipt.run_epoch).toBe('string');
+    expect(typeof receipt.accepted_sequence).toBe('string');
+  });
 });

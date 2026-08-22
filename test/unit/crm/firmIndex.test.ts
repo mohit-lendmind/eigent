@@ -12,7 +12,11 @@
 // limitations under the License.
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
-import { resetCaseProjectCaches } from '@/crm/agents/caseProject';
+import {
+  firmCoordinatorProject,
+  resetCaseProjectCaches,
+} from '@/crm/agents/caseProject';
+import { encodeJsonAttachment } from '@/crm/agents/codec';
 import { configureAgentEdge } from '@/crm/agents/edge';
 import {
   publishCasePointer,
@@ -90,5 +94,28 @@ describe('firm index — per-case pointers, latest-per-caseId', () => {
     configureAgentEdge(edge);
     const index = await readFirmIndex('firm-empty');
     expect(index).toEqual([]);
+  });
+
+  it('counts a corrupt pointer as a skip instead of silently dropping it', async () => {
+    const edge = new FakeEdge();
+    configureAgentEdge(edge);
+    const firmId = 'firm-gamma';
+
+    // One good pointer and one undecodable one published under the index prefix.
+    // The corrupt case must NOT vanish without a signal: it is dropped from the
+    // returned pointers but counted in `out.skipped` (finding 14).
+    await publishCasePointer(pointer({ caseId: 'c-ok', firmId }));
+    const coordId = await firmCoordinatorProject(firmId);
+    await edge.uploadAttachment(coordId, {
+      name: `lm/firm/${firmId}/case/c-bad.json`,
+      media_type: 'application/json',
+      // Missing every required field but caseId — decode returns null.
+      data_base64: encodeJsonAttachment({ caseId: 'c-bad' }),
+    });
+
+    const out = { skipped: 0 };
+    const index = await readFirmIndex(firmId, out);
+    expect(index.map((p) => p.caseId)).toEqual(['c-ok']);
+    expect(out.skipped).toBe(1);
   });
 });

@@ -123,6 +123,7 @@ export function selectLeadingMetrics(
         gate.status === 'resolved' && gate.decision === 'allow'
           ? gate.resolvedAt
           : undefined,
+      edited: gate.edited,
     }));
   return computeLeadingMetrics({ drafts, ...extra });
 }

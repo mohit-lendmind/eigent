@@ -114,6 +114,12 @@ export interface MirroredGate {
   status: 'open' | 'resolved';
   decision?: string;
   resolvedAt?: number;
+  /**
+   * True when the adviser changed the draft before approving. Feeds the
+   * "% drafts approved unedited" leading metric (FR-022); absent until a gate
+   * with an editable draft is resolved (finding 5/21).
+   */
+  edited?: boolean;
 }
 
 // The single-setState patch the fold hands to `applyCaseFold` for one touched
@@ -175,7 +181,12 @@ export interface CrmEventLogState {
     change: Partial<Pick<OutboxRecord, 'state' | 'flushedAt' | 'settledAt'>>
   ) => void;
   mirrorOpenGate: (gate: MirroredGate) => void;
-  resolveMirroredGate: (id: string, decision: string, at: number) => void;
+  resolveMirroredGate: (
+    id: string,
+    decision: string,
+    at: number,
+    opts?: { edited?: boolean }
+  ) => void;
   resetForTests: () => void;
 }
 
@@ -343,7 +354,7 @@ export const useCrmEventLogStore = create<CrmEventLogState>()(
           openGates: { ...state.openGates, [gate.id]: gate },
         })),
 
-      resolveMirroredGate: (id, decision, at) =>
+      resolveMirroredGate: (id, decision, at, opts) =>
         set((state) => {
           const existing = state.openGates[id];
           if (!existing) return {};
@@ -355,6 +366,7 @@ export const useCrmEventLogStore = create<CrmEventLogState>()(
                 status: 'resolved',
                 decision,
                 resolvedAt: at,
+                ...(opts?.edited !== undefined ? { edited: opts.edited } : {}),
               },
             },
           };
