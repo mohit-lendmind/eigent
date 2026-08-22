@@ -35,12 +35,12 @@ description: "Task list — mesh-m2-watcher-onboarding (M2)"
 - [x] T014 [P] [US1] `e2e/lm-onboarding.eval.ts` — recorded eval: draft scored for disclosure present + no unapproved product claims
 
 ## Phase 4: US2 — watcher (P2 story)
-- [ ] T015 [US2] Author `src/crm/agents/watcher.ts` + lm-watcher skill body — coordinator project + `*/5` schedule (Idempotency-Key on create); entry run reads firmIndex + log heads, pre-LLM fast-path skip unchanged (FR-010/011)
-- [ ] T016 [US2] Watcher decisions: write dispatch-ready `lm.watcher.decision` (payload per contracts/watcher.d.ts) + worklist items + G7 proposals with passId; propose-only, no live dispatch (FR-012, SC-005 seam)
-- [ ] T017 [US2] Real triggers: fixed-rate-end radar (propose remortgage) + stalled-case chase; supervision metrics + SpendRecord per pass (FR-013/014)
-- [ ] T018 [P] [US2] `test/unit/crm/watcherPass.test.ts` — Journey 2: fast-path skips unchanged, ≥2 triggers fire, decisions dispatch-ready w/ passId, spend stamped, breaker respected (SC-002)
-- [ ] T019 [P] [US2] `test/unit/crm/dispatchSeam.test.ts` — a spike consumes a decision.directive payload and would dispatch — proving M3 is additive (SC-005)
-- [ ] T020 [P] [US2] `e2e/lm-watcher.eval.ts` — recorded pass over c417/c392 produces expected decisions
+- [x] T015 [US2] Author `src/crm/agents/watcher.ts` + lm-watcher skill body — coordinator project + `*/5` schedule (Idempotency-Key on create); entry run reads firmIndex + log heads, pre-LLM fast-path skip unchanged (FR-010/011)
+- [x] T016 [US2] Watcher decisions: write dispatch-ready `lm.watcher.decision` (payload per contracts/watcher.d.ts) + worklist items + G7 proposals with passId; propose-only, no live dispatch (FR-012, SC-005 seam)
+- [x] T017 [US2] Real triggers: fixed-rate-end radar (propose remortgage) + stalled-case chase; supervision metrics + SpendRecord per pass (FR-013/014)
+- [x] T018 [P] [US2] `test/unit/crm/watcherPass.test.ts` — Journey 2: fast-path skips unchanged, ≥2 triggers fire, decisions dispatch-ready w/ passId, spend stamped, breaker respected (SC-002)
+- [x] T019 [P] [US2] `test/unit/crm/dispatchSeam.test.ts` — a spike consumes a decision.directive payload and would dispatch — proving M3 is additive (SC-005)
+- [x] T020 [P] [US2] `e2e/lm-watcher.eval.ts` — recorded pass over c417/c392 produces expected decisions
 
 ## Phase 5: US3 — thin surface (P2 story)
 - [ ] T021 [US3] `src/routers/index.tsx` `/crm` route (sibling to Layout, inside ProtectedRoute) + `src/crm/ui/CrmLayout.tsx` + `TacticalRail.tsx` (from ProjectPageSidebar/NavTab) + a visible nav entry (FR-015)
