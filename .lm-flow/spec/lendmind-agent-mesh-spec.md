@@ -1,6 +1,6 @@
 # Lendmind Agent Mesh — System Contract v1 (for panel review)
 
-Status: DRAFT v1 → goes to the 10-persona panel; iterated until ironclad; then implemented autonomously.
+Status: SUPERSEDED by lendmind-agent-mesh-spec-v2.md (panel-hardened, 2026-08-22). Kept for the dissent record.
 Inputs: Bharat's 8-point brief (2026-08-20) · `.lm-flow/recon/eigent-codebase-map.md` · `.lm-flow/recon/lendmind-advisor-design-reference.md` · `.lm-flow/recon/fca-agentic-compliance.md` (FCA, citations verified) · `.lm-flow/recon/sourcing-mse-recon.md` (MSE) · F01 domain layer (`src/crm/`).
 
 ## 0. System thesis
