@@ -25,12 +25,12 @@ description: "Task list for feature implementation — mesh-m1-contracts-audit-s
 
 **Purpose**: land the parked review fixes with proof, capture the baseline. Nothing else starts until this checkpoint is green.
 
-- [ ] T001 Merge branch `fix/crm-review-iter1` (one commit, rebased on lendmind-crm; worktree `/Users/singhvib/Documents/eigent-crm-domain-core`) into the feature branch; resolve nothing silently — the commit is a clean overlay; then run `npx vitest run src/crm test/unit/crm` and confirm 108/108
-- [ ] T002 Author `test/unit/crm/reviewRegression.integrity.test.ts` — regression tests for review findings 1/6 (integrity repair actually invoked after hydration via barrel import; c392 self-employed `categoryForApplicant` reuse; completeness recomputed before rollup)
-- [ ] T003 [P] Author `test/unit/crm/reviewRegression.atomicity.test.ts` — findings 2/10 (resolveConflict precompute-then-commit: inject a mid-operation failure, retry finishes side-effects instead of no-oping; upsert touches only upserted cases, one clientsStore setState)
-- [ ] T004 [P] Author `test/unit/crm/reviewRegression.stream.test.ts` — findings 4/5 (push 50 past cap → length == cap, one coalesced marker, truncatedCount accounts for all evictions; persist slice never drops unresolved conflict/approval/markers, over-cap persist when nothing evictable)
-- [ ] T005 [P] Author `test/unit/crm/reviewRegression.bus.test.ts` — finding 3 (unwired bus dispatch is loudly observable; removeClient fails closed when cases bus unwired) + finding 7/8 fixture assertions (d7 Trafford payslip owned by daniel cited by the £37,300 conflict evidence; `{t:'missing'}` FieldValue round-trips persist deep-equal)
-- [ ] T006 Verify the full pre-push gate set green and record baseline: `pnpm type-check && pnpm lint && pnpm check:i18n && pnpm check:vitest-baseline && bash scripts/check-electron-access.sh` (SC-008 baseline capture)
+- [x] T001 Merge branch `fix/crm-review-iter1` (one commit, rebased on lendmind-crm; worktree `/Users/singhvib/Documents/eigent-crm-domain-core`) into the feature branch; resolve nothing silently — the commit is a clean overlay; then run `npx vitest run src/crm test/unit/crm` and confirm 108/108
+- [x] T002 Author `test/unit/crm/reviewRegression.integrity.test.ts` — regression tests for review findings 1/6 (integrity repair actually invoked after hydration via barrel import; c392 self-employed `categoryForApplicant` reuse; completeness recomputed before rollup)
+- [x] T003 [P] Author `test/unit/crm/reviewRegression.atomicity.test.ts` — findings 2/10 (resolveConflict precompute-then-commit: inject a mid-operation failure, retry finishes side-effects instead of no-oping; upsert touches only upserted cases, one clientsStore setState)
+- [x] T004 [P] Author `test/unit/crm/reviewRegression.stream.test.ts` — findings 4/5 (push 50 past cap → length == cap, one coalesced marker, truncatedCount accounts for all evictions; persist slice never drops unresolved conflict/approval/markers, over-cap persist when nothing evictable)
+- [x] T005 [P] Author `test/unit/crm/reviewRegression.bus.test.ts` — finding 3 (unwired bus dispatch is loudly observable; removeClient fails closed when cases bus unwired) + finding 7/8 fixture assertions (d7 Trafford payslip owned by daniel cited by the £37,300 conflict evidence; `{t:'missing'}` FieldValue round-trips persist deep-equal)
+- [x] T006 Verify the full pre-push gate set green and record baseline: `pnpm type-check && pnpm lint && pnpm check:i18n && pnpm check:vitest-baseline && bash scripts/check-electron-access.sh` (SC-008 baseline capture)
 
 **Checkpoint**: fix branch merged, every review finding pinned by a regression test, gates green.
 
