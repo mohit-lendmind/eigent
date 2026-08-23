@@ -295,6 +295,32 @@ describe('vaultSurface — the wired document-vault loop (Blocker 4)', () => {
     expect(edge.commands.length).toBeGreaterThan(0);
   });
 
+  it('a live upload produces a QUEUED vault row at admission (FR-011, finding 2)', async () => {
+    const edge = new FakeEdge();
+    configureAgentEdge(edge);
+    getCrmCasesStore().getState().upsertCases([case417]);
+
+    // The documents store starts empty for this case.
+    expect(
+      Object.keys(getCrmDocumentsStore().getState().documentsById)
+    ).toEqual([]);
+
+    const file = new File([new Uint8Array([9, 8, 7, 6])], 'payslip-live.pdf', {
+      type: 'application/pdf',
+    });
+    const r = await uploadVaultDocuments(CASE, FIRM, [file]);
+    expect(r.ok, r.ok ? '' : r.error).toBe(true);
+
+    // The vault now shows the uploaded document immediately, in QUEUED — the
+    // production producer of the QUEUED state (previously only fixtures made it).
+    const docs = Object.values(getCrmDocumentsStore().getState().documentsById);
+    expect(docs).toHaveLength(1);
+    expect(docs[0].status).toBe('QUEUED');
+    expect(docs[0].name).toBe('payslip-live.pdf');
+    // It carries the attached run so the deferred observer can flip it forward.
+    expect(docs[0].origin?.runId).toBeTruthy();
+  });
+
   it('uploadVaultDocuments reports a typed failure in local mode (no edge)', async () => {
     configureAgentEdge(null);
     const file = new File([new Uint8Array([1])], 'x.pdf', {

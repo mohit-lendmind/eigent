@@ -131,6 +131,41 @@ describe('DocumentVault — the wired screen (Blocker 4, UI)', () => {
     expect(field?.confirmedBy).toBe('adviser:test');
   });
 
+  it('US1.4: the source viewer shows the page/line locator context (finding 10)', () => {
+    seedDoc({
+      insights: [
+        insight({
+          src: 'det',
+          locator: { page: 2, line: 5 },
+        }),
+      ],
+    });
+    render(createElement(DocumentVault, { caseId: CASE }));
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /crm\.insight\.view-source/ })
+    );
+
+    // The panel surfaces WHERE the verbatim quote sits, not just the quote —
+    // page/line context an adviser uses to find it in the document.
+    expect(screen.getByText('Annual basic £37,300')).toBeInTheDocument();
+    expect(screen.getByText(/Page 2/)).toBeInTheDocument();
+    expect(screen.getByText(/Line 5/)).toBeInTheDocument();
+  });
+
+  it('finding 7: the vault lists only documents belonging to THIS case', () => {
+    // A document for this case (owner is an applicant of c417) …
+    seedDoc({ id: 'doc_case', owner: 'aisha', name: 'payslip-aisha.pdf' });
+    // … and one owned by a client who is NOT on this case.
+    seedDoc({ id: 'doc_other', owner: 'stranger_zzz', name: 'stranger.pdf' });
+
+    render(createElement(DocumentVault, { caseId: CASE }));
+
+    expect(screen.getByText('payslip-aisha.pdf')).toBeInTheDocument();
+    // The other case's document must not leak into this vault.
+    expect(screen.queryByText('stranger.pdf')).toBeNull();
+  });
+
   it('a read-only preview (no caseId, no onFiles) offers no Confirm control', () => {
     seedDoc({
       owner: 'aisha',

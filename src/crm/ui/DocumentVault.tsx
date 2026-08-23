@@ -20,9 +20,9 @@
 // seam (onFiles), which the desktop wires; the screen is a thin read otherwise.
 
 import { UploadCloud } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getCrmCasesStore } from '../casesStore';
+import { getCrmCasesStore, useCrmCasesStore } from '../casesStore';
 import { useCrmDocumentsStore } from '../documentsStore';
 import type { FactFindSectionKey } from '../domain/factFindSchema';
 import type { CrmDocument, DocInsight } from '../domain/types';
@@ -71,6 +71,7 @@ export function DocumentVault({
   const { t } = useTranslation();
   const documentsById = useCrmDocumentsStore((s) => s.documentsById);
   const openGates = useCrmEventLogStore((s) => s.openGates);
+  const casesById = useCrmCasesStore((s) => s.casesById);
 
   const [dragActive, setDragActive] = useState(false);
   const [announce, setAnnounce] = useState('');
@@ -78,9 +79,26 @@ export function DocumentVault({
   const [sourceInsight, setSourceInsight] = useState<DocInsight | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const documents = Object.values(documentsById).sort(
-    (a, b) => b.when - a.when
-  );
+  // Finding 7: scope the list to THIS case. A document belongs to the case when
+  // its owner is one of the case's applicants, or it is a joint document. Without
+  // a caseId (the read-only preview) every document is shown. Unscoped, a second
+  // case would leak the first case's documents into this vault.
+  const caseOwnerIds = useMemo(() => {
+    if (!caseId) return null;
+    const kase = casesById[caseId];
+    return kase
+      ? new Set<string>(kase.applicants.map((a) => a.clientId))
+      : new Set<string>();
+  }, [caseId, casesById]);
+
+  const documents = Object.values(documentsById)
+    .filter(
+      (d) =>
+        caseOwnerIds === null ||
+        d.owner === 'joint' ||
+        caseOwnerIds.has(d.owner)
+    )
+    .sort((a, b) => b.when - a.when);
   const gates = Object.values(openGates).filter(
     (g) => g.status === 'open' && (g.gateId === 'G2' || g.gateId === 'G3')
   );

@@ -61,7 +61,11 @@ import { getCrmClientsStore } from '../clientsStore';
 import { getCrmDocumentsStore } from '../documentsStore';
 import type { FactFindSectionKey } from '../domain/factFindSchema';
 import { formatGbp, type Pence } from '../domain/money';
-import type { FieldValue } from '../domain/types';
+import {
+  CRM_SCHEMA_VERSION,
+  type CrmDocument,
+  type FieldValue,
+} from '../domain/types';
 import { foldEntries } from '../fold/caseLogFold';
 import { getCrmEventLogStore, type MirroredGate } from '../fold/eventLogStore';
 
@@ -122,6 +126,13 @@ async function fileToIngestDocument(file: File): Promise<IngestDocument> {
  * run is observed from the fold, never awaited here (FR-001). Best-effort: a
  * desktop in local mode (no aion edge) reports a typed failure the vault renders
  * in a DocErrorCard rather than throwing into the render.
+ *
+ * FR-011: at admission — once the directive is dispatched and a run is attached —
+ * a QUEUED document-upsert is written to the case log so the vault shows the
+ * uploaded document immediately, instead of an empty vault until an extraction
+ * lands. This is the production producer of the QUEUED state. The subsequent
+ * QUEUED→PROCESSING→COMPLETED transitions are driven by the run→side-car observer
+ * (deferred; see applyExtractionSidecar) as it applies the extraction.
  */
 export async function uploadVaultDocuments(
   caseId: string,
@@ -136,10 +147,85 @@ export async function uploadVaultDocuments(
     let ingested = 0;
     for (const file of files) {
       const document = await fileToIngestDocument(file);
-      await ingestDocument({ caseId, firmId, document, issuedBy });
+      const result = await ingestDocument({
+        caseId,
+        firmId,
+        document,
+        issuedBy,
+      });
+      // A run is now attached (dispatch returned a runId): record the document
+      // QUEUED so it appears in the vault right away.
+      await admitQueuedDocument({
+        caseId,
+        firmId,
+        documentId: `doc_${result.contentHash.slice(0, 16)}`,
+        name: file.name,
+        size: file.size,
+        runId: result.dispatch.runId,
+        originArtifactId: result.documentArtifactId,
+        now: Date.now(),
+      });
       ingested += 1;
     }
     return { ok: true, value: { ingested } };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+interface AdmitQueuedDocumentInput {
+  caseId: string;
+  firmId: string;
+  documentId: string;
+  name: string;
+  size: number;
+  runId: string;
+  originArtifactId: string;
+  now: number;
+}
+
+/**
+ * Emit a QUEUED document-upsert at ingest admission (FR-011). Written through the
+ * SAME case-log → fold path every other document takes, so the record lands in
+ * the store the vault reads — no shortcut around the fold. The run it is queued
+ * behind rides along in `origin.runId`, so the (deferred) observer that watches
+ * the run can flip this exact record to PROCESSING/COMPLETED when the extraction
+ * side-car is applied. Exported so a regression test can drive the admission
+ * path directly.
+ */
+export async function admitQueuedDocument(
+  input: AdmitQueuedDocumentInput
+): Promise<VaultOutcome<{ documentId: string }>> {
+  try {
+    const edge = await getAgentEdge();
+    const projectId = await ensureCaseProject(input.caseId);
+    const origin = { artifactId: input.originArtifactId, runId: input.runId };
+    const document: CrmDocument = {
+      id: input.documentId,
+      owner: 'joint',
+      name: input.name,
+      type: 'unknown',
+      status: 'QUEUED',
+      size: input.size,
+      when: input.now,
+      iconTone: 'status-info',
+      attribution: null,
+      insights: [],
+      schemaVersion: CRM_SCHEMA_VERSION,
+      origin,
+    };
+    const written = await appendCaseLog(edge, projectId, {
+      caseId: input.caseId,
+      firmId: input.firmId,
+      actor: { kind: 'agent', id: 'lm-docintel' },
+      events: [{ type: 'document-upsert', payload: { document } }],
+      versions: DOCINTEL_VERSIONS,
+      originArtifactId: input.originArtifactId,
+      runId: input.runId,
+      at: input.now,
+    });
+    await foldEntries(input.caseId, written.entries);
+    return { ok: true, value: { documentId: input.documentId } };
   } catch (error) {
     return failure(error);
   }
@@ -368,9 +454,10 @@ export function resolveConflictGate(
  * DEFERRED (documented, not faked): confirming G2 does NOT re-project the held
  * fact-find fields onto the applicant. The write path holds every applicant field
  * behind G2 (FR-006), so a confirmed attribution should re-run applyExtraction to
- * land those fields — that re-projection is a follow-up, tracked in tasks.md
- * (T012 deferral). Today the confirmation is recorded and the gate closes; the
- * facts are re-landed when the document is re-ingested with the applicant known.
+ * land those fields — that re-projection is a follow-up, tracked in
+ * specs/004-mesh-m3-docintel/tasks.md as P5 T026 (and noted under T012). Today
+ * the confirmation is recorded and the gate closes; the facts are re-landed when
+ * the document is re-ingested with the applicant known.
  */
 export function confirmAttributionGate(
   gate: MirroredGate,
@@ -434,13 +521,23 @@ export function selectCaseIncomeGate(
   const facts: IncomeFactState[] = [];
   for (const applicant of kase.applicants) {
     const incomeSection = applicant.profile.income as
-      { fields: { k: string; src: IncomeFactState['src'] }[] } | undefined;
+      | {
+          fields: {
+            k: string;
+            src: IncomeFactState['src'];
+            value: FieldValue;
+          }[];
+        }
+      | undefined;
     if (!incomeSection) continue;
     for (const field of incomeSection.fields) {
       facts.push({
         clientId: applicant.clientId,
         fieldKey: field.k,
         src: field.src,
+        // FR-008: carry the value's type so G9 counts only det MONEY facts — a
+        // det TEXT income value must not satisfy the gate.
+        valueType: field.value.t,
       });
     }
   }

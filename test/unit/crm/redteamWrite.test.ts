@@ -41,7 +41,12 @@ import {
   type ApplyExtractionContext,
   type ExistingFactValue,
 } from '@/crm/agents/extractionApply';
+import {
+  assessIncomeGate,
+  type IncomeFactState,
+} from '@/crm/agents/incomeGate';
 import { toPence } from '@/crm/domain/money';
+import type { FieldValue } from '@/crm/domain/types';
 import { describe, expect, it } from 'vitest';
 
 const VERSIONS = {
@@ -669,6 +674,104 @@ describe('T007 write-path red team', () => {
       for (const event of proj.events) {
         expect(safe.has(event.type)).toBe(true);
       }
+
+      // FR-008 trust spine (iter-2 blocker, finding 1): a det TEXT value on an
+      // income field must NEVER satisfy G9. Two defenses converge here: (a) a
+      // money-semantic fieldKey whose value did not parse as money is floored to
+      // syn at the write path, and (b) even if it were det, G9 counts only det
+      // MONEY facts. Assert both — the written src is syn AND G9 stays open.
+      expect(fc[0].payload.src).toBe('syn');
+      const income: IncomeFactState = {
+        clientId: 'client_daniel',
+        fieldKey: 'basicIncome',
+        src: fc[0].payload.src as IncomeFactState['src'],
+        valueType: (fc[0].payload.value as FieldValue).t,
+      };
+      const g9 = assessIncomeGate(['client_daniel'], [income]);
+      expect(g9.satisfied).toBe(false);
+      expect(g9.blocking).toContainEqual({
+        clientId: 'client_daniel',
+        fieldKey: 'basicIncome',
+        reason: 'syn-only',
+      });
+    });
+
+    it('a det-TYPED text income (money field, non-numeric value) still leaves G9 open', () => {
+      // The nastier shape from finding 1: a genuinely quote-matched sentence
+      // ("£99,999 per annum") pairs a real quote with a value that fails strict
+      // money parsing. classifySrc would earn det from the genuine quote; the
+      // money-semantic floor must drop it to syn so it cannot reach G9.
+      const ext = extraction({
+        insights: [
+          {
+            label: 'Annual income',
+            value: '£99,999 per annum',
+            confidence: 0.99,
+            src: 'det',
+            quote: '£99,999 per annum',
+            fieldKey: 'basicIncome',
+            section: 'income',
+          },
+        ],
+      });
+      const proj = applyExtraction(
+        ctx(ext, { sourceText: 'Total: £99,999 per annum, gross.' })
+      );
+      const fc = fieldChanges(proj.events);
+      expect(fc).toHaveLength(1);
+      // Value never parsed as money (strict whole-string numeric), so it is text…
+      expect((fc[0].payload.value as FieldValue).t).toBe('text');
+      // …and a money-semantic field with a text value is floored to syn.
+      expect(fc[0].payload.src).toBe('syn');
+      expect(proj.detFields).toBe(0);
+      const g9 = assessIncomeGate(
+        ['client_daniel'],
+        [
+          {
+            clientId: 'client_daniel',
+            fieldKey: 'basicIncome',
+            src: fc[0].payload.src as IncomeFactState['src'],
+            valueType: (fc[0].payload.value as FieldValue).t,
+          },
+        ]
+      );
+      expect(g9.satisfied).toBe(false);
+    });
+  });
+
+  describe('finding 6: per-insight id disambiguation', () => {
+    it('two insights sharing a fieldKey in one document get distinct field ids', () => {
+      const ext = extraction({
+        insights: [
+          {
+            label: 'Basic pay (this period)',
+            value: '£3,200',
+            confidence: 0.95,
+            src: 'det',
+            quote: 'Basic pay £3,200',
+            fieldKey: 'basicIncome',
+            section: 'income',
+          },
+          {
+            label: 'Basic pay (year to date)',
+            value: '£38,400',
+            confidence: 0.95,
+            src: 'det',
+            quote: 'YTD basic £38,400',
+            fieldKey: 'basicIncome',
+            section: 'income',
+          },
+        ],
+      });
+      const proj = applyExtraction(
+        ctx(ext, {
+          sourceText: 'Basic pay £3,200\nYTD basic £38,400',
+        })
+      );
+      // Both insights are recorded (no silent last-wins collision on derived id).
+      expect(proj.document.insights).toHaveLength(2);
+      const ids = proj.document.insights.map((i) => i.id);
+      expect(new Set(ids).size).toBe(2);
     });
   });
 });

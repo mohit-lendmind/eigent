@@ -19,7 +19,7 @@
 // evidence). The check is coded here, never an LLM judgement, and surfaces the
 // exact applicant + field that is blocking so the UI can say why (US3).
 
-import type { Src } from '../domain/types';
+import type { FieldValue, Src } from '../domain/types';
 
 // The income field(s) each applicant must have det-verified before a
 // recommendation. Basic income is the floor; a firm policy can widen this.
@@ -30,6 +30,13 @@ export interface IncomeFactState {
   clientId: string;
   fieldKey: string;
   src: Src;
+  /**
+   * The stored value's discriminant. G9 is satisfied ONLY by a `det` MONEY fact:
+   * a `det` TEXT value (a fabricated or prompt-injected income figure that never
+   * parsed as money, e.g. "£99,999 per annum") is unverified income and MUST NOT
+   * satisfy G9 (FR-008). `src` alone is not enough — the value must be money.
+   */
+  valueType: FieldValue['t'];
 }
 
 export interface IncomeGateBlocker {
@@ -68,8 +75,10 @@ export function assessIncomeGate(
         blocking.push({ clientId, fieldKey, reason: 'missing' });
         continue;
       }
-      // A single det fact verifies the field; otherwise it is syn-only.
-      if (!forField.some((f) => f.src === 'det')) {
+      // A single det MONEY fact verifies the field; a det TEXT value (fabricated
+      // or never-verified income that failed money parsing) does NOT — it is
+      // treated as unverified, so G9 stays blocked (FR-008 trust spine).
+      if (!forField.some((f) => f.src === 'det' && f.valueType === 'money')) {
         blocking.push({ clientId, fieldKey, reason: 'syn-only' });
       }
     }

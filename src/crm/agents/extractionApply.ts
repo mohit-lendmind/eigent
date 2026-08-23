@@ -132,6 +132,19 @@ export interface ExtractionProjection {
 const MONEY_HINT =
   /income|salary|basic|overtime|bonus|dividend|profit|deposit|price|loan|rent|pay|amount/i;
 
+// Finding 1 (defense in depth for FR-008): field keys whose VALUE must be a
+// parsed money amount before it can earn `det`. A money-semantic field carrying a
+// non-money (text) value — a fabricated "£99,999 per annum" that fails strict
+// money parsing, or any never-verified figure — is floored to `syn` so it can
+// never reach G9 as a det-text corridor. Narrower than MONEY_HINT (which also
+// green-lights generic "amount"): only keys that name an income/asset figure.
+const MONEY_FIELD_KEY =
+  /income|salary|basic|overtime|bonus|dividend|profit|deposit|wage|pension/i;
+
+function isMoneyFieldKey(fieldKey: string | undefined): boolean {
+  return fieldKey !== undefined && MONEY_FIELD_KEY.test(fieldKey);
+}
+
 // Convert an extraction's string value to a typed FieldValue. Money is detected
 // deterministically: the value must parse as GBP AND the field/label/value must
 // carry a monetary hint, so a bare number ("2") never becomes £2.00.
@@ -147,7 +160,10 @@ function toFieldValue(insight: ExtractionInsight): FieldValue {
 // Finding 5: does the parsed money VALUE actually appear in the quote? We scan
 // the quote for GBP-shaped tokens and parse each the same way toFieldValue does,
 // so "Annual basic £37,300" relates to 3_730_000 pence but "Employee Name" (or a
-// fabricated £99,999) does not. A missing/empty quote never relates.
+// fabricated £99,999) does not. A missing/empty quote never relates. The
+// analogous value↔quote relate check for NON-money TEXT facts (a fabricated text
+// value paired with an unrelated genuine quote) is P5 follow-up T028; the
+// income-specific corridor it would close is already shut here + at G9.
 const MONEY_TOKEN = /£?\s*\d[\d,]*(?:\.\d+)?/g;
 function moneyValueInQuote(pence: number, quote: string | undefined): boolean {
   if (quote === undefined || quote.length === 0) return false;
@@ -218,8 +234,21 @@ function effectiveAttribution(ctx: ApplyExtractionContext): AttributionScore {
   };
 }
 
+// Finding 6: two insights that share a fieldKey (or label) in ONE document must
+// not collide on their derived field/conflict/worklist ids — a bare
+// `fieldKey ?? label` discriminator made the second silently last-wins on
+// upsert. The insight's position in the extraction disambiguates them while
+// staying deterministic (same document ⇒ same order ⇒ same ids, FR-003).
+function insightDiscriminator(
+  insight: ExtractionInsight,
+  index: number
+): string {
+  return `${insight.fieldKey ?? insight.label}\x00${index}`;
+}
+
 function toDomainInsight(
   insight: ExtractionInsight,
+  index: number,
   src: Src,
   conflicted: boolean,
   documentId: string,
@@ -231,7 +260,7 @@ function toDomainInsight(
       'field',
       documentId,
       contentHash,
-      insight.fieldKey ?? insight.label
+      insightDiscriminator(insight, index)
     ),
     label: insight.label,
     value: insight.value,
@@ -304,7 +333,8 @@ export function applyExtraction(
     !quarantined && !attributionGated && attribution.clientId !== null;
   const writeClientId = attribution.clientId ?? '';
 
-  for (const insight of extraction.insights) {
+  for (let index = 0; index < extraction.insights.length; index += 1) {
+    const insight = extraction.insights[index];
     // The trust spine: recompute independently. A forged `det` in the artifact
     // cannot survive a text layer that does not contain the quote.
     const matchSrc = classifySrc(insight.quote, ctx.sourceText);
@@ -313,28 +343,53 @@ export function applyExtraction(
     // prove the quote exists. A fabricated amount (£99,999) paired with any
     // genuine quote ("Employee Name") must NOT mint det — downgrade to syn so it
     // can never satisfy G9. classifySrc already proved the quote is in the text.
-    const src: Src =
+    let src: Src =
       matchSrc === 'det' &&
       value.t === 'money' &&
       !moneyValueInQuote(value.v as number, insight.quote)
         ? 'syn'
         : matchSrc;
-    if (src === 'det') detFields += 1;
-    else synFields += 1;
-
-    let conflicted = false;
 
     const mapped =
       mayWriteFields &&
       insight.fieldKey !== undefined &&
       insight.section !== undefined;
+    const section = mapped
+      ? (insight.section as FactFindSectionKey)
+      : undefined;
+    const fieldKey = mapped ? (insight.fieldKey as string) : undefined;
+    const key =
+      section !== undefined && fieldKey !== undefined
+        ? factKey(writeClientId, section, fieldKey)
+        : undefined;
+    const existing = key !== undefined ? ctx.existing?.[key] : undefined;
 
-    if (mapped) {
-      const section = insight.section as FactFindSectionKey;
-      const fieldKey = insight.fieldKey as string;
-      const key = factKey(writeClientId, section, fieldKey);
-      const existing = ctx.existing?.[key];
+    // Finding 1 (defense in depth, FR-008): a money-semantic field (income,
+    // salary, …) whose value did NOT parse as money is a det-TEXT corridor to G9
+    // — floor it to syn. G9 already counts only det MONEY facts; this closes the
+    // hole at the write path too, so a fabricated non-numeric income never earns
+    // det on a money field in the first place. EXCEPTION: when a det value of a
+    // DIFFERENT type is already on file, keep det so the record-never-repair
+    // type-mismatch G3 below fires instead of silently dropping the write
+    // (finding 2) — the conflict signal must survive.
+    const wouldTriggerTypeMismatchG3 =
+      existing !== undefined &&
+      existing.src === 'det' &&
+      existing.value.t !== value.t;
+    if (
+      src === 'det' &&
+      value.t !== 'money' &&
+      isMoneyFieldKey(insight.fieldKey) &&
+      !wouldTriggerTypeMismatchG3
+    ) {
+      src = 'syn';
+    }
+    if (src === 'det') detFields += 1;
+    else synFields += 1;
 
+    let conflicted = false;
+
+    if (mapped && section !== undefined && fieldKey !== undefined) {
       if (src === 'det' && existing && existing.src === 'det') {
         if (existing.value.t === 'money' && value.t === 'money') {
           // Two verified (det) MONEY values that disagree past 1% materiality are
@@ -355,6 +410,7 @@ export function applyExtraction(
               section,
               fieldKey,
               insight,
+              index,
               existing,
               value,
               { kind: 'value', deltaPct }
@@ -387,6 +443,7 @@ export function applyExtraction(
             section,
             fieldKey,
             insight,
+            index,
             existing,
             value,
             { kind: 'type' }
@@ -419,7 +476,15 @@ export function applyExtraction(
     }
 
     domainInsights.push(
-      toDomainInsight(insight, src, conflicted, documentId, contentHash, origin)
+      toDomainInsight(
+        insight,
+        index,
+        src,
+        conflicted,
+        documentId,
+        contentHash,
+        origin
+      )
     );
   }
 
@@ -578,23 +643,27 @@ function pushConflict(
   section: FactFindSectionKey,
   fieldKey: string,
   insight: ExtractionInsight,
+  index: number,
   existing: ExistingFactValue,
   incomingValue: FieldValue,
   detail: ConflictDetail
 ): void {
   const { extraction, now } = ctx;
   const origin = { artifactId: ctx.originArtifactId, runId: ctx.runId };
+  // Finding 6: disambiguate by the insight's position so two insights on the same
+  // fieldKey in one document do not collide on the conflict/worklist ids.
+  const discriminator = insightDiscriminator(insight, index);
   const conflictId = derivedId(
     'conflict',
     extraction.documentId,
     extraction.contentHash,
-    fieldKey
+    discriminator
   );
   const worklistItemId = derivedId(
     'wl',
     extraction.documentId,
     extraction.contentHash,
-    fieldKey
+    discriminator
   );
 
   // Finding 6: state the existing side's provenance honestly. The caller passes

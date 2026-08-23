@@ -133,7 +133,8 @@ const AppRoutes = () => (
         <Route index element={<TodayQueue />} />
         {/* The vault is bound to the seeded preview case so the loop is live:
             uploads ride the ingest seam, G2/G3 resolve in place, G9 reads the
-            case's income facts. A case-picker is a later addition (T012). */}
+            case's income facts. A case-picker is a later addition (P5 follow-up
+            T027 in specs/004-mesh-m3-docintel/tasks.md). */}
         <Route
           path="vault"
           element={<DocumentVault caseId="c417" firmId="lendmind" />}

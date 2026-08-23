@@ -238,8 +238,18 @@ describe('assessIncomeGate — G9 blocks until income is det-verified', () => {
 
   it('syn income never satisfies the gate', () => {
     const facts: IncomeFactState[] = [
-      { clientId: 'client_daniel', fieldKey: 'basicIncome', src: 'syn' },
-      { clientId: 'client_amara', fieldKey: 'basicIncome', src: 'syn' },
+      {
+        clientId: 'client_daniel',
+        fieldKey: 'basicIncome',
+        src: 'syn',
+        valueType: 'money',
+      },
+      {
+        clientId: 'client_amara',
+        fieldKey: 'basicIncome',
+        src: 'syn',
+        valueType: 'money',
+      },
     ];
     const result = assessIncomeGate(applicants, facts);
     expect(result.satisfied).toBe(false);
@@ -247,17 +257,60 @@ describe('assessIncomeGate — G9 blocks until income is det-verified', () => {
     expect(result.blocking.every((b) => b.reason === 'syn-only')).toBe(true);
   });
 
-  it('det income for every applicant satisfies the gate', () => {
+  it('det MONEY income for every applicant satisfies the gate', () => {
     const facts: IncomeFactState[] = [
-      { clientId: 'client_daniel', fieldKey: 'basicIncome', src: 'det' },
-      { clientId: 'client_amara', fieldKey: 'basicIncome', src: 'det' },
+      {
+        clientId: 'client_daniel',
+        fieldKey: 'basicIncome',
+        src: 'det',
+        valueType: 'money',
+      },
+      {
+        clientId: 'client_amara',
+        fieldKey: 'basicIncome',
+        src: 'det',
+        valueType: 'money',
+      },
     ];
     expect(assessIncomeGate(applicants, facts).satisfied).toBe(true);
   });
 
+  it('a det TEXT income value never satisfies the gate (FR-008)', () => {
+    // A fabricated/never-verified figure that failed money parsing lands as a
+    // det TEXT value; it must NOT unblock a recommendation.
+    const facts: IncomeFactState[] = [
+      {
+        clientId: 'client_daniel',
+        fieldKey: 'basicIncome',
+        src: 'det',
+        valueType: 'text',
+      },
+      {
+        clientId: 'client_amara',
+        fieldKey: 'basicIncome',
+        src: 'det',
+        valueType: 'money',
+      },
+    ];
+    const result = assessIncomeGate(applicants, facts);
+    expect(result.satisfied).toBe(false);
+    expect(result.blocking).toEqual([
+      {
+        clientId: 'client_daniel',
+        fieldKey: 'basicIncome',
+        reason: 'syn-only',
+      },
+    ]);
+  });
+
   it('a missing applicant income blocks and is surfaced', () => {
     const facts: IncomeFactState[] = [
-      { clientId: 'client_daniel', fieldKey: 'basicIncome', src: 'det' },
+      {
+        clientId: 'client_daniel',
+        fieldKey: 'basicIncome',
+        src: 'det',
+        valueType: 'money',
+      },
     ];
     const result = assessIncomeGate(applicants, facts);
     expect(result.satisfied).toBe(false);
@@ -267,10 +320,20 @@ describe('assessIncomeGate — G9 blocks until income is det-verified', () => {
     expect(describeIncomeBlocker(result.blocking[0])).toContain('client_amara');
   });
 
-  it('a det fact alongside a syn duplicate still satisfies (any det verifies)', () => {
+  it('a det fact alongside a syn duplicate still satisfies (any det money verifies)', () => {
     const facts: IncomeFactState[] = [
-      { clientId: 'client_daniel', fieldKey: 'basicIncome', src: 'syn' },
-      { clientId: 'client_daniel', fieldKey: 'basicIncome', src: 'det' },
+      {
+        clientId: 'client_daniel',
+        fieldKey: 'basicIncome',
+        src: 'syn',
+        valueType: 'money',
+      },
+      {
+        clientId: 'client_daniel',
+        fieldKey: 'basicIncome',
+        src: 'det',
+        valueType: 'money',
+      },
     ];
     expect(assessIncomeGate(['client_daniel'], facts).satisfied).toBe(true);
   });

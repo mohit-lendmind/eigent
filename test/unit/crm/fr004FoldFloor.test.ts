@@ -138,7 +138,14 @@ describe('FR-004 fold floor (finding 1)', () => {
     // G9 must therefore NOT be satisfied — a syn income can never round up.
     const gate = assessIncomeGate(
       ['daniel'],
-      [{ clientId: 'daniel', fieldKey: 'basicIncome', src: foldedIncomeSrc()! }]
+      [
+        {
+          clientId: 'daniel',
+          fieldKey: 'basicIncome',
+          src: foldedIncomeSrc()!,
+          valueType: 'money',
+        },
+      ]
     );
     expect(gate.satisfied).toBe(false);
     expect(gate.blocking).toContainEqual({

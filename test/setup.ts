@@ -110,6 +110,9 @@ vi.mock('react-i18next', () => ({
           'Two verified values for {{field}} disagree by {{deltaLabel}}.',
         'crm.docgate.reason-g3-type-mismatch':
           'A verified value for {{field}} would be overwritten by a value of a different type.',
+        // The source-quote viewer's page/line locator context (finding 10).
+        'crm.vault.source-page': 'Page {{page}}',
+        'crm.vault.source-line': 'Line {{line}}',
         'chat.welcome-to-eigent': 'Welcome to Eternyl',
         'chat.how-can-i-help-you': 'How can I help you today?',
         'chat.it-ticket-creation': 'IT Ticket Creation',
