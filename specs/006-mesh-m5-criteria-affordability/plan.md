@@ -1,12 +1,23 @@
 # Implementation Plan: mesh-m5-criteria-affordability
+
 **Branch**: lendmind-crm (impl feature/mesh-m5-criteria-affordability) · 2026-08-23 · [spec.md](spec.md)
+
 ## Summary
+
 The reasoning core: A5 criteria-pack matching + A6 affordability/stress + counterfactuals + scenario runs. Number path is PURE/deterministic (LLM-free, integer-pence, no float) mirroring M3 `detectConflict`. New side-car artifacts (`lm.criteria.pack/1`, `lm.criteria.assessment/1`, `lm.affordability.assessment/1`, `lm.scenario.run/1`) + 4 new fold entry kinds, ids pinned to `(packRef, caseFactsHash, deltaHash)` for idempotent re-fold. Honesty spine: indicative-only, adviser-only, why-not per excluded lender (structurally forced), a single `assertIndicative` choke-point (5 typed reasons; A6 off every client view + comms artifact pre-G5; stale-product refusal), G6 criteria override, G9 precondition, G5 stays human. Synthetic/pluggable pack (licensed DB out of scope). Build Opus 4.8; review Fable 5 xhigh. No new deps; M1-M4 contracts frozen.
+
 ## Technical Context
+
 Reuse M1 fold + artifactKinds + hashChain + caseLogFold, M2 dispatch + thin surface + HomeHub cards, M3 det/syn provenance + quote-locator + derivedId pattern, M4 folded-summary+attachment + assertClaimable (consumed for product staleness). FirmConfig gains additive `criteriaPack` + `criteriaTtlDays` + `scenarioCap`. Engines are pure vitest-tested with committed golden vectors (incl. a rounding-boundary case), cross-platform-identical. Synthetic 12-lender fixture pack hand-tuned to produce each verdict incl. a syn-forced refer. assertIndicative enforced in the writer/fold; a no-client-embed CI test covers view + comms paths. All money integer pence; rounding rule documented + recorded in working[].
+
 ## Constitution Check
+
 Gates: no-new-deps ✓ · frozen contracts (additive-only) ✓ · determinism/refold (convergence test over 4 new kinds) ✓ · invariant-6 CI test (no client-embed of A6) ✓ · copy/lint gate (no "eligible"/"guaranteed"/"whole of market") ✓ · license header / no c-a-m-e-l / ds-* tokens / i18n ×11 / vitest baseline / dark-mode ✓ · DPIA before ship ✓. No violations.
+
 ## Structure
+
 src/crm/criteria/{pack,assess,assertIndicative,override}.ts · src/crm/affordability/{calc,counterfactual}.ts · src/crm/agents/scenario.ts · src/crm/agentContracts/artifactKinds.ts (additive decoders) · src/crm/fold/caseLogFold.ts (4 additive entry kinds) · src/crm/agentContracts/firmConfig.ts (additive criteriaPack/ttl/cap) · src/crm/fixtures/criteriaPack.synthetic.ts · src/crm/ui/ScenarioBoard.tsx (M2 surface) · test/unit/crm/{assessCriteria,computeAffordability,counterfactual,criteriaDecoder,assertIndicative,noClientEmbedA6,criteriaOverride,m5Converge,m5ContractFreeze}.test.ts · scripts/check-indicative-copy.mjs (copy gate) · specs/006-*/contracts/*.d.ts · docs/dpia-mesh-m5.md
+
 ## Phase ordering
+
 P1 criteria + provenance spine: CriteriaPack model + decoder + synthetic 12-lender fixture + pure assessCriteria (one result per panel member, ≥1 reason on fail/refer, syn/missing→refer, stale→refer) + closed RuleKey/RuleOp enums + assertIndicative choke-point (5 typed reasons) + surfaceClass tag + no-client-embed CI test + copy/lint gate (FR-001,002,003,004,007,008,015-copy). P2 affordability (MVP seam ends here): pure computeAffordability (integer-pence, indicative, full working, per-input provenance, rounding rule) + affordability decoder + G9 precondition + affordability no-client-embed (FR-005,006,007,008). P3 counterfactuals + scenario runs: applyDelta/diffScenarios pure + scenario.ts agent (dispatch, cap ≤8, folded summary + attachment, stamp adviser) + scenarioDerivedId idempotency + 4 additive fold entry kinds + convergence test (FR-009,010,011,012). P4 surface + G6 + G5 handoff: ScenarioBoard (grid + inline why-not + drawer + det/syn dots + board summary + side-by-side + persistent indicative treatment) + G6 override (confirm+rationale+flag, folds original verdict) + gated pack editor (authorship folded) + DPIA + demo + full gate run + PR (FR-013,014,015,016). Licensed criteria DB + client-facing affordability + DIP write-back excluded.
