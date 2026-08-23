@@ -34,7 +34,7 @@ Additive under src/crm/connectors, src/crm/agents, src/crm/ui, resources/lm-skil
 - [x] T021 exportEvidenceOfResearch gated by assertClaimable (MCOB 4.7A spine) (FR-006)
 - [x] T022 [P] Tests: shortlist adviser-only; watermark+disabled export on scaffold; G5 gating; evidence export refuses non-claimable; dark-mode contrast
 - [x] T023 sourcingConverge.test.ts (kill-the-laptop with sourcing entries) + m4ContractFreeze.test.ts vs specs/005 (FR-014)
-- [ ] T024 demo-mesh-m4.mjs (MSE source → snapshot → shortlist → G5) + full gate run + PR into lendmind-crm w/ per-FR checklist (SC-005)
+- [x] T024 demo-mesh-m4.mjs (MSE source → snapshot → shortlist → G5) + full gate run + PR into lendmind-crm w/ per-FR checklist (SC-005)
 
 ## Deps
 P1 blocks all (assertClaimable+decoder+surfaceClass are foundational). P2 after T002/T003/T004/T006. P3 after T002/T003. P4 after P2 (needs a verified adapter for the happy path). writeBack/DIP excluded (G8).
