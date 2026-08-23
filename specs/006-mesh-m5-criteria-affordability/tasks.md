@@ -44,9 +44,9 @@ Additive under src/crm/criteria, src/crm/affordability, src/crm/agents, src/crm/
 - [x] T026 G6 criteria override: confirm step (shows original verdict) + forced one-line rationale + plain "raises a compliance flag" copy; raises G6; folds criteria-override (original verdict + adviser id + rationale + flag); stale-rule override notes staleness (FR-013)
 - [x] T027 Gated pack editor (minimal): pack authorship/edits gated + folded (who edited which rule, when); synthetic seed loads (FR-014)
 - [x] T028 [P] Tests: board adviser-only (no client render path); inline why-not keyboard-reachable; det/syn dots dark-mode contrast; G6 override folds original verdict; pack-edit folds authorship (SC-006)
-- [ ] T029 docs/dpia-mesh-m5.md (A6/criteria inputs, retention SYSC 9/MCOB 4.7A.19R, adviser-only boundary, Art 35) (FR-016)
-- [ ] T030 Eval corpus (synthetic known-answer): why-not completeness (every excluded lender has a reason) + indicative-label presence on every A6 output (FR-016, SC-001)
-- [ ] T031 demo-mesh-m5.mjs (eliminate-with-reasons → counterfactual → side-by-side on the synthetic pack, <5 min zero-setup) + full gate run + PR into lendmind-crm w/ per-FR checklist (SC-005/007)
+- [x] T029 docs/dpia-mesh-m5.md (A6/criteria inputs, retention SYSC 9/MCOB 4.7A.19R, adviser-only boundary, Art 35) (FR-016)
+- [x] T030 Eval corpus (synthetic known-answer): why-not completeness (every excluded lender has a reason) + indicative-label presence on every A6 output (FR-016, SC-001)
+- [x] T031 demo-mesh-m5.mjs (eliminate-with-reasons → counterfactual → side-by-side on the synthetic pack, <5 min zero-setup) + full gate run + PR into lendmind-crm w/ per-FR checklist (SC-005/007)
 
 ## Deps
 
