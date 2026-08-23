@@ -9,6 +9,7 @@ Additive under src/crm/agents, src/crm/ui, resources/lm-skills/lm-docintel, test
 
 - [x] T001 Baseline gates green on lendmind-crm (record)
 - [x] T002 DocInsight +locator field; flip `src ?? 'det'` → unverified defaults to `syn` (FR-004); additive, no schema bump
+  - DONE: the fold + live write default now key on the writer via `defaultFieldSrc(actorKind)` in `src/crm/domain/fieldSrc.ts` — only a human/manual adviser edit defaults to `det` (so every historic M1/M2 refold stays byte-identical, guarded by fr004FoldFloor.test.ts + convergenceDocintel), any agent/watcher/unknown writer floors to `syn`. `caseLogFold.ts` and `casesStore.setFactFindField` both route through it.
 - [x] T003 Ingest seam: FileAttachment → uploadAttachment(projectId) → artifact_id → directive.inputs.artifacts[] → submitCommand (FR-001)
 - [x] T004 lm-docintel skill scaffold (no send path) + closed `lm.docintel.extraction/1` schema per contracts (FR-002/009)
 - [x] T005 Side-car apply: extraction → case-log field-change/document-upsert/checklist-status entries w/ origin.artifactId (never feed extraction kind to fold) (FR-002)
@@ -28,13 +29,17 @@ Additive under src/crm/agents, src/crm/ui, resources/lm-skills/lm-docintel, test
 
 - [x] T014 conflicts.ts: deterministic Pence recompute at 1% materiality ⇒ conflict-upsert + G3 + stream (never LLM) (FR-007)
 - [x] T015 Checklist reconcile (received/partial) from extraction (FR-005)
-- [x] T016 incomeGate.ts: G9 blocks recommendation until income det-verified; syn income never satisfies; surfaces blocking field (FR-008)
+- [ ] T016 incomeGate.ts: G9 blocks recommendation until income det-verified; syn income never satisfies; surfaces blocking field (FR-008)
+  - DONE: `assessIncomeGate` (coded, syn never satisfies), and it is wired into the running vault via `selectCaseIncomeGate` + a mounted `IncomeGateCard` that names the blocking applicant/field (US3).
+  - DEFERRED (de-scoped, not faked): actually *blocking a recommendation* — there is no recommendation/G5 flow in M3 (G5 is only a gate descriptor in the registry, no caller), so there is no transition to gate yet. The block-the-recommendation hookup lands with the recommendation surface in a later milestone.
 - [x] T017 [P] Tests: d7 £38,500/£37,300 fires G3 deterministically; resolution logged; refold byte-identical (SC-002/004); G9 blocks on syn income
 
 ## P4 — doc vault surface + polish
 
 - [x] T018 DocVault.tsx + DocCard QUEUED→PROCESSING→COMPLETED; upload dropzone (reuse InputBox/attachments); vault tab on the M2 surface (FR-011)
-- [x] T019 det fact deep-links to highlighted quote span in ArtifactViewer; syn non-color channel + confidence + confirm; collapse unmapped insights (FR-011)
+- [x] T019 det fact deep-links to highlighted quote span; syn non-color channel + confidence + confirm; collapse unmapped insights (FR-011)
+  - DONE: the det-fact deep-link is WIRED in-product. DocumentVault supplies a default `onOpenSource` that opens a self-contained `SourceQuoteViewer` (role=dialog) showing the verbatim `sourceQuote` HIGHLIGHTED at its page/line locator — the trust-spine evidence, never a model summary. Syn non-color channel + confidence + Confirm + unmapped-insight collapse are wired too; the Confirm control promotes exactly the mapped fact-find field syn → det via `casesStore.confirmSynthesizedField`. Tested end to end in documentVaultWiring.test.tsx (view-source opens the viewer at the quote; Confirm flips the store field to det) + docVault.test.tsx (component-level).
+  - Follow-up (not blocking, honestly noted): integrating the highlight into the generic `ArtifactViewer` so the SAME span renders inside the full-document viewer. The vault deep-link does not depend on it; it lands when ArtifactViewer grows a locator-highlight surface.
 - [x] T020 G2/G3 cards decidable without opening the doc; G9 shows why blocked; typed error cards; aria-live; crm i18n keys added ×11 (FR-011)
 - [x] T021 [P] Tests: vault state machine; deep-link; syn non-color; G2/G3/G9 cards; storybook stories
 - [x] T022 Per-field precision report harness + nightly live-model eval scaffold e2e/lm-docintel.eval.ts (FR-013)
