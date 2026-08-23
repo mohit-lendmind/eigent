@@ -330,6 +330,34 @@ function makeQuarantineRecord(
   };
 }
 
+// M5 (FR-012): a deterministic activity pointer for one of the four additive
+// M5 entry kinds. The id + timestamp + origin are all taken from the entry so a
+// refold reproduces it exactly; the title is indicative-labelled (never a
+// guaranteed decision) and an override is stamped as adviser-authored so the
+// timeline reads honestly.
+const M5_ACTIVITY_TITLE: Record<string, string> = {
+  'criteria-assessment': 'Indicative criteria assessment (adviser-only)',
+  'affordability-assessment':
+    'Indicative affordability assessment (adviser-only)',
+  'scenario-run': 'Scenario run — indicative, adviser-only',
+  'criteria-override': 'Criteria override — raises a compliance flag',
+};
+
+function m5ActivityFromEntry(e: CaseLogEntry): ActivityEvent {
+  const isOverride = e.event.type === 'criteria-override';
+  return {
+    id: `activity_${e.caseId}_${e.seq}`,
+    caseId: e.caseId,
+    kind: isOverride ? 'note' : 'ai-did',
+    title: M5_ACTIVITY_TITLE[e.event.type] ?? 'Indicative run (adviser-only)',
+    detail: `artifact ${e.origin.artifactId}`,
+    when: e.at,
+    actor: e.actor?.id,
+    origin: { artifactId: e.origin.artifactId, runId: e.origin.runId },
+    schemaVersion: CRM_SCHEMA_VERSION,
+  };
+}
+
 function raiseHaltItem(caseId: CaseId, halt: HaltInfo): void {
   const params = {
     atSeq: halt.atSeq,
@@ -477,6 +505,20 @@ function applyDomainWrites(
           decision: p.decision as string,
           at: e.at,
           ...(p.edited !== undefined ? { edited: p.edited as boolean } : {}),
+        });
+        break;
+      case 'criteria-assessment':
+      case 'affordability-assessment':
+      case 'scenario-run':
+      case 'criteria-override':
+        // M5 (FR-012): the full payload lives in an attachment, never inline —
+        // the fold projects a deterministic audit pointer into the activity feed
+        // so the case timeline records that an indicative run / override happened
+        // and links back to its artifact. Every field is entry-derived, so a
+        // refold reproduces it byte-for-byte (convergence, kill-the-laptop).
+        activitiesOut.push({
+          caseId: e.caseId,
+          activity: m5ActivityFromEntry(e),
         });
         break;
       case 'chain-anchor':

@@ -26,6 +26,10 @@ export type KnownArtifactFamily =
   | 'lm.sourcing.snapshot'
   | 'lm.criteria.verdicts'
   | 'lm.affordability.model'
+  | 'lm.criteria.pack'
+  | 'lm.criteria.assessment'
+  | 'lm.affordability.assessment'
+  | 'lm.scenario.run'
   | 'lm.comms.draft'
   | 'lm.admin.chase'
   | 'lm.failure'
@@ -46,6 +50,10 @@ export const KNOWN_MAJORS: Readonly<Record<KnownArtifactFamily, number>> = {
   'lm.sourcing.snapshot': 1,
   'lm.criteria.verdicts': 1,
   'lm.affordability.model': 1,
+  'lm.criteria.pack': 1,
+  'lm.criteria.assessment': 1,
+  'lm.affordability.assessment': 1,
+  'lm.scenario.run': 1,
   'lm.comms.draft': 1,
   'lm.admin.chase': 1,
   'lm.failure': 1,

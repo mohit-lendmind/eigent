@@ -104,3 +104,28 @@ export {
   type FoldReasonCode,
   type ReasonParams,
 } from './reasonCodes';
+
+export {
+  CRITERIA_SURFACE_CLASS,
+  SCENARIO_CAP_DEFAULT,
+  decodeCriteriaAssessment,
+  decodeScenarioRunPayload,
+  type AffordabilityAssessment,
+  type AffordabilityInput,
+  type CriteriaAssessment,
+  type CriteriaLenderResult,
+  type CriteriaPack,
+  type CriteriaPackLender,
+  type CriteriaReason,
+  type CriteriaRule,
+  type CriteriaSurfaceClass,
+  type InputProvenance,
+  type RuleKey,
+  type RuleOp,
+  type ScenarioDelta,
+  type ScenarioDiff,
+  type ScenarioResult,
+  type ScenarioRunPayload,
+  type Verdict,
+  type WorkingStep,
+} from './criteriaAffordability';

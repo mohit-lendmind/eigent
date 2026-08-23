@@ -49,6 +49,12 @@ export interface FirmConfig extends Record<string, unknown> {
   // use, and never reads this field. Kept on the contract so a pinned id can be
   // honoured in a later milestone without a config-shape change (finding 11).
   coordinatorProjectId?: string;
+  // M5 additive (all optional — a pre-M5 config keeps decoding). The pinned
+  // criteria pack ref an assessment records; the rule staleness window; and the
+  // per-firm counterfactual cap the scenario agent enforces before any write.
+  criteriaPack?: string;
+  criteriaTtlDays?: number;
+  scenarioCap?: number;
 }
 
 // USD-per-GBP in micro units (1 GBP = 1.27 USD → 1_270_000). Static default;
@@ -172,6 +178,20 @@ export function decodeFirmConfig(value: unknown): FirmConfig {
     coordinatorProjectId:
       typeof object.coordinatorProjectId === 'string'
         ? object.coordinatorProjectId
+        : undefined,
+    criteriaPack:
+      typeof object.criteriaPack === 'string' ? object.criteriaPack : undefined,
+    criteriaTtlDays:
+      typeof object.criteriaTtlDays === 'number' &&
+      Number.isFinite(object.criteriaTtlDays) &&
+      object.criteriaTtlDays > 0
+        ? object.criteriaTtlDays
+        : undefined,
+    scenarioCap:
+      typeof object.scenarioCap === 'number' &&
+      Number.isInteger(object.scenarioCap) &&
+      object.scenarioCap > 0
+        ? object.scenarioCap
         : undefined,
   } as FirmConfig;
 }

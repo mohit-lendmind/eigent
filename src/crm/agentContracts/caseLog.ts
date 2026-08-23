@@ -47,6 +47,10 @@ export type CaseLogEventKind =
   | 'gate-raise' // a G-gate raised by an agent, mirrored into the fold's openGates
   | 'gate-resolve' // an adviser decision on a raised gate (allow/deny)
   | 'chain-anchor' // reserved (T3): writer-side chain re-base; fold applies as no-op re-base
+  | 'criteria-assessment' // M5: an indicative criteria run folded as an audit pointer
+  | 'affordability-assessment' // M5: an indicative affordability run folded as an audit pointer
+  | 'scenario-run' // M5: a counterfactual scenario run folded as an audit pointer
+  | 'criteria-override' // M5: a G6 adviser override of a criteria verdict (rationale + flag)
   | (string & {}); // unknown members quarantine, never throw
 
 export interface CaseLogEvent extends Record<string, unknown> {
@@ -91,6 +95,10 @@ export const KNOWN_CASELOG_EVENT_KINDS: readonly CaseLogEventKind[] = [
   'gate-raise',
   'gate-resolve',
   'chain-anchor',
+  'criteria-assessment',
+  'affordability-assessment',
+  'scenario-run',
+  'criteria-override',
 ];
 
 const knownEventKinds = new Set<string>(

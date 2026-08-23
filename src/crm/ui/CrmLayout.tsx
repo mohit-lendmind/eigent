@@ -30,6 +30,9 @@ const SourcingResults = lazy(() =>
 const DocumentVault = lazy(() =>
   import('./DocumentVault').then((m) => ({ default: m.DocumentVault }))
 );
+const ScenariosScreen = lazy(() =>
+  import('./ScenariosScreen').then((m) => ({ default: m.ScenariosScreen }))
+);
 
 export function CrmLayout() {
   return (
@@ -47,6 +50,7 @@ export function CrmLayout() {
             element={<DocumentVault caseId="c417" firmId="lendmind" />}
           />
           <Route path="results" element={<SourcingResults />} />
+          <Route path="scenarios" element={<ScenariosScreen />} />
         </Routes>
       </main>
     </div>
