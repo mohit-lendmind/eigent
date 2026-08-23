@@ -27,7 +27,7 @@
 // docs/tos-mortgage-brain.md) and stands up a live canary that earns a
 // canaryPassedAt. We NEVER hand-set verified or bake a fabricated recording.
 //
-// Coverage is FIXED as a firm panel, never whole of market.
+// Coverage is FIXED as a firm panel — explicitly not whole of market.
 
 import type {
   Product,

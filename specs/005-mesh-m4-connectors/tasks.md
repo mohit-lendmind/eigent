@@ -27,13 +27,13 @@ Additive under src/crm/connectors, src/crm/agents, src/crm/ui, resources/lm-skil
 - [x] T016 [P] Tests: scaffold runs on fixture; verified:false; assertClaimable blocks it from evidence + client surfaces
 
 ## P4 — results surface + G5 + evidence
-- [ ] T017 sourcing.ts (A4): dispatched on income-det; runs the adapter plan; writes snapshot (FR-001/004)
-- [ ] T018 SourcingResults.tsx: adviser-only ranked cards + collapsed why-not + pinned coverage line (info tone) on the M2 surface (FR-011)
-- [ ] T019 Run ribbon (narrating) + always-hot non-modal take-control + "Running as you"; verified:false watermark + disabled export (FR-011)
-- [ ] T020 G5: disabled until product pick + one-line rationale; staleness warning; choice + rejected-reasons fold (FR-012)
-- [ ] T021 exportEvidenceOfResearch gated by assertClaimable (MCOB 4.7A spine) (FR-006)
-- [ ] T022 [P] Tests: shortlist adviser-only; watermark+disabled export on scaffold; G5 gating; evidence export refuses non-claimable; dark-mode contrast
-- [ ] T023 sourcingConverge.test.ts (kill-the-laptop with sourcing entries) + m4ContractFreeze.test.ts vs specs/005 (FR-014)
+- [x] T017 sourcing.ts (A4): dispatched on income-det; runs the adapter plan; writes snapshot (FR-001/004)
+- [x] T018 SourcingResults.tsx: adviser-only ranked cards + collapsed why-not + pinned coverage line (info tone) on the M2 surface (FR-011)
+- [x] T019 Run ribbon (narrating) + always-hot non-modal take-control + "Running as you"; verified:false watermark + disabled export (FR-011)
+- [x] T020 G5: disabled until product pick + one-line rationale; staleness warning; choice + rejected-reasons fold (FR-012)
+- [x] T021 exportEvidenceOfResearch gated by assertClaimable (MCOB 4.7A spine) (FR-006)
+- [x] T022 [P] Tests: shortlist adviser-only; watermark+disabled export on scaffold; G5 gating; evidence export refuses non-claimable; dark-mode contrast
+- [x] T023 sourcingConverge.test.ts (kill-the-laptop with sourcing entries) + m4ContractFreeze.test.ts vs specs/005 (FR-014)
 - [ ] T024 demo-mesh-m4.mjs (MSE source → snapshot → shortlist → G5) + full gate run + PR into lendmind-crm w/ per-FR checklist (SC-005)
 
 ## Deps
