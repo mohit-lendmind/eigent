@@ -4,7 +4,9 @@
     "src",
     "electron",
     "specs/003-mesh-m2-watcher-onboarding/contracts",
-    "test/unit/crm/m2ContractFreeze.test.ts"
+    "specs/005-mesh-m4-connectors/contracts",
+    "test/unit/crm/m2ContractFreeze.test.ts",
+    "test/unit/crm/m4ContractFreeze.test.ts"
   ],
   "exclude": [
     "src/**/*.test.ts",

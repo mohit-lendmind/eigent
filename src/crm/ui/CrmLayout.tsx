@@ -13,18 +13,41 @@
 // ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
 
 // FR-015 — the CRM surface shell. A sibling to the app's main Layout: the
-// tactical rail on the left, the routed CRM screen on the right. Kept thin on
-// purpose — M2's only screen is the Today queue.
+// tactical rail on the left, the routed CRM screen on the right. The CRM owns
+// its own child routing so snapshot-bearing screens (SourcingResults) stay
+// inside src/crm and never leak into the app router (FR-007).
 
-import { Outlet } from 'react-router-dom';
+import { lazy } from 'react';
+import { Route, Routes } from 'react-router-dom';
 import { TacticalRail } from './TacticalRail';
+
+const TodayQueue = lazy(() =>
+  import('./TodayQueue').then((m) => ({ default: m.TodayQueue }))
+);
+const SourcingResults = lazy(() =>
+  import('./SourcingResults').then((m) => ({ default: m.SourcingResults }))
+);
+const DocumentVault = lazy(() =>
+  import('./DocumentVault').then((m) => ({ default: m.DocumentVault }))
+);
 
 export function CrmLayout() {
   return (
     <div className="flex h-screen bg-ds-bg-neutral-default-default">
       <TacticalRail />
       <main className="flex-1 overflow-y-auto">
-        <Outlet />
+        <Routes>
+          <Route index element={<TodayQueue />} />
+          {/* The vault is bound to the seeded preview case so the loop is live:
+              uploads ride the ingest seam, G2/G3 resolve in place, G9 reads the
+              case's income facts. A case-picker is a later addition (P5
+              follow-up T027 in specs/004-mesh-m3-docintel/tasks.md). */}
+          <Route
+            path="vault"
+            element={<DocumentVault caseId="c417" firmId="lendmind" />}
+          />
+          <Route path="results" element={<SourcingResults />} />
+        </Routes>
       </main>
     </div>
   );

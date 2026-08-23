@@ -25,12 +25,6 @@ const NotFound = lazy(() => import('@/pages/NotFound'));
 const IntegrationLab = lazy(() => import('@/pages/IntegrationLab'));
 const Onboarding = lazy(() => import('@/pages/Onboarding'));
 const CrmLayout = lazy(() => import('@/crm/ui/CrmLayout'));
-const TodayQueue = lazy(() =>
-  import('@/crm/ui/TodayQueue').then((m) => ({ default: m.TodayQueue }))
-);
-const DocumentVault = lazy(() =>
-  import('@/crm/ui/DocumentVault').then((m) => ({ default: m.DocumentVault }))
-);
 
 interface AuthState {
   loading: boolean;
@@ -128,18 +122,9 @@ const AppRoutes = () => (
         />
       </Route>
       {/* The CRM surface is a sibling to the main Layout: its own shell (rail +
-          screen), still behind the auth guard. */}
-      <Route path="/crm" element={<CrmLayout />}>
-        <Route index element={<TodayQueue />} />
-        {/* The vault is bound to the seeded preview case so the loop is live:
-            uploads ride the ingest seam, G2/G3 resolve in place, G9 reads the
-            case's income facts. A case-picker is a later addition (P5 follow-up
-            T027 in specs/004-mesh-m3-docintel/tasks.md). */}
-        <Route
-          path="vault"
-          element={<DocumentVault caseId="c417" firmId="lendmind" />}
-        />
-      </Route>
+          screen), still behind the auth guard. The CRM owns its own child
+          routing (FR-007 keeps snapshot-bearing screens inside src/crm). */}
+      <Route path="/crm/*" element={<CrmLayout />} />
     </Route>
     <Route path="*" element={<NotFound />} />
   </Routes>

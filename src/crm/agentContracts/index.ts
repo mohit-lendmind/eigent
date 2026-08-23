@@ -67,6 +67,20 @@ export {
 } from './artifactKinds';
 
 export {
+  SOURCING_SERIALIZED_PER_DESKTOP,
+  SOURCING_SURFACE_CLASS,
+  decodeSourcingProductsAttachment,
+  decodeSourcingSnapshotPayload,
+  type Coverage,
+  type CoverageKind,
+  type Product,
+  type QueryStep,
+  type SourcingSnapshotPayload,
+  type SourcingSurfaceClass,
+  type VerificationRef,
+} from './sourcingSnapshot';
+
+export {
   GATE_REGISTRY,
   delegableGates,
   gateById,

@@ -1,0 +1,13 @@
+{
+  "_provenance": "SYNTHETIC, ILLUSTRATIVE DOM-scrape shape — NOT a recording of any real Mortgage Brain session and NOT captured behind any firm login. It mirrors the shape of the rows a `browser.readTable` scrape of the results grid would yield (displayed strings, e.g. \"£1,499\", \"4.04%\"), so the CI replay can exercise mortgageBrainExtract() deterministically. Because it is not a real recorded session, NO snapshot built from it may ever be marked verified: the Mortgage Brain adapter ships with NO verification field and derives verified:false. Do NOT add a canaryPassedAt, a verification block, or claim this as real evidence. A genuine recorded session (within the firm's own credentials and Mortgage Brain's ToS — see docs/tos-mortgage-brain.md) plus a passing live canary is the ONLY path to verified.",
+  "adapterId": "mortgage-brain",
+  "ratesAsAt": "2026-08-22",
+  "capturedAt": "2026-08-22T09:00:00.000Z",
+  "results": [
+    {
+      "tool_name": "browser.readTable",
+      "arguments_json": "{\"selector\":\"table.sourcing-results tbody tr\"}",
+      "result_json": "{\"rows\":[{\"lender\":\"panel-lender-001\",\"product\":\"2 Year Fixed\",\"initialRate\":\"4.24%\",\"aprc\":\"6.9%\",\"productFee\":\"£999\",\"monthlyPayment\":\"£1,081\",\"trueCost\":\"£26,910\",\"revertRate\":\"7.99%\",\"status\":\"Eligible\"},{\"lender\":\"panel-lender-002\",\"product\":\"5 Year Fixed\",\"initialRate\":\"4.09%\",\"aprc\":\"5.95%\",\"productFee\":\"£1,499\",\"monthlyPayment\":\"£1,064\",\"trueCost\":\"£65,340\",\"revertRate\":\"7.74%\",\"erc\":\"£4,000\",\"status\":\"Eligible\"},{\"lender\":\"panel-lender-003\",\"product\":\"2 Year Tracker\",\"initialRate\":\"4.60%\",\"aprc\":\"6.45%\",\"productFee\":\"£0\",\"monthlyPayment\":\"£1,118\",\"trueCost\":\"£27,660\",\"revertRate\":\"7.49%\",\"status\":\"Eligible\"},{\"lender\":\"panel-lender-004\",\"product\":\"2 Year Fixed (95% LTV)\",\"initialRate\":\"5.34%\",\"aprc\":\"7.15%\",\"productFee\":\"£499\",\"monthlyPayment\":\"£1,207\",\"trueCost\":\"£0\",\"status\":\"Declined\",\"declineReason\":\"LTV above product maximum\"}]}"
+    }
+  ]
+}
