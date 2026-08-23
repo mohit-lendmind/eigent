@@ -1,0 +1,313 @@
+// ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// ========= Copyright 2025-2026 @ Eigent.ai All Rights Reserved. =========
+
+// M3 frozen runtime — the fact-find provenance source of truth for M4/M5
+// (FR-012). Every export here is pinned type-for-type against the FROZEN
+// declaration in specs/004-mesh-m3-docintel/contracts/docintel.d.ts by
+// test/unit/crm/m3ContractFreeze.test.ts; any drift on either side fails to
+// compile. The trust spine (det vs syn), the idempotency ids, and the
+// deterministic conflict recompute all live here so they cannot diverge between
+// the write path, the tests, and the eval harness.
+
+import {
+  asRecord,
+  ContractDecodeError,
+  requireNumber,
+  requireString,
+} from '../agentContracts';
+
+// Where in a source document a quote was found. Page is 1-based; the char
+// offsets index the born-digital text layer when one is present.
+export interface DocLocator {
+  page: number;
+  line?: number;
+  charStart?: number;
+  charEnd?: number;
+}
+
+// One typed fact extracted from a document. `src` is the trust spine: a fact is
+// `det` ONLY when its quote deterministically substring-matches an independent
+// born-digital text layer (classifySrc); unverified / vision-only defaults to
+// `syn`.
+export interface DocInsight {
+  label: string;
+  value: string;
+  confidence: number;
+  quote?: string;
+  locator?: DocLocator;
+  fieldKey?: string;
+  section?: string;
+  src: 'det' | 'syn';
+}
+
+// One identifier read off a document, with the born-digital `quote` that proves
+// it (FR-006). The desktop RECOMPUTES attribution from these against the case
+// roster — it never trusts the model's self-reported `attribution` alone — and
+// an identifier only counts toward the coded score when its quote
+// deterministically matches the text layer (classifySrc).
+export interface DocIdentifierClaim {
+  value: string;
+  quote?: string;
+}
+
+// lm.docintel.extraction/1 — the SIDE-CAR artifact. It is NEVER fed to the fold
+// as an event kind (FR-002): extractionApply projects it into case-log event
+// kinds (field-change / document-upsert / checklist-status / conflict-upsert),
+// each carrying origin.artifactId back to this artifact.
+export interface DocintelExtraction {
+  kind: 'lm.docintel.extraction/1';
+  documentId: string;
+  contentHash: string;
+  docType: string;
+  docTypeInScope: boolean;
+  attribution: { clientId: string | null; confidence: number; joint: boolean };
+  // The identifiers the desktop recomputes attribution FROM (FR-006). Optional
+  // and additive: a legacy side-car without them falls back to the model's own
+  // attribution; a production side-car carries them so the coded cluster can run.
+  identifiers?: {
+    fullName?: DocIdentifierClaim;
+    niNumber?: DocIdentifierClaim;
+    postcode?: DocIdentifierClaim;
+  };
+  insights: DocInsight[];
+  specialCategoryFlagged: boolean;
+  versions: {
+    model: string;
+    promptSha: string;
+    skillSemver: string;
+    skillSha: string;
+  };
+}
+
+// The largest document body the ingest seam will admit (3 MiB). Oversize bytes
+// become a typed error card, never a partial extraction (edge case, spec §36).
+export const INGEST_MEDIA_MAX_BYTES = 3_145_728;
+
+// Collapse runs of whitespace so a quote that survived a PDF text-layer
+// re-flow (line wraps, double spaces) still matches deterministically. This is
+// the ONLY normalisation — no case-folding, no punctuation stripping — because a
+// looser match would let a near-miss forge a `det` field.
+function normaliseForMatch(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * The trust spine. Returns `det` iff a non-empty `quote` deterministically
+ * substring-matches the independent `sourceText`; otherwise `syn`. A null
+ * sourceText (vision-only / no text layer) is ALWAYS `syn`. No model output is
+ * trusted here — this is a coded string operation.
+ */
+export function classifySrc(
+  quote: string | undefined,
+  sourceText: string | null
+): 'det' | 'syn' {
+  if (quote === undefined || quote.length === 0) return 'syn';
+  if (sourceText === null) return 'syn';
+  const needle = normaliseForMatch(quote);
+  if (needle.length === 0) return 'syn';
+  return normaliseForMatch(sourceText).includes(needle) ? 'det' : 'syn';
+}
+
+// FNV-1a over the id inputs → an 8-hex-digit stable suffix. Pure and sync, so
+// the same (documentId, contentHash, fieldKey) always mints the same id and a
+// re-process upserts rather than duplicates (FR-003).
+function fnv1a(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * Every derived id is a pure function of (documentId, contentHash, fieldKey) so
+ * re-processing the same document is a no-op upsert, never a double-write
+ * (FR-003). `kind` prefixes the id so a conflict, worklist item, field-change
+ * target, and checklist key never collide even for the same field.
+ */
+export function derivedId(
+  kind: 'conflict' | 'wl' | 'field' | 'checklist',
+  documentId: string,
+  contentHash: string,
+  fieldKey: string
+): string {
+  const suffix = fnv1a(`${documentId}\x00${contentHash}\x00${fieldKey}`);
+  return `${kind}_${suffix}`;
+}
+
+/**
+ * Deterministic Pence recompute at 1% materiality — never an LLM judgement
+ * (FR-007). `deltaPct` is a ratio (0.031 = 3.1%); `conflict` is true when it
+ * strictly exceeds `materiality`. A zero existing value with any non-zero
+ * incoming value is a full (100%) delta, so it always conflicts.
+ */
+export function detectConflict(
+  existingPence: number,
+  incomingPence: number,
+  materiality = 0.01
+): { conflict: boolean; deltaPct: number } {
+  const diff = Math.abs(incomingPence - existingPence);
+  let deltaPct: number;
+  if (existingPence === 0) {
+    deltaPct = incomingPence === 0 ? 0 : 1;
+  } else {
+    deltaPct = diff / Math.abs(existingPence);
+  }
+  return { conflict: deltaPct > materiality, deltaPct };
+}
+
+function decodeVersions(
+  value: unknown,
+  label: string
+): DocintelExtraction['versions'] {
+  const object = asRecord(value, label);
+  return {
+    model: requireString(object, label, 'model'),
+    promptSha: requireString(object, label, 'promptSha'),
+    skillSemver: requireString(object, label, 'skillSemver'),
+    skillSha: requireString(object, label, 'skillSha'),
+  };
+}
+
+function decodeLocator(value: unknown, label: string): DocLocator | undefined {
+  if (value === undefined || value === null) return undefined;
+  const object = asRecord(value, label);
+  const locator: DocLocator = { page: requireNumber(object, label, 'page') };
+  if (object.line !== undefined)
+    locator.line = requireNumber(object, label, 'line');
+  if (object.charStart !== undefined) {
+    locator.charStart = requireNumber(object, label, 'charStart');
+  }
+  if (object.charEnd !== undefined) {
+    locator.charEnd = requireNumber(object, label, 'charEnd');
+  }
+  return locator;
+}
+
+function decodeInsight(value: unknown, label: string): DocInsight {
+  const object = asRecord(value, label);
+  const src = object.src;
+  if (src !== 'det' && src !== 'syn') {
+    throw new ContractDecodeError(
+      `${label}.src`,
+      "must be 'det' or 'syn'",
+      src
+    );
+  }
+  const insight: DocInsight = {
+    label: requireString(object, label, 'label'),
+    value: requireString(object, label, 'value'),
+    confidence: requireNumber(object, label, 'confidence'),
+    src,
+  };
+  if (object.quote !== undefined) {
+    insight.quote = requireString(object, label, 'quote');
+  }
+  if (object.locator !== undefined) {
+    insight.locator = decodeLocator(object.locator, `${label}.locator`);
+  }
+  if (object.fieldKey !== undefined) {
+    insight.fieldKey = requireString(object, label, 'fieldKey');
+  }
+  if (object.section !== undefined) {
+    insight.section = requireString(object, label, 'section');
+  }
+  return insight;
+}
+
+/**
+ * Decode + validate an lm.docintel.extraction/1 side-car. Follows the house
+ * decode discipline (required-field checks, additive fields retained). A closed
+ * schema: a malformed extraction throws rather than silently entering the write
+ * path with a missing trust field.
+ */
+export function decodeDocintelExtraction(v: unknown): DocintelExtraction {
+  const object = asRecord(v, 'DocintelExtraction');
+  if (object.kind !== 'lm.docintel.extraction/1') {
+    throw new ContractDecodeError(
+      'DocintelExtraction.kind',
+      "must be 'lm.docintel.extraction/1'",
+      object.kind
+    );
+  }
+  requireString(object, 'DocintelExtraction', 'documentId');
+  requireString(object, 'DocintelExtraction', 'contentHash');
+  requireString(object, 'DocintelExtraction', 'docType');
+  if (typeof object.docTypeInScope !== 'boolean') {
+    throw new ContractDecodeError(
+      'DocintelExtraction.docTypeInScope',
+      'must be a boolean',
+      object.docTypeInScope
+    );
+  }
+  if (typeof object.specialCategoryFlagged !== 'boolean') {
+    throw new ContractDecodeError(
+      'DocintelExtraction.specialCategoryFlagged',
+      'must be a boolean',
+      object.specialCategoryFlagged
+    );
+  }
+
+  const attribution = asRecord(
+    object.attribution,
+    'DocintelExtraction.attribution'
+  );
+  if (attribution.clientId !== null) {
+    requireString(attribution, 'DocintelExtraction.attribution', 'clientId');
+  }
+  requireNumber(attribution, 'DocintelExtraction.attribution', 'confidence');
+  if (typeof attribution.joint !== 'boolean') {
+    throw new ContractDecodeError(
+      'DocintelExtraction.attribution.joint',
+      'must be a boolean',
+      attribution.joint
+    );
+  }
+
+  if (object.identifiers !== undefined && object.identifiers !== null) {
+    const ids = asRecord(object.identifiers, 'DocintelExtraction.identifiers');
+    for (const key of ['fullName', 'niNumber', 'postcode'] as const) {
+      if (ids[key] !== undefined && ids[key] !== null) {
+        const claim = asRecord(
+          ids[key],
+          `DocintelExtraction.identifiers.${key}`
+        );
+        requireString(claim, `DocintelExtraction.identifiers.${key}`, 'value');
+        if (claim.quote !== undefined) {
+          requireString(
+            claim,
+            `DocintelExtraction.identifiers.${key}`,
+            'quote'
+          );
+        }
+      }
+    }
+  }
+
+  if (!Array.isArray(object.insights)) {
+    throw new ContractDecodeError(
+      'DocintelExtraction.insights',
+      'must be an array',
+      object.insights
+    );
+  }
+  object.insights.forEach((insight, i) =>
+    decodeInsight(insight, `DocintelExtraction.insights[${i}]`)
+  );
+
+  decodeVersions(object.versions, 'DocintelExtraction.versions');
+
+  return { ...object } as unknown as DocintelExtraction;
+}

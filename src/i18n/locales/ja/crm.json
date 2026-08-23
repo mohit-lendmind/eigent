@@ -37,7 +37,59 @@
     "sla-pill": "SLA {{minutes}}m"
   },
   "nav": {
-    "crm": "CRM"
+    "crm": "CRM",
+    "vault": "Documents"
+  },
+  "vault": {
+    "title": "Documents",
+    "subtitle": "Upload and track client documents",
+    "dropzone": "Drag documents here to add them to the queue",
+    "choose": "Choose files",
+    "empty": "No documents yet.",
+    "uploading": "Added {{count}} document(s) to the queue",
+    "status-queued": "Queued",
+    "status-processing": "Processing",
+    "status-completed": "Completed",
+    "status-rejected": "Rejected",
+    "attribution": "Attributed {{percent}}%",
+    "attribution-joint": "Joint document",
+    "attribution-unknown": "Unattributed",
+    "det-count": "{{count}} verified",
+    "syn-count": "{{count}} unverified",
+    "conflict-count": "{{count}} in conflict",
+    "more-insights": "Other extracted details ({{count}})",
+    "source-title": "Verified source",
+    "source-page": "Page {{page}}",
+    "source-line": "Line {{line}}",
+    "source-close": "Close"
+  },
+  "insight": {
+    "verified": "Verified",
+    "unverified": "Unverified",
+    "confidence": "{{percent}}% confidence",
+    "view-source": "View source",
+    "confirm": "Confirm",
+    "conflict": "Conflict"
+  },
+  "docgate": {
+    "reasons": "Why",
+    "g2-title": "Confirm the applicant",
+    "g2-confirm": "Confirm applicant",
+    "g2-reject": "Reject",
+    "g3-title": "Resolve the conflict",
+    "g3-existing": "On file",
+    "g3-incoming": "From document",
+    "g3-keep-existing": "Keep on file",
+    "g3-use-incoming": "Use document value",
+    "g9-title": "Income not yet verified",
+    "g9-blocked": "A recommendation is blocked until each applicant's income is verified.",
+    "g9-blocker-missing": "{{clientId}} · {{fieldKey}}: has no income on file.",
+    "g9-blocker-syn-only": "{{clientId}} · {{fieldKey}}: has only unverified income — a verified document is required.",
+    "reason-g2-joint": "Document appears to belong to more than one applicant.",
+    "reason-g2-low-confidence": "Attribution confidence {{confidencePct}}% is below {{thresholdPct}}%.",
+    "reason-g3-value-delta": "Two verified values for {{field}} disagree by {{deltaLabel}}.",
+    "reason-g3-type-mismatch": "A verified value for {{field}} would be overwritten by a value of a different type.",
+    "error-title": "Document could not be processed"
   },
   "results": {
     "title": "Sourcing results",
