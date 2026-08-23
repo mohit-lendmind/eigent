@@ -141,3 +141,10 @@ export {
 } from './fold/outbox';
 
 export * from './agentContracts';
+// Both barrels export a `Product`: the domain criteria row (pass/fail) and the
+// M4 sourcing result row. The domain one is the long-standing `@/crm` Product,
+// so pin it explicitly to resolve the star-merge ambiguity; the sourcing type is
+// reached via '@/crm/agentContracts' (or its alias here) rather than the bare
+// name, so no existing importer changes meaning.
+export type { Product as SourcingProduct } from './agentContracts';
+export type { Product } from './domain/types';

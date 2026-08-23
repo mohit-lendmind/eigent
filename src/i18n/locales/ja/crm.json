@@ -38,5 +38,36 @@
   },
   "nav": {
     "crm": "CRM"
+  },
+  "results": {
+    "title": "Sourcing results",
+    "subtitle": "Adviser-only shortlist and recommendation",
+    "empty": "No sourcing run yet. Once a run completes, its shortlist appears here.",
+    "best-true-cost": "Lowest true cost",
+    "rate": "Rate",
+    "monthly": "Monthly",
+    "true-cost": "True cost",
+    "why-not": "Why not these ({{count}})",
+    "export": "Export evidence of research",
+    "export-ok": "Evidence bundle ready: {{id}}",
+    "export-blocked": "Export blocked: {{reason}}",
+    "export-disabled-title": "Unverified scaffold — evidence of research is disabled",
+    "scaffold-watermark": "Unverified scaffold — not claimable for evidence of research or client-facing use.",
+    "running-as": "Running as {{adviser}}",
+    "take-control": "Take control",
+    "g5-title": "Recommend a product (G5)",
+    "rates-stale": "Rates may be out of date — refresh before recommending.",
+    "pick-product": "Product",
+    "pick-product-placeholder": "Lender / product id",
+    "rationale": "Rationale",
+    "rationale-placeholder": "One line on why this product suits the client",
+    "g5-disabled-title": "Pick a product and type a rationale to enable",
+    "recommend": "Recommend",
+    "adviser-only-note": "Adviser-only. Sourced via {{adapter}}."
+  },
+  "sourcing": {
+    "running": "Sourcing products…",
+    "complete": "Sourcing run complete",
+    "complete-scaffold": "Sourcing run complete (unverified scaffold)"
   }
 }
