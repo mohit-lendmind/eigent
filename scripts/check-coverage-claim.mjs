@@ -35,11 +35,18 @@ const PHRASE = 'whole of market';
 // legitimately quote the phrase to prove the gate works or to describe it.
 const SCOPE = [/^src\//, /^resources\/lm-skills\//];
 
+// Escape every regex metacharacter (backslash included) so a literal path
+// becomes an exact-match pattern — a bare `.replace(/\./g, …)` would leave other
+// metacharacters live.
+function escapeRegExp(literal) {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // The definition site names the phrase to forbid it, so it cannot be its own
 // subject. The gate script likewise.
 const EXEMPT_FILE = [
   /^src\/crm\/connectors\/coverage\.ts$/,
-  new RegExp(`^${SELF.replace(/\./g, '\\.')}$`),
+  new RegExp(`^${escapeRegExp(SELF)}$`),
 ];
 
 // A same-line marker records a deliberate, reviewed exception.
