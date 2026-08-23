@@ -122,6 +122,13 @@ export interface MirroredGate {
    */
   worklistItemId?: string;
   reasons: string[];
+  /**
+   * Structured reason for the card to translate at render (finding 10), so an
+   * i18n'd gate card never shows a hardcoded-English body. `reasons` stays as the
+   * English fallback / audit text.
+   */
+  reasonCode?: string;
+  reasonParams?: Record<string, unknown>;
   raisedAt: number;
   status: 'open' | 'resolved';
   decision?: string;

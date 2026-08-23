@@ -39,6 +39,7 @@ import {
   type ClientId,
   type ConflictRecord,
   type ConflictValue,
+  type ConflictValueSource,
   type CrmDocument,
   type DocChecklistItem,
   type DocInsight,
@@ -48,7 +49,13 @@ import {
   type WorklistItem,
 } from '../domain/types';
 import type { MirroredGate } from '../fold/eventLogStore';
-import { detectSpecialCategory } from './attribution';
+import {
+  detectSpecialCategory,
+  scoreAttribution,
+  type ApplicantIdentity,
+  type AttributionScore,
+  type DocIdentifiers,
+} from './attribution';
 import { shouldQuarantine } from './docClassify';
 import {
   classifySrc,
@@ -67,6 +74,15 @@ export const ATTRIBUTION_CONFIDENCE_THRESHOLD = 0.85;
 export interface ExistingFactValue {
   value: FieldValue;
   src: Src;
+  /**
+   * How the value on file was sourced, so a raised conflict states its
+   * provenance honestly rather than assuming `manual` (finding 6). When the
+   * value came from an earlier document the caller passes that document's
+   * source; absent means a manual/desktop entry.
+   */
+  source?: ConflictValueSource;
+  /** When the value on file was recorded (as-of), surfaced on the G3 card. */
+  asOf?: number;
 }
 
 export interface ApplyExtractionContext {
@@ -84,6 +100,15 @@ export interface ApplyExtractionContext {
   };
   /** Existing fact values keyed `${clientId}::${section}::${fieldKey}`. */
   existing?: Readonly<Record<string, ExistingFactValue>>;
+  /**
+   * The case roster the desktop recomputes attribution against (FR-006). When
+   * provided, the CODED attribution score is authoritative and the model's own
+   * `attribution` can only ever LOWER the effective confidence (min of the two),
+   * never write A's facts onto B. When absent (a legacy caller / a side-car with
+   * no identifiers), the model's attribution is used as-is — the production run
+   * observer always passes the roster.
+   */
+  roster?: readonly ApplicantIdentity[];
   /** The checklist item this document satisfies, if known (T015). */
   checklist?: { owner: ClientId | 'joint'; itemKey: string; label: string };
   /** The side-car artifact id every projected entry cites as its origin. */
@@ -119,8 +144,78 @@ function toFieldValue(insight: ExtractionInsight): FieldValue {
   return { t: 'text', v: insight.value };
 }
 
+// Finding 5: does the parsed money VALUE actually appear in the quote? We scan
+// the quote for GBP-shaped tokens and parse each the same way toFieldValue does,
+// so "Annual basic £37,300" relates to 3_730_000 pence but "Employee Name" (or a
+// fabricated £99,999) does not. A missing/empty quote never relates.
+const MONEY_TOKEN = /£?\s*\d[\d,]*(?:\.\d+)?/g;
+function moneyValueInQuote(pence: number, quote: string | undefined): boolean {
+  if (quote === undefined || quote.length === 0) return false;
+  const tokens = quote.replace(/\s+/g, ' ').match(MONEY_TOKEN);
+  if (!tokens) return false;
+  return tokens.some((token) => {
+    const parsed = parseGbp(token.replace(/\s+/g, ''));
+    return parsed !== null && (parsed as number) === pence;
+  });
+}
+
 function factKey(clientId: string, section: string, fieldKey: string): string {
   return `${clientId}::${section}::${fieldKey}`;
+}
+
+// FR-006 — the deterministic attribution decision. When a roster is present the
+// coded cluster is authoritative: an identifier only counts if its quote
+// substring-matches the text layer (a forger cannot claim an identifier the
+// document does not contain), the effective confidence is min(coded, claimed),
+// and a field is written to an applicant ONLY when the coded cluster and the
+// model agree on the same non-joint clientId. Without a roster (legacy caller /
+// no identifiers) the model's own attribution is used unchanged.
+function effectiveAttribution(ctx: ApplyExtractionContext): AttributionScore {
+  const claimed = ctx.extraction.attribution;
+  if (!ctx.roster || ctx.roster.length === 0) {
+    return {
+      clientId: claimed.clientId,
+      confidence: claimed.confidence,
+      joint: claimed.joint,
+    };
+  }
+
+  // Only quote-verified identifiers feed the coded score (FR-004/FR-006).
+  const ids = ctx.extraction.identifiers;
+  const verified: DocIdentifiers = {};
+  if (
+    ids?.fullName &&
+    classifySrc(ids.fullName.quote, ctx.sourceText) === 'det'
+  ) {
+    verified.fullName = ids.fullName.value;
+  }
+  if (
+    ids?.niNumber &&
+    classifySrc(ids.niNumber.quote, ctx.sourceText) === 'det'
+  ) {
+    verified.niNumber = ids.niNumber.value;
+  }
+  if (
+    ids?.postcode &&
+    classifySrc(ids.postcode.quote, ctx.sourceText) === 'det'
+  ) {
+    verified.postcode = ids.postcode.value;
+  }
+
+  const coded = scoreAttribution(verified, ctx.roster, {
+    knownJoint: claimed.joint,
+  });
+
+  const joint = coded.joint || claimed.joint;
+  // The model and the coded cluster must name the SAME applicant, or nothing is
+  // attributed — no field can leak to the wrong person on the model's say-so.
+  const agreed =
+    !joint && coded.clientId !== null && coded.clientId === claimed.clientId;
+  return {
+    clientId: agreed ? coded.clientId : null,
+    confidence: Math.min(coded.confidence, claimed.confidence),
+    joint,
+  };
 }
 
 function toDomainInsight(
@@ -144,6 +239,8 @@ function toDomainInsight(
     sourceQuote: insight.quote,
     locator: insight.locator,
     src,
+    ...(insight.section !== undefined ? { section: insight.section } : {}),
+    ...(insight.fieldKey !== undefined ? { fieldKey: insight.fieldKey } : {}),
     ...(conflicted ? { conflict: true as const } : {}),
     origin,
   };
@@ -170,7 +267,12 @@ export function applyExtraction(
   let synFields = 0;
   let conflicts = 0;
 
-  const attribution = extraction.attribution;
+  // FR-006: the CODED attribution is authoritative. When a roster is supplied we
+  // recompute the score from the quote-verified identifiers against the roster
+  // and take the min of the coded and the model-claimed confidence — a confident
+  // forger cannot write applicant A's facts onto applicant B, because the coded
+  // cluster never agrees. Without a roster we fall back to the model's claim.
+  const attribution = effectiveAttribution(ctx);
   const attributionGated =
     attribution.joint ||
     attribution.clientId === null ||
@@ -205,7 +307,18 @@ export function applyExtraction(
   for (const insight of extraction.insights) {
     // The trust spine: recompute independently. A forged `det` in the artifact
     // cannot survive a text layer that does not contain the quote.
-    const src = classifySrc(insight.quote, ctx.sourceText);
+    const matchSrc = classifySrc(insight.quote, ctx.sourceText);
+    const value = toFieldValue(insight);
+    // Finding 5: a `det` MONEY fact must relate its VALUE to its quote, not just
+    // prove the quote exists. A fabricated amount (£99,999) paired with any
+    // genuine quote ("Employee Name") must NOT mint det — downgrade to syn so it
+    // can never satisfy G9. classifySrc already proved the quote is in the text.
+    const src: Src =
+      matchSrc === 'det' &&
+      value.t === 'money' &&
+      !moneyValueInQuote(value.v as number, insight.quote)
+        ? 'syn'
+        : matchSrc;
     if (src === 'det') detFields += 1;
     else synFields += 1;
 
@@ -219,24 +332,51 @@ export function applyExtraction(
     if (mapped) {
       const section = insight.section as FactFindSectionKey;
       const fieldKey = insight.fieldKey as string;
-      const value = toFieldValue(insight);
       const key = factKey(writeClientId, section, fieldKey);
       const existing = ctx.existing?.[key];
 
-      // Two verified (det) MONEY values that disagree past 1% materiality are a
-      // conflict: raise G3, keep the value on file, never silently overwrite.
-      if (
-        src === 'det' &&
-        existing &&
-        existing.src === 'det' &&
-        existing.value.t === 'money' &&
-        value.t === 'money'
-      ) {
-        const { conflict, deltaPct } = detectConflict(
-          existing.value.v as number,
-          value.v as number
-        );
-        if (conflict) {
+      if (src === 'det' && existing && existing.src === 'det') {
+        if (existing.value.t === 'money' && value.t === 'money') {
+          // Two verified (det) MONEY values that disagree past 1% materiality are
+          // a conflict: raise G3, keep the value on file, never silently
+          // overwrite.
+          const { conflict, deltaPct } = detectConflict(
+            existing.value.v as number,
+            value.v as number
+          );
+          if (conflict) {
+            conflicted = true;
+            conflicts += 1;
+            pushConflict(
+              events,
+              gates,
+              ctx,
+              writeClientId,
+              section,
+              fieldKey,
+              insight,
+              existing,
+              value,
+              { kind: 'value', deltaPct }
+            );
+          } else {
+            pushFieldChange(
+              events,
+              writeClientId,
+              section,
+              fieldKey,
+              insight,
+              value,
+              src,
+              origin
+            );
+          }
+        } else if (existing.value.t !== value.t) {
+          // Finding 2: a det value that would OVERWRITE a det value of a DIFFERENT
+          // FieldValue type is a record-repair / conflict-suppression attempt —
+          // e.g. a hostile "37,300 per annum" that dodges money typing and would
+          // silently replace the £38,500 on file with no G3. Never write through:
+          // raise G3 and keep the value on file (record-never-repair, FR-007).
           conflicted = true;
           conflicts += 1;
           pushConflict(
@@ -247,11 +387,12 @@ export function applyExtraction(
             section,
             fieldKey,
             insight,
-            existing.value,
+            existing,
             value,
-            deltaPct
+            { kind: 'type' }
           );
         } else {
+          // Same non-money type, det over det — a legitimate corrected value.
           pushFieldChange(
             events,
             writeClientId,
@@ -426,6 +567,9 @@ function pushFieldChange(
   });
 }
 
+/** Why a G3 was raised — a value disagreement, or a type/parse integrity fault. */
+type ConflictDetail = { kind: 'value'; deltaPct: number } | { kind: 'type' };
+
 function pushConflict(
   events: CaseLogEvent[],
   gates: MirroredGate[],
@@ -434,9 +578,9 @@ function pushConflict(
   section: FactFindSectionKey,
   fieldKey: string,
   insight: ExtractionInsight,
-  existingValue: FieldValue,
+  existing: ExistingFactValue,
   incomingValue: FieldValue,
-  deltaPct: number
+  detail: ConflictDetail
 ): void {
   const { extraction, now } = ctx;
   const origin = { artifactId: ctx.originArtifactId, runId: ctx.runId };
@@ -453,9 +597,12 @@ function pushConflict(
     fieldKey
   );
 
+  // Finding 6: state the existing side's provenance honestly. The caller passes
+  // the real source (an earlier document, or a manual entry) rather than always
+  // assuming `manual`.
   const existingCv: ConflictValue = {
-    value: existingValue,
-    source: { kind: 'manual' },
+    value: existing.value,
+    source: existing.source ?? { kind: 'manual' },
   };
   const incomingCv: ConflictValue = {
     value: incomingValue,
@@ -481,13 +628,31 @@ function pushConflict(
   };
   events.push({ type: 'conflict-upsert', payload: { record } });
 
-  const deltaLabel = `${(deltaPct * 100).toFixed(1)}%`;
+  // Finding 10: emit STRUCTURED reason data (code + params) so the i18n'd card
+  // translates it at render, instead of baking English into the event.
+  const field = `${section}.${fieldKey}`;
+  const deltaLabel =
+    detail.kind === 'value' ? `${(detail.deltaPct * 100).toFixed(1)}%` : '';
+  const reasonCode =
+    detail.kind === 'value' ? 'G3_VALUE_DELTA' : 'G3_TYPE_MISMATCH';
+  // The existing value's as-of is not representable in the frozen M1
+  // ConflictValue contract, so it rides on the structured reason params instead
+  // (finding 6) — the G3 card renders it alongside the delta.
+  const reasonParams: Record<string, unknown> =
+    detail.kind === 'value' ? { field, deltaPct: detail.deltaPct } : { field };
+  if (existing.asOf !== undefined) reasonParams.existingAsOf = existing.asOf;
+
   const worklistItem: WorklistItem = {
     id: worklistItemId,
     caseId: ctx.caseId,
     kind: 'conflict',
     title: gateById('G3').name,
-    detail: `Document value disagrees with the value on file by ${deltaLabel} on ${section}.${fieldKey}. Choose the authoritative value.`,
+    detail:
+      detail.kind === 'value'
+        ? `Document value disagrees with the value on file by ${deltaLabel} on ${field}. Choose the authoritative value.`
+        : `Document value for ${field} does not match the type of the verified value on file. Choose the authoritative value.`,
+    reasonCode,
+    reasonParams,
     status: 'open',
     createdAt: now,
     auto: true,
@@ -505,7 +670,10 @@ function pushConflict(
     iconTone: 'status-warning',
     when: now,
     title: 'Cross-document conflict detected',
-    body: `Two verified values for ${section}.${fieldKey} disagree by ${deltaLabel}.`,
+    body:
+      detail.kind === 'value'
+        ? `Two verified values for ${field} disagree by ${deltaLabel}.`
+        : `A verified value for ${field} would be overwritten by a value of a different type.`,
     linkedWorklistId: worklistItemId,
     origin,
     schemaVersion: CRM_SCHEMA_VERSION,
@@ -520,10 +688,18 @@ function pushConflict(
     approvalId: `appr_G3_${conflictId}`,
     title: gateById('G3').name,
     worklistItemId,
-    reasons: [
-      `Two verified (det) values for ${section}.${fieldKey} disagree by ${deltaLabel}.`,
-      'Suitability evidence integrity — a human must choose the authoritative value.',
-    ],
+    reasons:
+      detail.kind === 'value'
+        ? [
+            `Two verified (det) values for ${field} disagree by ${deltaLabel}.`,
+            'Suitability evidence integrity — a human must choose the authoritative value.',
+          ]
+        : [
+            `A verified (det) value for ${field} would be overwritten by an incoming value of a different type.`,
+            'Suitability evidence integrity — a human must choose the authoritative value.',
+          ],
+    reasonCode,
+    reasonParams,
     raisedAt: now,
     status: 'open',
   };
@@ -569,6 +745,9 @@ function pushAttributionGate(
   };
   events.push({ type: 'worklist-upsert', payload: { item: worklistItem } });
 
+  // Finding 10: structured reason data so the i18n'd card translates at render.
+  const confidencePct = Math.round(confidence * 100);
+  const thresholdPct = Math.round(ATTRIBUTION_CONFIDENCE_THRESHOLD * 100);
   const gate: MirroredGate = {
     id: gateInstanceId,
     gateId: 'G2',
@@ -579,11 +758,9 @@ function pushAttributionGate(
     worklistItemId,
     reasons: joint
       ? ['Document appears to belong to more than one applicant.']
-      : [
-          `Attribution confidence ${(confidence * 100).toFixed(0)}% is below ${(
-            ATTRIBUTION_CONFIDENCE_THRESHOLD * 100
-          ).toFixed(0)}%.`,
-        ],
+      : [`Attribution confidence ${confidencePct}% is below ${thresholdPct}%.`],
+    reasonCode: joint ? 'G2_JOINT' : 'G2_LOW_CONFIDENCE',
+    reasonParams: joint ? {} : { confidencePct, thresholdPct },
     raisedAt: now,
     status: 'open',
   };

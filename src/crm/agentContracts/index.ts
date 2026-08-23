@@ -55,7 +55,6 @@ export {
   decodeAffordabilityModel,
   decodeCommsDraft,
   decodeCriteriaVerdicts,
-  decodeDocintelExtraction,
   decodeFailureArtifact,
   decodeOnboardingRequest,
   decodeSourcingSnapshot,

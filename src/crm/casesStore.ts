@@ -28,6 +28,7 @@ import {
   requiredKeysForSection,
   type FactFindSectionKey as SectionKeyRaw,
 } from './domain/factFindSchema';
+import { defaultFieldSrc } from './domain/fieldSrc';
 import { newCrmId } from './domain/ids';
 import { STAGE_MAP } from './domain/stages';
 import type {
@@ -81,6 +82,12 @@ export interface CrmCasesState {
       reason?: FieldChangeReason;
       changedBy: string;
       src?: Src;
+      /**
+       * The writer kind. Defaults to the human adviser desktop edit (⇒ `det`
+       * when `src` is omitted, the legitimate pre-M3 manual-entry behaviour). An
+       * agent/programmatic caller that omits `src` floors to `syn` (FR-004).
+       */
+      actorKind?: string;
     }
   ) => void;
   confirmSynthesizedField: (
@@ -432,7 +439,8 @@ export const useCrmCasesStore = create<CrmCasesState>()(
         newValue,
         opts
       ) => {
-        const src: Src = opts.src ?? 'det';
+        const writerKind = opts.actorKind ?? 'adviser';
+        const src: Src = opts.src ?? defaultFieldSrc(writerKind);
         const reason: FieldChangeReason = opts.reason ?? 'edit';
         // Defensive: money must be a Pence number, never a display string.
         if (newValue.t === 'money' && typeof newValue.v !== 'number') {
@@ -496,7 +504,7 @@ export const useCrmCasesStore = create<CrmCasesState>()(
               caseId,
               firmId,
               at: nowTs,
-              actor: { kind: 'adviser', id: opts.changedBy },
+              actor: { kind: writerKind, id: opts.changedBy },
               event: {
                 type: 'field-change',
                 payload: { clientId, section, fieldKey, value: newValue, src },
