@@ -1,0 +1,3 @@
+M4 mesh-m4-connectors complete — 2026-08-23
+PR: https://github.com/mohit-lendmind/eigent/pull/56 (base: lendmind-crm)
+All 24 tasks (T001-T024) ticked; all CI gates green; demo self-asserts the honesty spine.
