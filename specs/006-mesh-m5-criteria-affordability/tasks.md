@@ -21,11 +21,11 @@ Additive under src/crm/criteria, src/crm/affordability, src/crm/agents, src/crm/
 
 ## P2 — affordability & stress calculator (A6) — MVP seam ends here
 
-- [ ] T012 Pure computeAffordability: integer-pence, no float; max-borrow + monthly at rate + at stress; documented rounding rule recorded in working[]; clamp ≥0 never NaN (FR-005)
-- [ ] T013 AffordabilityAssessment writer: indicative:true, per-input provenance (det/syn + M3 quote-locator on det), full working; decodeAffordabilityAssessment (FR-005)
-- [ ] T014 G9 income-verified precondition: block a run when income not det-verified; surface names blocking step + action; criteria grid still renders (FR-006)
-- [ ] T015 assertIndicative extended for A6: refuse any client-view + client-comms artifact embed pre-G5; refuse stale-product (M4 snapshot failing assertClaimable) (FR-007)
-- [ ] T016 [P] Tests: affordability golden vectors incl. rounding-boundary + cross-platform-identical; negative/zero delta clamped; G9 block; no-client-embed A6 (view + comms) (SC-002)
+- [x] T012 Pure computeAffordability: integer-pence, no float; max-borrow + monthly at rate + at stress; documented rounding rule recorded in working[]; clamp ≥0 never NaN (FR-005)
+- [x] T013 AffordabilityAssessment writer: indicative:true, per-input provenance (det/syn + M3 quote-locator on det), full working; decodeAffordabilityAssessment (FR-005)
+- [x] T014 G9 income-verified precondition: block a run when income not det-verified; surface names blocking step + action; criteria grid still renders (FR-006)
+- [x] T015 assertIndicative extended for A6: refuse any client-view + client-comms artifact embed pre-G5; refuse stale-product (M4 snapshot failing assertClaimable) (FR-007)
+- [x] T016 [P] Tests: affordability golden vectors incl. rounding-boundary + cross-platform-identical; negative/zero delta clamped; G9 block; no-client-embed A6 (view + comms) (SC-002)
 
 ## P3 — counterfactuals + scenario runs
 
