@@ -38,12 +38,12 @@ Additive under src/crm/criteria, src/crm/affordability, src/crm/agents, src/crm/
 
 ## P4 — scenario surface + G6 override + G5 handoff
 
-- [ ] T023 ScenarioBoard.tsx on the M2 surface: per-lender grid with INLINE why-not (rule+delta, keyboard-reachable) + cited text/as-at drawer; persistent indicative + adviser-only chrome band + pinned honesty line (FR-015)
-- [ ] T024 Affordability panel: indicative max/monthly + full-working drawer; det/syn per-cell dot (quote-locator on det) + board-level "N inputs synthetic" summary (no word "provenance" in UI) (FR-015)
-- [ ] T025 Side-by-side scenario comparison (≤4 visible) highlighting lender flips + max/monthly deltas; G9-blocked + stale-pack + no-sourcing states; "0 indicative passes" closest-miss-first (FR-015)
-- [ ] T026 G6 criteria override: confirm step (shows original verdict) + forced one-line rationale + plain "raises a compliance flag" copy; raises G6; folds criteria-override (original verdict + adviser id + rationale + flag); stale-rule override notes staleness (FR-013)
-- [ ] T027 Gated pack editor (minimal): pack authorship/edits gated + folded (who edited which rule, when); synthetic seed loads (FR-014)
-- [ ] T028 [P] Tests: board adviser-only (no client render path); inline why-not keyboard-reachable; det/syn dots dark-mode contrast; G6 override folds original verdict; pack-edit folds authorship (SC-006)
+- [x] T023 ScenarioBoard.tsx on the M2 surface: per-lender grid with INLINE why-not (rule+delta, keyboard-reachable) + cited text/as-at drawer; persistent indicative + adviser-only chrome band + pinned honesty line (FR-015)
+- [x] T024 Affordability panel: indicative max/monthly + full-working drawer; det/syn per-cell dot (quote-locator on det) + board-level "N inputs synthetic" summary (no word "provenance" in UI) (FR-015)
+- [x] T025 Side-by-side scenario comparison (≤4 visible) highlighting lender flips + max/monthly deltas; G9-blocked + stale-pack + no-sourcing states; "0 indicative passes" closest-miss-first (FR-015)
+- [x] T026 G6 criteria override: confirm step (shows original verdict) + forced one-line rationale + plain "raises a compliance flag" copy; raises G6; folds criteria-override (original verdict + adviser id + rationale + flag); stale-rule override notes staleness (FR-013)
+- [x] T027 Gated pack editor (minimal): pack authorship/edits gated + folded (who edited which rule, when); synthetic seed loads (FR-014)
+- [x] T028 [P] Tests: board adviser-only (no client render path); inline why-not keyboard-reachable; det/syn dots dark-mode contrast; G6 override folds original verdict; pack-edit folds authorship (SC-006)
 - [ ] T029 docs/dpia-mesh-m5.md (A6/criteria inputs, retention SYSC 9/MCOB 4.7A.19R, adviser-only boundary, Art 35) (FR-016)
 - [ ] T030 Eval corpus (synthetic known-answer): why-not completeness (every excluded lender has a reason) + indicative-label presence on every A6 output (FR-016, SC-001)
 - [ ] T031 demo-mesh-m5.mjs (eliminate-with-reasons → counterfactual → side-by-side on the synthetic pack, <5 min zero-setup) + full gate run + PR into lendmind-crm w/ per-FR checklist (SC-005/007)

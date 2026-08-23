@@ -17,7 +17,7 @@
 // surface and give a visible, active nav entry. It is the CRM's own nav, kept
 // out of the app's main Layout on purpose (the /crm route is a sibling).
 
-import { ChartColumn, FolderOpen, ListChecks } from 'lucide-react';
+import { ChartColumn, FolderOpen, ListChecks, Scale } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 
@@ -70,6 +70,19 @@ export function TacticalRail() {
       >
         <ChartColumn className="h-4 w-4" aria-hidden />
         {t('crm.results.title')}
+      </NavLink>
+      <NavLink
+        to="/crm/scenarios"
+        className={({ isActive }) =>
+          `flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${
+            isActive
+              ? 'bg-ds-bg-brand-subtle-default text-ds-text-brand-strong-default'
+              : 'text-ds-text-neutral-default-default hover:bg-ds-bg-neutral-muted-default'
+          }`
+        }
+      >
+        <Scale className="h-4 w-4" aria-hidden />
+        {t('crm.scenario.title')}
       </NavLink>
     </nav>
   );
