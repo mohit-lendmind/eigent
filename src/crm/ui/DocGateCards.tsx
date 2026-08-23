@@ -22,22 +22,63 @@
 
 import { useTranslation } from 'react-i18next';
 import {
-  describeIncomeBlocker,
+  type IncomeGateBlocker,
   type IncomeGateResult,
 } from '../agents/incomeGate';
 import type { MirroredGate } from '../fold/eventLogStore';
 
-function ReasonList({ reasons }: { reasons: readonly string[] }) {
+// Finding 10: translate a gate's STRUCTURED reason (code + params) at render
+// rather than showing the English string the write path baked into the event.
+// A gate carrying a known reasonCode renders the i18n'd line; anything without
+// a mapped code falls back to the event's own reasons (legacy / unknown codes).
+const GATE_REASON_KEY: Record<string, string> = {
+  G2_JOINT: 'crm.docgate.reason-g2-joint',
+  G2_LOW_CONFIDENCE: 'crm.docgate.reason-g2-low-confidence',
+  G3_VALUE_DELTA: 'crm.docgate.reason-g3-value-delta',
+  G3_TYPE_MISMATCH: 'crm.docgate.reason-g3-type-mismatch',
+};
+
+// A G9 blocker is structured data ({clientId, fieldKey, reason}); the line is
+// composed at render from the i18n catalogue, never baked in English upstream.
+function incomeBlockerLine(
+  t: (key: string, params?: Record<string, unknown>) => string,
+  b: IncomeGateBlocker
+): string {
+  const key =
+    b.reason === 'missing'
+      ? 'crm.docgate.g9-blocker-missing'
+      : 'crm.docgate.g9-blocker-syn-only';
+  return t(key, { clientId: b.clientId, fieldKey: b.fieldKey });
+}
+
+function GateReasons({ gate }: { gate: MirroredGate }) {
   const { t } = useTranslation();
-  if (reasons.length === 0) return null;
+  const key =
+    gate.reasonCode !== undefined
+      ? GATE_REASON_KEY[gate.reasonCode]
+      : undefined;
+
+  let lines: string[];
+  if (key !== undefined) {
+    const params = { ...(gate.reasonParams ?? {}) } as Record<string, unknown>;
+    // Present the delta as a percentage the card can show directly.
+    if (typeof params.deltaPct === 'number') {
+      params.deltaLabel = `${(params.deltaPct * 100).toFixed(1)}%`;
+    }
+    lines = [t(key, params)];
+  } else {
+    lines = [...gate.reasons];
+  }
+
+  if (lines.length === 0) return null;
   return (
     <div className="flex flex-col gap-1 rounded-md bg-ds-bg-neutral-muted-default p-2">
       <span className="text-xs font-medium text-ds-text-neutral-default-default">
         {t('crm.docgate.reasons')}
       </span>
       <ul className="list-disc pl-4 text-xs text-ds-text-neutral-default-default">
-        {reasons.map((reason, i) => (
-          <li key={i}>{reason}</li>
+        {lines.map((line, i) => (
+          <li key={i}>{line}</li>
         ))}
       </ul>
     </div>
@@ -65,7 +106,7 @@ export function AttributionGateCard({
       <span className="text-sm font-semibold text-ds-text-warning-strong-default">
         {t('crm.docgate.g2-title')}
       </span>
-      <ReasonList reasons={gate.reasons} />
+      <GateReasons gate={gate} />
       <div className="flex gap-2">
         {onConfirm !== undefined && (
           <button
@@ -136,7 +177,7 @@ export function ConflictGateCard({
           </div>
         </div>
       )}
-      <ReasonList reasons={gate.reasons} />
+      <GateReasons gate={gate} />
       <div className="flex gap-2">
         {onKeepExisting !== undefined && (
           <button
@@ -182,9 +223,7 @@ export function IncomeGateCard({ result }: IncomeGateCardProps) {
       </span>
       <ul className="list-disc pl-4 text-xs text-ds-text-neutral-default-default">
         {result.blocking.map((b) => (
-          <li key={`${b.clientId}:${b.fieldKey}`}>
-            {describeIncomeBlocker(b)}
-          </li>
+          <li key={`${b.clientId}:${b.fieldKey}`}>{incomeBlockerLine(t, b)}</li>
         ))}
       </ul>
     </section>

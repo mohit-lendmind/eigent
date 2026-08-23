@@ -22,26 +22,60 @@
 import { UploadCloud } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getCrmCasesStore } from '../casesStore';
 import { useCrmDocumentsStore } from '../documentsStore';
-import type { DocInsight } from '../domain/types';
+import type { FactFindSectionKey } from '../domain/factFindSchema';
+import type { CrmDocument, DocInsight } from '../domain/types';
 import { useCrmEventLogStore } from '../fold/eventLogStore';
 import { DocCard } from './DocCard';
-import { AttributionGateCard, ConflictGateCard } from './DocGateCards';
+import {
+  AttributionGateCard,
+  ConflictGateCard,
+  DocErrorCard,
+  IncomeGateCard,
+} from './DocGateCards';
+import { SourceQuoteViewer } from './SourceQuoteViewer';
+import {
+  confirmAttributionGate,
+  conflictForGate,
+  rejectAttributionGate,
+  resolveConflictGate,
+  selectCaseIncomeGate,
+  uploadVaultDocuments,
+} from './vaultSurface';
 
 export interface DocumentVaultProps {
-  /** Hand dropped/selected files to the ingest seam (desktop-wired). */
+  /**
+   * The case this vault acts on. When present the screen wires the live loop:
+   * uploads ride the ingest seam, G2/G3 gates resolve in place, and G9 is
+   * assessed off the case's income facts. Absent ⇒ the read-only preview the
+   * stories/tests render.
+   */
+  caseId?: string;
+  firmId?: string;
+  /** Adviser identity recorded on a gate resolution. */
+  adviserId?: string;
+  /** Override the ingest seam (stories/tests). Defaults to uploadVaultDocuments. */
   onFiles?: (files: File[]) => void;
   /** Open the source document at a det fact's located quote span (US1.4). */
   onOpenSource?: (insight: DocInsight) => void;
 }
 
-export function DocumentVault({ onFiles, onOpenSource }: DocumentVaultProps) {
+export function DocumentVault({
+  caseId,
+  firmId = 'lendmind',
+  adviserId = 'adviser:me',
+  onFiles,
+  onOpenSource,
+}: DocumentVaultProps) {
   const { t } = useTranslation();
   const documentsById = useCrmDocumentsStore((s) => s.documentsById);
   const openGates = useCrmEventLogStore((s) => s.openGates);
 
   const [dragActive, setDragActive] = useState(false);
   const [announce, setAnnounce] = useState('');
+  const [uploadError, setUploadError] = useState('');
+  const [sourceInsight, setSourceInsight] = useState<DocInsight | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const documents = Object.values(documentsById).sort(
@@ -50,14 +84,58 @@ export function DocumentVault({ onFiles, onOpenSource }: DocumentVaultProps) {
   const gates = Object.values(openGates).filter(
     (g) => g.status === 'open' && (g.gateId === 'G2' || g.gateId === 'G3')
   );
+  const incomeGate = caseId ? selectCaseIncomeGate(caseId) : undefined;
 
   const acceptFiles = useCallback(
     (files: File[]) => {
       if (files.length === 0) return;
-      onFiles?.(files);
+      // Only ingest — and only announce — when there is somewhere for the files
+      // to go. A read-only preview (no onFiles, no caseId) does nothing, so a
+      // "uploading N document(s)" announcement there would be a false claim.
+      if (onFiles) {
+        onFiles(files);
+      } else if (caseId) {
+        setUploadError('');
+        void uploadVaultDocuments(caseId, firmId, files, {
+          kind: 'adviser',
+          id: adviserId,
+        }).then((r) => {
+          if (!r.ok) setUploadError(r.error);
+        });
+      } else {
+        return;
+      }
       setAnnounce(t('crm.vault.uploading', { count: files.length }));
     },
-    [onFiles, t]
+    [onFiles, caseId, firmId, adviserId, t]
+  );
+
+  // US1.4 deep-link: unless the caller overrides it (stories/tests), a det fact's
+  // "view source" opens the in-vault source-quote viewer at the highlighted span.
+  const openSource =
+    onOpenSource ?? ((insight: DocInsight) => setSourceInsight(insight));
+
+  // US2 syn-confirm (FR-011): confirming a `syn` insight promotes exactly the
+  // fact-find field it maps to (the document owner + the insight's section/field)
+  // from syn → det, so G9 can clear once a human has checked it. A joint document
+  // or an unmapped insight is not confirmable in place.
+  const confirmInsight = useCallback(
+    (document: CrmDocument, insight: DocInsight) => {
+      if (!caseId || document.owner === 'joint') return;
+      if (insight.section === undefined || insight.fieldKey === undefined) {
+        return;
+      }
+      getCrmCasesStore()
+        .getState()
+        .confirmSynthesizedField(
+          caseId,
+          document.owner,
+          insight.section as FactFindSectionKey,
+          insight.fieldKey,
+          { confirmedBy: adviserId }
+        );
+    },
+    [caseId, adviserId]
   );
 
   const onDrop = useCallback(
@@ -121,15 +199,64 @@ export function DocumentVault({ onFiles, onOpenSource }: DocumentVaultProps) {
         {announce}
       </div>
 
+      {uploadError !== '' && <DocErrorCard message={uploadError} />}
+
+      {incomeGate !== undefined && <IncomeGateCard result={incomeGate} />}
+
       {gates.length > 0 && (
         <div className="flex flex-col gap-2">
-          {gates.map((gate) =>
-            gate.gateId === 'G2' ? (
-              <AttributionGateCard key={gate.id} gate={gate} />
-            ) : (
-              <ConflictGateCard key={gate.id} gate={gate} />
-            )
-          )}
+          {gates.map((gate) => {
+            if (gate.gateId === 'G2') {
+              const docId = gate.id.startsWith('G2_')
+                ? gate.id.slice(3)
+                : gate.id;
+              return (
+                <AttributionGateCard
+                  key={gate.id}
+                  gate={gate}
+                  onConfirm={() =>
+                    confirmAttributionGate(gate, docId, adviserId)
+                  }
+                  onReject={() => rejectAttributionGate(gate)}
+                />
+              );
+            }
+            const view = conflictForGate(gate);
+            return (
+              <ConflictGateCard
+                key={gate.id}
+                gate={gate}
+                existingLabel={view?.existingLabel}
+                incomingLabel={view?.incomingLabel}
+                onKeepExisting={
+                  view
+                    ? () =>
+                        resolveConflictGate(
+                          gate,
+                          {
+                            conflictId: view.conflictId,
+                            chosenValue: view.existing,
+                          },
+                          adviserId
+                        )
+                    : undefined
+                }
+                onUseIncoming={
+                  view
+                    ? () =>
+                        resolveConflictGate(
+                          gate,
+                          {
+                            conflictId: view.conflictId,
+                            chosenValue: view.incoming,
+                          },
+                          adviserId
+                        )
+                    : undefined
+                }
+              />
+            );
+          })}
         </div>
       )}
 
@@ -140,9 +267,23 @@ export function DocumentVault({ onFiles, onOpenSource }: DocumentVaultProps) {
       ) : (
         <div className="flex flex-col gap-3">
           {documents.map((doc) => (
-            <DocCard key={doc.id} document={doc} onOpenSource={onOpenSource} />
+            <DocCard
+              key={doc.id}
+              document={doc}
+              onOpenSource={openSource}
+              onConfirmInsight={
+                caseId ? (insight) => confirmInsight(doc, insight) : undefined
+              }
+            />
           ))}
         </div>
+      )}
+
+      {sourceInsight !== null && (
+        <SourceQuoteViewer
+          insight={sourceInsight}
+          onClose={() => setSourceInsight(null)}
+        />
       )}
     </div>
   );

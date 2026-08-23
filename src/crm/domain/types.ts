@@ -212,6 +212,12 @@ export interface DocInsight {
   // convenience default is never relied on for a docintel-authored field, so an
   // unverified/vision-only extraction can never silently enter as `det`.
   src?: Src;
+  // FR-011: the fact-find field this insight maps to, carried onto the folded
+  // insight so the vault can act on it in place — confirming a `syn` insight
+  // promotes exactly this (clientId := the document owner, section, fieldKey).
+  // Absent for an unmapped/incidental insight, which is not confirmable.
+  section?: string;
+  fieldKey?: string;
   origin?: Origin;
 }
 

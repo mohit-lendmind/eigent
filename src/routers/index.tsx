@@ -131,7 +131,13 @@ const AppRoutes = () => (
           screen), still behind the auth guard. */}
       <Route path="/crm" element={<CrmLayout />}>
         <Route index element={<TodayQueue />} />
-        <Route path="vault" element={<DocumentVault />} />
+        {/* The vault is bound to the seeded preview case so the loop is live:
+            uploads ride the ingest seam, G2/G3 resolve in place, G9 reads the
+            case's income facts. A case-picker is a later addition (T012). */}
+        <Route
+          path="vault"
+          element={<DocumentVault caseId="c417" firmId="lendmind" />}
+        />
       </Route>
     </Route>
     <Route path="*" element={<NotFound />} />
