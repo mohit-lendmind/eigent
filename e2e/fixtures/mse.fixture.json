@@ -1,0 +1,13 @@
+{
+  "_provenance": "SCRUBBED, ILLUSTRATIVE capture — NOT a verbatim live MSE recording. It mirrors the shape of the MSE mortgage-best-buys JSON response so the CI replay can verify mseExtract() deterministically. A real nightly canary run (e2e/connector-mse.eval.ts) against live MSE produces the genuine recorded session; until one does, no snapshot built from this fixture may be marked verified (no canaryPassedAt is present). Do not add a canaryPassedAt or claim this as real evidence.",
+  "adapterId": "mse",
+  "ratesAsAt": "2026-08-22",
+  "capturedAt": "2026-08-22T09:00:00.000Z",
+  "results": [
+    {
+      "tool_name": "browser.captureJson",
+      "arguments_json": "{\"urlIncludes\":\"/api/mortgage-best-buys\"}",
+      "result_json": "{\"deals\":[{\"lenderId\":\"lender-001\",\"lenderName\":\"Lender One\",\"productName\":\"2 Year Fixed\",\"initialRatePct\":4.19,\"aprcPct\":6.8,\"productFeePence\":99900,\"monthlyPaymentPence\":107800,\"trueCostPence\":2687100,\"revertRatePct\":7.99},{\"lenderId\":\"lender-002\",\"lenderName\":\"Lender Two\",\"productName\":\"5 Year Fixed\",\"initialRatePct\":4.04,\"aprcPct\":5.9,\"productFeePence\":149900,\"monthlyPaymentPence\":106200,\"trueCostPence\":6521900,\"revertRatePct\":7.74,\"ercPence\":400000},{\"lenderId\":\"lender-003\",\"lenderName\":\"Lender Three\",\"productName\":\"2 Year Tracker\",\"initialRatePct\":4.55,\"aprcPct\":6.4,\"productFeePence\":0,\"monthlyPaymentPence\":111500,\"trueCostPence\":2760000,\"revertRatePct\":7.49},{\"lenderId\":\"lender-004\",\"lenderName\":\"Lender Four\",\"productName\":\"2 Year Fixed (95% LTV)\",\"initialRatePct\":5.29,\"aprcPct\":7.1,\"productFeePence\":49900,\"monthlyPaymentPence\":120400,\"trueCostPence\":0,\"eligible\":false,\"declineReason\":\"LTV above product maximum\"}]}"
+    }
+  ]
+}

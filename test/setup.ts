@@ -91,9 +91,28 @@ beforeEach(() => {
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => {
+    t: (key: string, opts?: Record<string, unknown>) => {
       // Map translation keys to English text
       const translations: Record<string, string> = {
+        // Structured docintel gate reasons/blockers carry {{params}} that the
+        // card interpolates at render (finding 10). Only these templated keys
+        // are resolved; every other key still falls through to the raw key so
+        // existing raw-key assertions are unaffected.
+        'crm.docgate.g9-blocker-missing':
+          '{{clientId}} · {{fieldKey}}: has no income on file.',
+        'crm.docgate.g9-blocker-syn-only':
+          '{{clientId}} · {{fieldKey}}: has only unverified income — a verified document is required.',
+        'crm.docgate.reason-g2-joint':
+          'Document appears to belong to more than one applicant.',
+        'crm.docgate.reason-g2-low-confidence':
+          'Attribution confidence {{confidencePct}}% is below {{thresholdPct}}%.',
+        'crm.docgate.reason-g3-value-delta':
+          'Two verified values for {{field}} disagree by {{deltaLabel}}.',
+        'crm.docgate.reason-g3-type-mismatch':
+          'A verified value for {{field}} would be overwritten by a value of a different type.',
+        // The source-quote viewer's page/line locator context (finding 10).
+        'crm.vault.source-page': 'Page {{page}}',
+        'crm.vault.source-line': 'Line {{line}}',
         'chat.welcome-to-eigent': 'Welcome to Eternyl',
         'chat.how-can-i-help-you': 'How can I help you today?',
         'chat.it-ticket-creation': 'IT Ticket Creation',
@@ -113,7 +132,11 @@ vi.mock('react-i18next', () => ({
         'chat.no-reply-received-task-continue':
           'No reply received, task will continue',
       };
-      return translations[key] || key;
+      const resolved = translations[key] || key;
+      if (opts === undefined) return resolved;
+      return resolved.replace(/\{\{(\w+)\}\}/g, (_m, name: string) =>
+        opts[name] === undefined ? `{{${name}}}` : String(opts[name])
+      );
     },
     i18n: {
       language: 'en',

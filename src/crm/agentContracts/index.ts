@@ -55,7 +55,6 @@ export {
   decodeAffordabilityModel,
   decodeCommsDraft,
   decodeCriteriaVerdicts,
-  decodeDocintelExtraction,
   decodeFailureArtifact,
   decodeOnboardingRequest,
   decodeSourcingSnapshot,
@@ -66,6 +65,20 @@ export {
   type KindClassification,
   type KnownArtifactFamily,
 } from './artifactKinds';
+
+export {
+  SOURCING_SERIALIZED_PER_DESKTOP,
+  SOURCING_SURFACE_CLASS,
+  decodeSourcingProductsAttachment,
+  decodeSourcingSnapshotPayload,
+  type Coverage,
+  type CoverageKind,
+  type Product,
+  type QueryStep,
+  type SourcingSnapshotPayload,
+  type SourcingSurfaceClass,
+  type VerificationRef,
+} from './sourcingSnapshot';
 
 export {
   GATE_REGISTRY,

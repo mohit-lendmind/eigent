@@ -50,6 +50,7 @@ import {
 import { getCrmClientsStore } from '../clientsStore';
 import { getCrmDocumentsStore } from '../documentsStore';
 import { requiredKeysForSection } from '../domain/factFindSchema';
+import { defaultFieldSrc } from '../domain/fieldSrc';
 import type {
   ActivityEvent,
   Applicant,
@@ -449,7 +450,7 @@ function applyDomainWrites(
       case 'field-change': {
         const c = workingCases[e.caseId];
         if (c) {
-          workingCases[e.caseId] = applyFieldChange(c, p, e.at);
+          workingCases[e.caseId] = applyFieldChange(c, p, e.at, e.actor?.kind);
           touchedCases.add(e.caseId);
         }
         break;
@@ -559,11 +560,12 @@ interface FieldChangePayload {
 function applyFieldChange(
   c: Case,
   payloadRaw: Record<string, unknown>,
-  at: number
+  at: number,
+  actorKind?: string
 ): Case {
   const p = payloadRaw as unknown as FieldChangePayload;
   const applicants = c.applicants.map((a) =>
-    a.clientId === p.clientId ? applyFieldToApplicant(a, p) : a
+    a.clientId === p.clientId ? applyFieldToApplicant(a, p, actorKind) : a
   );
   return {
     ...c,
@@ -575,7 +577,11 @@ function applyFieldChange(
 
 // Mirrors casesStore's private applyFieldUpdate, but pure and clock-free so a
 // refold reproduces the field byte-for-byte.
-function applyFieldToApplicant(a: Applicant, p: FieldChangePayload): Applicant {
+function applyFieldToApplicant(
+  a: Applicant,
+  p: FieldChangePayload,
+  actorKind?: string
+): Applicant {
   const section = p.section as FactFindSectionKey;
   const currentSection = a.profile[section];
   const nextFields: FactFindField[] = currentSection
@@ -587,7 +593,7 @@ function applyFieldToApplicant(a: Applicant, p: FieldChangePayload): Applicant {
     k: p.fieldKey,
     label: p.label ?? prev?.label ?? p.fieldKey,
     value: p.value,
-    src: p.src ?? 'det',
+    src: p.src ?? defaultFieldSrc(actorKind),
     hint: prev?.hint,
     flag: prev?.flag,
     conflictId: prev?.conflictId,

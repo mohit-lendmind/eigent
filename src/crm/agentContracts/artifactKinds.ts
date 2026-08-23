@@ -167,16 +167,11 @@ export type WatcherDecisionArtifact = AgentArtifact<'lm.watcher.decision/1'>;
 export const decodeWatcherDecision = (v: unknown): WatcherDecisionArtifact =>
   decodeAgentArtifact(v, 'lm.watcher.decision/1', 'WatcherDecisionArtifact');
 
-export type DocintelExtractionArtifact =
-  AgentArtifact<'lm.docintel.extraction/1'>;
-export const decodeDocintelExtraction = (
-  v: unknown
-): DocintelExtractionArtifact =>
-  decodeAgentArtifact(
-    v,
-    'lm.docintel.extraction/1',
-    'DocintelExtractionArtifact'
-  );
+// lm.docintel.extraction/1 has NO loose envelope decoder (finding 12): unlike
+// the other A-agents it carries a trust spine (det/syn) that MUST be validated,
+// so its single canonical decoder is the strict decodeDocintelExtraction in
+// src/crm/agents/docintelContract.ts. A loose sibling here would be a footgun —
+// a caller could decode a side-car without ever checking `src`.
 
 export type SourcingSnapshotArtifact = AgentArtifact<'lm.sourcing.snapshot/1'>;
 export const decodeSourcingSnapshot = (v: unknown): SourcingSnapshotArtifact =>

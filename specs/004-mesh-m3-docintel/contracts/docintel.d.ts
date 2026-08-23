@@ -28,6 +28,12 @@ export interface DocInsight {
   section?: string;
   src: 'det' | 'syn'; // det ONLY if quote deterministically matched independent text; default flips to 'syn'
 }
+// One identifier read off a document, with the born-digital quote that proves it
+// (FR-006). The desktop RECOMPUTES attribution from these against the case roster.
+export interface DocIdentifierClaim {
+  value: string;
+  quote?: string;
+}
 export interface DocintelExtraction {
   // lm.docintel.extraction/1 — SIDE-CAR, never a fold event kind
   kind: 'lm.docintel.extraction/1';
@@ -36,6 +42,12 @@ export interface DocintelExtraction {
   docType: string;
   docTypeInScope: boolean;
   attribution: { clientId: string | null; confidence: number; joint: boolean };
+  // Identifiers the desktop recomputes attribution FROM (FR-006); optional/additive.
+  identifiers?: {
+    fullName?: DocIdentifierClaim;
+    niNumber?: DocIdentifierClaim;
+    postcode?: DocIdentifierClaim;
+  };
   insights: DocInsight[];
   specialCategoryFlagged: boolean; // Art 9 detected → flag, not silent-extract
   versions: {
