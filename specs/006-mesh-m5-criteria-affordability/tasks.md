@@ -29,12 +29,12 @@ Additive under src/crm/criteria, src/crm/affordability, src/crm/agents, src/crm/
 
 ## P3 — counterfactuals + scenario runs
 
-- [ ] T017 Pure applyDelta (deposit/LTV, term, income mix, rate, product; base not mutated) + diffScenarios (lender flips + max/monthly deltas) (FR-009)
-- [ ] T018 scenarioDerivedId = pure fn of (packRef, caseFactsHash, deltaHash); packRef content-hash pin; assessment records exact pack version (FR-011)
-- [ ] T019 4 additive fold entry kinds (criteria-assessment, affordability-assessment, scenario-run, criteria-override) with origin.artifactId in caseLogFold.ts (FR-012)
-- [ ] T020 scenario.ts agent: dispatched via lm.directive/1 on G9-verified case; runs base + N counterfactuals (cap ≤ scenarioCap, enforced before write); writes lm.scenario.run/1 folded summary + full-working attachment (never inline); stamps adviser id (FR-010)
-- [ ] T021 decodeScenarioRunPayload (require summary/attachment/surfaceClass; cap respected) (FR-010)
-- [ ] T022 [P] Tests: counterfactual diff correctness; idempotent id (same inputs → same id + outputs); cap enforced; m5Converge.test.ts (kill-the-laptop with 4 new entry kinds, hash-chain intact) (SC-004/005)
+- [x] T017 Pure applyDelta (deposit/LTV, term, income mix, rate, product; base not mutated) + diffScenarios (lender flips + max/monthly deltas) (FR-009)
+- [x] T018 scenarioDerivedId = pure fn of (packRef, caseFactsHash, deltaHash); packRef content-hash pin; assessment records exact pack version (FR-011)
+- [x] T019 4 additive fold entry kinds (criteria-assessment, affordability-assessment, scenario-run, criteria-override) with origin.artifactId in caseLogFold.ts (FR-012)
+- [x] T020 scenario.ts agent: dispatched via lm.directive/1 on G9-verified case; runs base + N counterfactuals (cap ≤ scenarioCap, enforced before write); writes lm.scenario.run/1 folded summary + full-working attachment (never inline); stamps adviser id (FR-010)
+- [x] T021 decodeScenarioRunPayload (require summary/attachment/surfaceClass; cap respected) (FR-010)
+- [x] T022 [P] Tests: counterfactual diff correctness; idempotent id (same inputs → same id + outputs); cap enforced; m5Converge.test.ts (kill-the-laptop with 4 new entry kinds, hash-chain intact) (SC-004/005)
 
 ## P4 — scenario surface + G6 override + G5 handoff
 

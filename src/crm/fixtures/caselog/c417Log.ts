@@ -533,6 +533,29 @@ const drafts: CaseLogEntryDraft[] = [
     { id: 'G1_c417', decision: 'allow', edited: false },
     adviser
   ),
+  // M5 (FR-012): the four additive entry kinds. Each carries a SMALL folded
+  // summary under a namespaced key and points at its working via origin; the
+  // criteria-override is adviser-authored (G6) and the rest are agent runs.
+  draft(44, 'criteria-assessment', {
+    criteriaSummary: { passCount: 3, referCount: 2, failCount: 1 },
+  }),
+  draft(45, 'affordability-assessment', {
+    affordabilitySummary: { indicative: true, maxBorrowPence: 27_000_000 },
+  }),
+  draft(46, 'scenario-run', {
+    scenarioSummary: { scenarioCount: 3, topMaxBorrowPence: 27_000_000 },
+  }),
+  draft(
+    47,
+    'criteria-override',
+    {
+      overrideSummary: {
+        ruleKey: 'ltv.max',
+        rationale: 'Adviser override — raises a compliance flag.',
+      },
+    },
+    adviser
+  ),
 ];
 
 let cached: Promise<CaseLogEntry[]> | null = null;
