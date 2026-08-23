@@ -1,0 +1,29 @@
+{
+  "slug": "mesh-m5-criteria-affordability",
+  "recon": {
+    "skipped": true,
+    "reason": "internal financial logic (lender-criteria matching + affordability calc), not a competitor-UI clone — no screencast to clone"
+  },
+  "architecture": ".lm-flow/architecture/mesh-m5-criteria-affordability.md",
+  "personas": ".lm-flow/personas/mesh-m5-criteria-affordability/",
+  "spec": "specs/006-mesh-m5-criteria-affordability/spec.md",
+  "plan": "specs/006-mesh-m5-criteria-affordability/plan.md",
+  "tasks_md": "specs/006-mesh-m5-criteria-affordability/tasks.md",
+  "task_graph": ".lm-flow/tasks/mesh-m5-criteria-affordability.json",
+  "contracts_freeze": "specs/006-mesh-m5-criteria-affordability/contracts/",
+  "github": {
+    "milestone": 6,
+    "issues": null,
+    "deviation": "issues DISABLED; tasks.md-as-queue (same as M1-M4)"
+  },
+  "pipeline_deviation": "headless claude -p org-auth-blocked + spec-kit slash commands not registered in repo; architecture/spec/plan/tasks authored directly against .specify templates from the multi-persona brief (6 real persona subagents spawned via Agent tool), as M1-M4 were",
+  "base_branch": "lendmind-crm",
+  "feature_branch": "feature/mesh-m5-criteria-affordability",
+  "depends_on": "M3+M4 merged (M3: det-verified income/affordability + G9; M4: sourcing snapshots + assertClaimable)",
+  "decisions": ["criteria-pack-adviser-curated", "indicative-honesty-spine"],
+  "deferred_founder_input": "each design-partner firm supplies its 10-15 lender panel + curated criteria text (day-1 pack-authoring session); a licensed criteria DB is out of scope",
+  "build_constraint": "synthetic data only; pure/deterministic integer-pence engines; additive-only to frozen M1-M4 contracts; no new deps",
+  "status": "PLANNED — launch-ready pending M3+M4 merge; 31 tasks across 4 phases; task graph passes cycle check",
+  "planned_at": "2026-08-23",
+  "tasks": { "total": 31, "phases": 4 }
+}
