@@ -2,9 +2,11 @@
 description: "Tasks — mesh-m4-connectors (M4)"
 ---
 # Tasks: mesh-m4-connectors
+
 Additive under src/crm/connectors, src/crm/agents, src/crm/ui, resources/lm-skills/lm-sourcing, test/unit/crm, e2e; named mods: src/crm/agentContracts (additive sourcing payload types), the M2 thin surface for the results tab, FirmConfig.adapters (verified). aion client + M1/M2 contracts frozen. Branch feature/mesh-m4-connectors from lendmind-crm; PR to lendmind-crm. MSE verified for real; licensed=verified:false scaffold.
 
 ## P1 — framework + harness + guardrails
+
 - [x] T001 Baseline gates green (record)
 - [x] T002 SourcingAdapter interface + registry (carries derived `verified`) per contracts (FR-001)
 - [x] T003 Record/replay harness: capture tool_result SSE {tool,args,result}; pure extract() in vitest (FR-003)
@@ -17,16 +19,19 @@ Additive under src/crm/connectors, src/crm/agents, src/crm/ui, resources/lm-skil
 - [x] T010 [P] Tests: payload decoder rejects missing fields; assertClaimable blocks unverified/evidence-less; coverage lint gate; no-client-embed
 
 ## P2 — MSE adapter (verified)
+
 - [x] T011 adapters/mse.ts: isolated, console-fetch JSON, buildQuery plan + pure extract; coverage "MSE Best Buys (Podium) — not whole of market" (FR-002)
 - [x] T012 e2e/connector-mse.eval.ts live canary (nightly) + recorded replay fixture (scrubbed) verifying extract in CI (FR-003)
 - [x] T013 [P] Tests: MSE replay green; verified derived true only with a passing canary+evidence
 
 ## P3 — Mortgage Brain scaffold (verified:false)
+
 - [x] T014 adapters/mortgageBrain.ts: logged-in DOM-scrape plan against fixture DOM; verified:false; coverage=firm-panel (FR-002/009)
 - [x] T015 Authored (red) replay eval + documented "add a real recorded session → green" path; per-portal ToS record placeholder (FR-003/010)
 - [x] T016 [P] Tests: scaffold runs on fixture; verified:false; assertClaimable blocks it from evidence + client surfaces
 
 ## P4 — results surface + G5 + evidence
+
 - [x] T017 sourcing.ts (A4): dispatched on income-det; runs the adapter plan; writes snapshot (FR-001/004)
 - [x] T018 SourcingResults.tsx: adviser-only ranked cards + collapsed why-not + pinned coverage line (info tone) on the M2 surface (FR-011)
 - [x] T019 Run ribbon (narrating) + always-hot non-modal take-control + "Running as you"; verified:false watermark + disabled export (FR-011)
@@ -37,6 +42,9 @@ Additive under src/crm/connectors, src/crm/agents, src/crm/ui, resources/lm-skil
 - [x] T024 demo-mesh-m4.mjs (MSE source → snapshot → shortlist → G5) + full gate run + PR into lendmind-crm w/ per-FR checklist (SC-005)
 
 ## Deps
+
 P1 blocks all (assertClaimable+decoder+surfaceClass are foundational). P2 after T002/T003/T004/T006. P3 after T002/T003. P4 after P2 (needs a verified adapter for the happy path). writeBack/DIP excluded (G8).
+
 ## MVP
+
 P1+P2 (MSE verified, snapshot folds, assertClaimable enforced) = the live computer-use demo; scaffold + full surface follow.

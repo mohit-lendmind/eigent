@@ -44,7 +44,7 @@ this order — there is no shortcut and no hand-set flag:
    login and within its ToS. Scrub it (see the scrubbing owner above).
 2. **Run the live canary** against that recording:
    `EIGENT_MORTGAGE_BRAIN_CAPTURE=/path/to/scrubbed-capture.json \`
-   `  npx playwright test --config e2e/eval.config.ts connector-mortgage-brain`
+   `npx playwright test --config e2e/eval.config.ts connector-mortgage-brain`
    The skipped test runs and the **same pure `mortgageBrainExtract`** parses the
    real grid. Only a passing live run emits a `canaryPassedAt`.
 3. **Let the nightly writer** stamp that `canaryPassedAt` onto a
