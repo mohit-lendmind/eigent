@@ -155,6 +155,8 @@ describe('contract freeze', () => {
     expect(typeof rtGates.gateById).toBe('function');
     expect(typeof rtFirm.decodeFirmConfig).toBe('function');
     expect(rtGates.GATE_REGISTRY.length).toBe(11);
-    expect(Object.keys(rtArtifact.KNOWN_MAJORS).length).toBe(11);
+    // 11 M1-M4 families + 4 additive M5 families (criteria.pack / criteria.
+    // assessment / affordability.assessment / scenario.run).
+    expect(Object.keys(rtArtifact.KNOWN_MAJORS).length).toBe(15);
   });
 });

@@ -7,17 +7,17 @@ Additive under src/crm/criteria, src/crm/affordability, src/crm/agents, src/crm/
 
 ## P1 — criteria pack + rule engine + provenance spine
 
-- [ ] T001 Baseline gates green (record) — vitest baseline, lint, license, i18n ×11 (SC-005)
-- [ ] T002 M5 contracts frozen under specs/006/contracts/*.d.ts (RuleKey/RuleOp enums, packRef pin, assertIndicative 5 reasons) + m5ContractFreeze.test.ts (FR-001, SC-005)
-- [ ] T003 CriteriaPack model + decodeCriteriaPack (rejects unknown key/op, missing citedText/asAt) + FirmConfig additive criteriaPack/criteriaTtlDays/scenarioCap (FR-001)
-- [ ] T004 [P] Synthetic 12-lender fixture pack (hand-tuned: ≥1 each pass/refer/fail incl. a syn-input-forced refer) (FR-016)
-- [ ] T005 Pure assessCriteria: one result per FirmConfig.lenderPanel member; fail/refer carries ≥1 reason {ruleKey,citedText,inputValue,inputProvenance,delta}; syn/missing→refer(named); no-rules lender→refer/"not assessed" (FR-002/003)
-- [ ] T006 Stale-rule degradation: rule asAt past criteriaTtlDays → verdict refer + reason.stale=true (FR-004)
-- [ ] T007 decodeCriteriaAssessment invariant: exactly one result per panel member; fail/refer ⇒ ≥1 reason (FR-002)
-- [ ] T008 assertIndicative choke-point (client-surface|not-indicative|g9-unverified|wrong-surface|stale-product) in the writer/fold; surfaceClass:'adviser-only' tag (FR-007/008)
-- [ ] T009 no-client-embed CI test: no client-facing component decodes/embeds a criteria assessment (view + comms paths) (FR-008)
-- [ ] T010 Copy/lint gate scripts/check-indicative-copy.mjs: reject "eligible"/"guaranteed"/"whole of market" in M5 surfaces (FR-015)
-- [ ] T011 [P] Tests: assessCriteria golden vectors (each verdict + syn refer + stale refer + no-rules refer); decoder rejects malformed; assertIndicative per-branch; copy gate (SC-001/003)
+- [x] T001 Baseline gates green (record) — vitest baseline, lint, license, i18n ×11 (SC-005)
+- [x] T002 M5 contracts frozen under specs/006/contracts/*.d.ts (RuleKey/RuleOp enums, packRef pin, assertIndicative 5 reasons) + m5ContractFreeze.test.ts (FR-001, SC-005)
+- [x] T003 CriteriaPack model + decodeCriteriaPack (rejects unknown key/op, missing citedText/asAt) + FirmConfig additive criteriaPack/criteriaTtlDays/scenarioCap (FR-001)
+- [x] T004 [P] Synthetic 12-lender fixture pack (hand-tuned: ≥1 each pass/refer/fail incl. a syn-input-forced refer) (FR-016)
+- [x] T005 Pure assessCriteria: one result per FirmConfig.lenderPanel member; fail/refer carries ≥1 reason {ruleKey,citedText,inputValue,inputProvenance,delta}; syn/missing→refer(named); no-rules lender→refer/"not assessed" (FR-002/003)
+- [x] T006 Stale-rule degradation: rule asAt past criteriaTtlDays → verdict refer + reason.stale=true (FR-004)
+- [x] T007 decodeCriteriaAssessment invariant: exactly one result per panel member; fail/refer ⇒ ≥1 reason (FR-002)
+- [x] T008 assertIndicative choke-point (client-surface|not-indicative|g9-unverified|wrong-surface|stale-product) in the writer/fold; surfaceClass:'adviser-only' tag (FR-007/008)
+- [x] T009 no-client-embed CI test: no client-facing component decodes/embeds a criteria assessment (view + comms paths) (FR-008)
+- [x] T010 Copy/lint gate scripts/check-indicative-copy.mjs: reject "eligible"/"guaranteed"/"whole of market" in M5 surfaces (FR-015)
+- [x] T011 [P] Tests: assessCriteria golden vectors (each verdict + syn refer + stale refer + no-rules refer); decoder rejects malformed; assertIndicative per-branch; copy gate (SC-001/003)
 
 ## P2 — affordability & stress calculator (A6) — MVP seam ends here
 
