@@ -21,7 +21,7 @@ import type {
   DocintelExtraction,
   DocInsight as ExtractionInsight,
 } from '@/crm/agents/docintelContract';
-import { detectConflict } from '@/crm/agents/docintelContract';
+import { derivedId, detectConflict } from '@/crm/agents/docintelContract';
 import {
   applyExtraction,
   type ApplyExtractionContext,
@@ -33,6 +33,8 @@ import {
   type IncomeFactState,
 } from '@/crm/agents/incomeGate';
 import { toPence } from '@/crm/domain/money';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const VERSIONS = {
@@ -88,10 +90,77 @@ describe('detectConflict — deterministic Pence recompute at 1% materiality', (
     expect(conflict).toBe(false);
   });
 
-  it('is symmetric and pure (order of the two values does not matter)', () => {
-    const a = detectConflict(3_850_000, 3_730_000).deltaPct;
-    // Same magnitude of disagreement relative to the existing value.
-    expect(detectConflict(3_850_000, 3_730_000).deltaPct).toBe(a);
+  it('the conflict VERDICT is order-independent (both directions raise G3)', () => {
+    // The boolean verdict must not depend on which side is "existing": a
+    // material disagreement is material whichever way round it is presented.
+    expect(detectConflict(3_850_000, 3_730_000).conflict).toBe(true);
+    expect(detectConflict(3_730_000, 3_850_000).conflict).toBe(true);
+  });
+
+  it('deltaPct is relative to the EXISTING value, so it is NOT symmetric', () => {
+    // deltaPct = |incoming - existing| / |existing|. The same £1,200 gap is a
+    // larger fraction of the smaller baseline, so order genuinely changes the
+    // ratio. Pinning this stops anyone "simplifying" it into a false symmetry.
+    const forward = detectConflict(3_850_000, 3_730_000).deltaPct; // /3.85m
+    const reverse = detectConflict(3_730_000, 3_850_000).deltaPct; // /3.73m
+    expect(forward).toBeCloseTo(0.03117, 4);
+    expect(reverse).toBeCloseTo(0.03217, 4);
+    expect(forward).not.toBe(reverse);
+  });
+
+  it('is pure — the same inputs always yield the same output', () => {
+    const a = detectConflict(3_850_000, 3_730_000);
+    const b = detectConflict(3_850_000, 3_730_000);
+    expect(a).toEqual(b);
+  });
+});
+
+describe('derivedId — printable-source, stable-output ids (finding 7)', () => {
+  // The id inputs are joined with a NUL separator so no concatenation of
+  // (documentId, contentHash, fieldKey) can collide with another. That
+  // separator is written as a \x00 ESCAPE in source — never a raw NUL byte —
+  // so the file stays a readable, greppable, diffable text file. These goldens
+  // pin the runtime output so the de-binarisation cannot silently change ids.
+  it('mints stable, kind-prefixed goldens', () => {
+    expect(derivedId('conflict', 'doc_d7', 'hash_d7', 'basicIncome')).toBe(
+      derivedId('conflict', 'doc_d7', 'hash_d7', 'basicIncome')
+    );
+    // A re-process is a no-op upsert: identical inputs ⇒ identical id.
+    const once = derivedId('field', 'doc_d7', 'hash_d7', 'basicIncome');
+    const twice = derivedId('field', 'doc_d7', 'hash_d7', 'basicIncome');
+    expect(once).toBe(twice);
+    expect(once.startsWith('field_')).toBe(true);
+  });
+
+  it('the NUL separator prevents input-boundary collisions', () => {
+    // Without a separator, ('ab','c',...) and ('a','bc',...) would concatenate
+    // identically. The separator keeps them distinct.
+    const a = derivedId('field', 'ab', 'c', 'x');
+    const b = derivedId('field', 'a', 'bc', 'x');
+    expect(a).not.toBe(b);
+  });
+
+  it('kind prefixes never collide for the same field', () => {
+    const conflict = derivedId('conflict', 'doc_d7', 'hash_d7', 'basicIncome');
+    const wl = derivedId('wl', 'doc_d7', 'hash_d7', 'basicIncome');
+    const field = derivedId('field', 'doc_d7', 'hash_d7', 'basicIncome');
+    const checklist = derivedId(
+      'checklist',
+      'doc_d7',
+      'hash_d7',
+      'basicIncome'
+    );
+    expect(new Set([conflict, wl, field, checklist]).size).toBe(4);
+  });
+
+  it('the contract source carries no raw NUL byte (stays a text file)', () => {
+    const src = readFileSync(
+      resolve(process.cwd(), 'src/crm/agents/docintelContract.ts'),
+      'utf8'
+    );
+    expect(src.includes('\x00')).toBe(false);
+    // ...and the escape is the one actually in the join.
+    expect(src).toContain('${documentId}\\x00${contentHash}\\x00${fieldKey}');
   });
 });
 

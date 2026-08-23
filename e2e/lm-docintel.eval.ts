@@ -165,6 +165,26 @@ const RECORDED_CAPTURE: CapturedDoc[] = [
       },
     ],
   },
+  {
+    // The forged-det TRAP (finding 11). The text layer is present and clean, but
+    // the engine cited a quote it INVENTED ("Guaranteed bonus £15,000") that the
+    // document never contains. The only correct behaviour is to keep the field
+    // `syn` — a det here would silently write a fabricated income past the human.
+    // The rubric must (a) not count this as a forgery while it stays syn, and
+    // (b) — proven by the dedicated test below — CATCH it the instant it is det.
+    id: 'syn_payslip_forged_quote_trap',
+    docType: 'payslip',
+    sourceText:
+      'Employer GAMMA PLC\nBasic pay £2,900.00\nTax £360.00\nNet pay £2,540.00',
+    fields: [
+      {
+        fieldKey: 'bonus',
+        value: '£15,000.00',
+        engineSrc: 'syn', // correctly held: the quote is nowhere in the text
+        quote: 'Guaranteed bonus £15,000.00',
+      },
+    ],
+  },
 ];
 
 function loadCapture(): { docs: CapturedDoc[]; isLive: boolean } {
@@ -285,6 +305,43 @@ test('lm-docintel: zero forged det on the synthetic corpus (trust-spine safety)'
       `document ${doc.id} is vision-only yet marked ${detOnScan.length} field(s) det`
     ).toEqual([]);
   }
+});
+
+test('lm-docintel: the forged-det trap has teeth — a det with a quote absent from the text IS caught', () => {
+  // Guard against a toothless fixture (finding 11): prove the trap document's
+  // quote genuinely is NOT in its text layer, and that flipping the field to
+  // `det` makes the rubric report it as a forgery. If someone "cleaned up" the
+  // fixture so the quote matched, this test would fail and force a rethink.
+  const trap = RECORDED_CAPTURE.find(
+    (d) => d.id === 'syn_payslip_forged_quote_trap'
+  );
+  expect(
+    trap,
+    'the forged-det trap document must exist in the corpus'
+  ).toBeTruthy();
+  const field = trap!.fields[0];
+
+  // The independent oracle confirms the cited quote is nowhere in the text...
+  expect(quoteIsReal(field.quote, trap!.sourceText)).toBe(false);
+  // ...so while the engine keeps it syn, it is NOT a forgery.
+  expect(field.engineSrc).toBe('syn');
+  expect(buildReport([trap!]).forgedDet).toEqual([]);
+
+  // But the instant that same unverifiable quote is claimed `det`, the rubric
+  // must flag it — this is the defect that must never ship.
+  const forged: CapturedDoc = {
+    ...trap!,
+    fields: [{ ...field, engineSrc: 'det' }],
+  };
+  const report = buildReport([forged]);
+  expect(report.forgedDet).toHaveLength(1);
+  expect(report.forgedDet[0]).toMatchObject({
+    docId: 'syn_payslip_forged_quote_trap',
+    fieldKey: 'bonus',
+  });
+  // A forged det tanks the det-channel precision to zero — 0 confirmed of 1.
+  expect(report.detConfirmed).toBe(0);
+  expect(report.detClaimed).toBe(1);
 });
 
 test('lm-docintel: headline ≥0.95 precision gate — armed only against a real corpus', () => {

@@ -190,6 +190,30 @@ describe('DocGateCards — decidable without opening the document (US3)', () => 
     expect(screen.getByText('£37,300.00')).toBeInTheDocument();
   });
 
+  it('a G3 gate carrying a structured reasonCode renders the i18n reason, not the baked string (finding 10)', () => {
+    render(
+      createElement(ConflictGateCard, {
+        gate: gate({
+          gateId: 'G3',
+          // The event still carries a legacy English string, but a structured
+          // code+params is present — the card must translate the CODE, so the
+          // rendered delta comes from reasonParams, not the baked reasons line.
+          reasons: ['STALE ENGLISH THAT MUST NOT RENDER'],
+          reasonCode: 'G3_VALUE_DELTA',
+          reasonParams: { field: 'income.basicIncome', deltaPct: 0.0311 },
+        }),
+      })
+    );
+    expect(
+      screen.getByText(
+        'Two verified values for income.basicIncome disagree by 3.1%.'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('STALE ENGLISH THAT MUST NOT RENDER')
+    ).not.toBeInTheDocument();
+  });
+
   it('G9 names the blocking applicant + field and is null when satisfied', () => {
     const blocked: IncomeGateResult = {
       satisfied: false,

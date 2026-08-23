@@ -234,6 +234,93 @@ describe('T007 write-path red team', () => {
       expect(proj.attributionGated).toBe(false);
       expect(fieldChanges(proj.events)).toHaveLength(1);
     });
+
+    it('the confident forger — a false high-confidence claim on B is overruled by the coded score (FR-006)', () => {
+      // The document is verifiably Alice's (her NI + name substring-match the
+      // text layer), but the model CONFIDENTLY claims it is Bob's at 0.99. With a
+      // roster present the desktop RECOMPUTES attribution: the coded cluster reads
+      // Alice, disagrees with the claimed Bob, and effectiveAttribution collapses
+      // to clientId:null. Alice's income never lands on Bob's record — G2 holds it.
+      const roster = [
+        {
+          clientId: 'client_alice',
+          fullName: 'Alice Bennett',
+          niNumber: 'AB123456C',
+          postcode: 'SW1A 1AA',
+        },
+        {
+          clientId: 'client_bob',
+          fullName: 'Bob Carter',
+          niNumber: 'ZZ999999Z',
+          postcode: 'EC1A 1BB',
+        },
+      ];
+      const sourceText =
+        'Employee: Alice Bennett  NI Number: AB 12 34 56 C\nBasic pay £3,200';
+      const ext = extraction({
+        // The forged claim: confidently Bob, not joint.
+        attribution: { clientId: 'client_bob', confidence: 0.99, joint: false },
+        identifiers: {
+          fullName: {
+            value: 'Alice Bennett',
+            quote: 'Employee: Alice Bennett',
+          },
+          niNumber: { value: 'AB123456C', quote: 'NI Number: AB 12 34 56 C' },
+        },
+        insights: [mappedInsight],
+      });
+      const proj = applyExtraction(ctx(ext, { sourceText, roster }));
+
+      // The coded cluster overrules the model: no applicant field is written.
+      expect(fieldChanges(proj.events)).toHaveLength(0);
+      expect(proj.attributionGated).toBe(true);
+      expect(proj.gates.map((g) => g.gateId)).toContain('G2');
+      // And crucially: nothing ever lands under Bob.
+      expect(
+        proj.events.some((e) =>
+          String(e.payload.fieldKey ?? '').includes('client_bob')
+        )
+      ).toBe(false);
+    });
+
+    it('a truthful high-confidence claim that the coded score agrees with writes through', () => {
+      // Same roster, but now the model claims Alice — and the quote-verified
+      // identifiers confirm Alice. Coded and claimed agree ⇒ the field lands.
+      const roster = [
+        {
+          clientId: 'client_alice',
+          fullName: 'Alice Bennett',
+          niNumber: 'AB123456C',
+          postcode: 'SW1A 1AA',
+        },
+        {
+          clientId: 'client_bob',
+          fullName: 'Bob Carter',
+          niNumber: 'ZZ999999Z',
+          postcode: 'EC1A 1BB',
+        },
+      ];
+      const sourceText =
+        'Employee: Alice Bennett  NI Number: AB 12 34 56 C\nBasic pay £3,200';
+      const ext = extraction({
+        attribution: {
+          clientId: 'client_alice',
+          confidence: 0.97,
+          joint: false,
+        },
+        identifiers: {
+          fullName: {
+            value: 'Alice Bennett',
+            quote: 'Employee: Alice Bennett',
+          },
+          niNumber: { value: 'AB123456C', quote: 'NI Number: AB 12 34 56 C' },
+        },
+        insights: [mappedInsight],
+      });
+      const proj = applyExtraction(ctx(ext, { sourceText, roster }));
+      expect(proj.attributionGated).toBe(false);
+      expect(fieldChanges(proj.events)).toHaveLength(1);
+    });
   });
 
   describe('3. no conflict-suppression', () => {
@@ -297,6 +384,106 @@ describe('T007 write-path red team', () => {
       expect(fieldChanges(proj.events)).toHaveLength(1);
     });
 
+    it('a det value that DODGES money typing cannot overwrite a det money value (finding 2)', () => {
+      // The record on file is a verified £38,500 (money). A hostile document
+      // presents a genuinely-quoted but non-numeric string ("37,300 per annum")
+      // that types as `text`, so it slips past the money-vs-money conflict check.
+      // It must NOT write through and repair the record — it raises G3.
+      const existing: Record<string, ExistingFactValue> = {
+        'client_daniel::income::basicIncome': {
+          value: { t: 'money', v: toPence(3_850_000) },
+          src: 'det',
+        },
+      };
+      const ext = extraction({
+        insights: [
+          {
+            label: 'Annual basic income',
+            value: '37,300 per annum', // non-numeric ⇒ types as text, dodges money
+            confidence: 0.98,
+            src: 'det',
+            quote: 'Salary: 37,300 per annum',
+            fieldKey: 'basicIncome',
+            section: 'income',
+          },
+        ],
+      });
+      const proj = applyExtraction(
+        ctx(ext, {
+          sourceText: 'Contract of employment. Salary: 37,300 per annum',
+          existing,
+        })
+      );
+
+      // The quote genuinely matched, so it is a `det` (text) value...
+      expect(proj.detFields).toBe(1);
+      // ...but a det value of a DIFFERENT type than the det money on file must
+      // never silently repair the record: raise G3, write nothing.
+      expect(proj.conflicts).toBe(1);
+      expect(proj.gates.map((g) => g.gateId)).toContain('G3');
+      expect(proj.events.some((e) => e.type === 'conflict-upsert')).toBe(true);
+      expect(fieldChanges(proj.events)).toHaveLength(0);
+    });
+
+    it('a raised conflict states the existing value provenance HONESTLY (finding 6)', () => {
+      // The value on file did not come from a manual entry — it came from an
+      // earlier document (doc_prior). The conflict record must say so, and carry
+      // its as-of on the structured reason params, rather than defaulting to
+      // `manual` and dropping the timestamp.
+      const existing: Record<string, ExistingFactValue> = {
+        'client_daniel::income::basicIncome': {
+          value: { t: 'money', v: toPence(320_000) },
+          src: 'det',
+          source: {
+            kind: 'document',
+            docId: 'doc_prior',
+            insightLabel: 'Basic monthly income',
+            quote: 'Basic pay £3,200',
+          },
+          asOf: 1_699_000_000_000,
+        },
+      };
+      const ext = extraction({
+        insights: [
+          {
+            label: 'Basic monthly income',
+            value: '£4,500',
+            confidence: 0.98,
+            src: 'det',
+            quote: 'Basic pay £4,500',
+            fieldKey: 'basicIncome',
+            section: 'income',
+          },
+        ],
+      });
+      const proj = applyExtraction(
+        ctx(ext, { sourceText: 'Basic pay £4,500', existing })
+      );
+
+      const conflictEvent = proj.events.find(
+        (e) => e.type === 'conflict-upsert'
+      );
+      expect(conflictEvent).toBeDefined();
+      const record = (
+        conflictEvent!.payload as {
+          record: {
+            values: { source: { kind: string; docId?: string } }[];
+          };
+        }
+      ).record;
+      // The FIRST value is the one on file — its source is the prior DOCUMENT,
+      // never a fabricated `manual`.
+      expect(record.values[0].source.kind).toBe('document');
+      expect(record.values[0].source.docId).toBe('doc_prior');
+
+      // The as-of rides on the gate's structured reason params.
+      const g3 = proj.gates.find((g) => g.gateId === 'G3');
+      expect(g3).toBeDefined();
+      expect((g3!.reasonParams as { existingAsOf?: number }).existingAsOf).toBe(
+        1_699_000_000_000
+      );
+    });
+
     it('a syn incoming value never overwrites a det value on file', () => {
       const existing: Record<string, ExistingFactValue> = {
         'client_daniel::income::basicIncome': {
@@ -320,6 +507,60 @@ describe('T007 write-path red team', () => {
       const proj = applyExtraction(ctx(ext, { sourceText: null, existing }));
       expect(fieldChanges(proj.events)).toHaveLength(0);
       expect(proj.conflicts).toBe(0);
+    });
+  });
+
+  describe('5. no forged-det via value↔quote mismatch (finding 5)', () => {
+    it('a fabricated money value paired with a genuine quote cannot mint det', () => {
+      // The model pairs a fabricated £99,999 with a real quote lifted from the
+      // document ("Employee Name") that DOES substring-match the text layer. The
+      // quote match alone is not enough — the VALUE must relate to the quote, so
+      // this is downgraded to syn and can never satisfy G9.
+      const ext = extraction({
+        insights: [
+          {
+            label: 'Basic monthly income',
+            value: '£99,999',
+            confidence: 0.99,
+            src: 'det',
+            quote: 'Employee Name',
+            fieldKey: 'basicIncome',
+            section: 'income',
+          },
+        ],
+      });
+      const proj = applyExtraction(
+        ctx(ext, {
+          sourceText: 'Employee Name: Daniel Reyes\nBasic pay £3,200.00',
+        })
+      );
+      expect(proj.detFields).toBe(0);
+      expect(proj.synFields).toBe(1);
+      const fc = fieldChanges(proj.events);
+      expect(fc).toHaveLength(1);
+      expect(fc[0].payload.src).toBe('syn');
+      expect(proj.document.insights[0].src).toBe('syn');
+    });
+
+    it('a genuine money value that DOES appear in its quote stays det', () => {
+      const ext = extraction({
+        insights: [
+          {
+            label: 'Basic monthly income',
+            value: '£3,200',
+            confidence: 0.99,
+            src: 'det',
+            quote: 'Basic pay £3,200',
+            fieldKey: 'basicIncome',
+            section: 'income',
+          },
+        ],
+      });
+      const proj = applyExtraction(
+        ctx(ext, { sourceText: 'Employer XYZ\nBasic pay £3,200\nTax £410' })
+      );
+      expect(proj.detFields).toBe(1);
+      expect(fieldChanges(proj.events)[0].payload.src).toBe('det');
     });
   });
 

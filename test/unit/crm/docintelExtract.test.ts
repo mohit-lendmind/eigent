@@ -294,3 +294,41 @@ describe('extraction write path — det/syn/G2/Art 9', () => {
     );
   });
 });
+
+describe('one canonical extraction decoder (finding 12)', () => {
+  it('the strict decoder is the single source of truth and validates the trust spine', async () => {
+    const strict = await import('@/crm/agents/docintelContract');
+    expect(typeof strict.decodeDocintelExtraction).toBe('function');
+    // The strict decoder REJECTS a side-car whose insight is missing `src` — the
+    // trust field a loose envelope decode would have waved through.
+    const missingSrc = {
+      ...extraction({ insights: [] }),
+      insights: [
+        {
+          label: 'Basic monthly income',
+          value: '£3,200',
+          confidence: 0.95,
+          quote: 'Basic pay £3,200',
+          fieldKey: 'basicIncome',
+          section: 'income',
+        },
+      ],
+    };
+    expect(() => strict.decodeDocintelExtraction(missingSrc)).toThrow();
+    // A well-formed side-car decodes and preserves the spine.
+    expect(
+      strict.decodeDocintelExtraction(extraction({ insights: [incomeInsight] }))
+        .insights[0].src
+    ).toBe('syn');
+  });
+
+  it('no loose decodeDocintelExtraction leaks from the agentContracts barrel', async () => {
+    const barrel = (await import('@/crm/agentContracts')) as Record<
+      string,
+      unknown
+    >;
+    // The footgun envelope decoder was removed: there is exactly one decoder,
+    // and it lives in docintelContract, not the generic artifact barrel.
+    expect('decodeDocintelExtraction' in barrel).toBe(false);
+  });
+});
